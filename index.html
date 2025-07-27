@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Gesture Drawing App (Mock)</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: sans-serif;
+      background: #fafafa;
+    }
+    .setup {
+      max-width: 400px;
+      margin: 2rem auto;
+      padding: 1rem 2rem;
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    .setup h2 {
+      text-align: center;
+    }
+    .setup label {
+      display: block;
+      margin-top: 1rem;
+    }
+    .setup input[type="text"],
+    .setup select,
+    .setup input[type="number"] {
+      width: 100%;
+      padding: 0.5rem;
+      margin-top: 0.25rem;
+    }
+    .fullscreen {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: black;
+      display: none;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+    }
+    .fullscreen img {
+      max-width: 100%;
+      max-height: 100%;
+    }
+    .session-controls {
+      position: absolute;
+      top: 1rem;
+      right: 1rem;
+      display: flex;
+      gap: 1rem;
+    }
+    .session-controls button {
+      font-size: 1.2rem;
+      padding: 0.5rem;
+    }
+    .timer {
+      position: absolute;
+      top: 1rem;
+      left: 1rem;
+      color: white;
+      font-size: 2rem;
+    }
+    #breakNextLabel {
+      position: absolute;
+      top: 1rem;
+      left: 50%;
+      transform: translateX(-50%);
+      color: gray;
+      font-size: 1.5rem;
+      display: none;
+    }
+  </style>
+  <audio id="bellSound" src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" preload="auto"></audio>
+</head>
+<body>
+
+<!-- Break Screen -->
+<div class="fullscreen" id="breakScreen" style="background:#111; color:white;">
+  <div style="font-size:2rem;">Break Time</div>
+  <div id="breakTimer" style="font-size:3rem; margin-top:1rem;">05:00</div>
+  <button onclick="skipBreak()" style="margin-top:2rem; padding:1rem 2rem; font-size:1.2rem;">Skip Break</button>
+</div>
+
+<!-- Setup Panel -->
+<div class="setup" id="setup">
+  <h2>Start Drawing Session</h2>
+
+<label>Image Source:</label>
+<label><input type="radio" name="pinterestSource" value="board" checked> Paste Board URL(s)</label>
+<label><input type="radio" name="pinterestSource" value="user"> Use Pinterest Username</label>
+
+<div id="boardUrlSection" style="margin-top: 1rem;">
+  <label>Board URL(s) (comma-separated):</label>
+  <input type="text" id="boardUrls" placeholder="https://www.pinterest.com/user/board1, https://..." />
+</div>
+
+<div id="userBoardSection" style="margin-top: 1rem; display: none;">
+  <label>Pinterest Username:</label>
+  <input type="text" id="pinterestUsername" placeholder="e.g. artlover42" />
+  <button type="button" onclick="loadUserBoards()">Load Boards</button>
+
+  <label style="margin-top: 0.5rem;">Choose Board(s):</label>
+  <select id="userBoards" multiple style="width: 100%; padding: 0.5rem;"></select>
+</div>
+
+
+  <label>Pinterest Board:</label>
+  <select id="board">
+    <option value="misc. poses">misc. poses</option>
+    <option value="mammals">mammals</option>
+    <option value="fish">fish</option>
+    <option value="portrait">portrait</option>
+    <option value="environments">environments</option>
+    <option value="architecture">architecture</option>
+    <option value="fashion">fashion</option>
+  </select>
+
+  <label>Session Type:</label>
+  <label><input type="radio" name="mode" value="standard" checked> Standard</label>
+  <label><input type="radio" name="mode" value="class"> Class</label>
+
+<div id="classSettings" style="display: none; margin-top: 1rem;">
+  <label><input type="checkbox" id="customClassToggle"> Customize Class</label>
+
+  <div id="classPhases">
+    <!-- Default steps -->
+ <div class="class-phase">
+    <input type="number" class="phase-count" value="5" style="width: 3rem;" /> images for
+    <input type="number" class="phase-minutes" value="0" style="width: 3rem;" /> min
+    <input type="number" class="phase-seconds" value="10" style="width: 3rem;" /> sec
+    <label><input type="checkbox" class="phase-break" /> break</label>
+  </div>
+</div>
+
+  <div id="customControls" style="display: none; margin-top: 0.5rem;">
+    <button type="button" onclick="addClassPhase()">Add Phase</button>
+  </div>
+</div>
+
+<div id="limitSection">
+  <label>Session Limit:</label>
+  <label><input type="radio" name="limit" value="count" checked> Number of images</label>
+<div id="limitCountOptions" style="display: block; margin-top: 0.5rem;">
+  <input type="number" id="limitCountValue" value="10" />
+</div>
+  <label><input type="radio" name="limit" value="time"> Stop at time (minutes)</label>
+  <label><input type="radio" name="limit" value="endless"> Endless</label>
+
+  <div id="limitTimeOptions" style="display: none; margin-top: 0.5rem;">
+    <input type="number" id="limitValue" value="10" />
+    <label><input type="checkbox" id="strictTime"> Stop exactly at time</label>
+  </div>
+</div>
+
+<div id="standardOptions">
+  <label>Duration per Image:</label>
+<div style="display: flex; gap: 1rem; margin-top: 0.25rem;">
+  <div style="flex: 1;">
+    <input type="number" id="durationMin" value="0" placeholder="Minutes" />
+  </div>
+  <div style="flex: 1;">
+    <input type="number" id="durationSec" value="30" placeholder="Seconds" />
+  </div>
+</div>
+
+
+  <label>Bell Times (seconds, comma-separated):</label>
+  <input type="text" id="bellTimes" value="60,10,5" />
+
+  <label><input type="checkbox" id="breaks" checked> Enable breaks</label>
+  <label>Break After (minutes):</label>
+  <input type="number" id="breakAfter" value="20" />
+  <label>Break Duration (minutes):</label>
+  <input type="number" id="breakDuration" value="5" />
+</div>
+
+  <button onclick="startSession()">Start Drawing</button>
+</div>
+
+<!-- Image Viewer -->
+<div class="fullscreen" id="viewer">
+<div class="timer" id="imageTimer">00:00</div>
+<div class="timer" id="sessionTimer" style="top: 3.5rem;">00:00</div>
+<div style="position: absolute; bottom: 1rem; left: 1rem;">
+  <button onclick="toggleImageTimer()">Toggle Image Timer</button>
+  <button onclick="toggleSessionTimer()">Toggle Session Timer</button>
+</div>
+  <div id="breakNextLabel">Break next</div>
+  <div class="session-controls">
+    <button onclick="prevImage()">⏮️</button>
+    <button onclick="togglePause()" id="pauseBtn">⏸️</button>
+    <button onclick="nextImage()">⏭️</button>
+    <button onclick="endSession()">⏹️</button>
+  </div>
+  <img id="currentImage" src="" />
+</div>
+
+
+<script>
+const mockBoards = {
+  "misc. poses": ["https://picsum.photos/id/1011/800", "https://picsum.photos/id/1015/800", "https://picsum.photos/id/1016/800"],
+  "mammals": ["https://picsum.photos/id/1025/800", "https://picsum.photos/id/1021/800"],
+  "fish": ["https://picsum.photos/id/1027/800", "https://picsum.photos/id/1033/800"],
+  "portrait": ["https://picsum.photos/id/1040/800", "https://picsum.photos/id/1041/800"],
+  "environments": ["https://picsum.photos/id/1056/800", "https://picsum.photos/id/1062/800"],
+  "architecture": ["https://picsum.photos/id/1070/800", "https://picsum.photos/id/1071/800"],
+  "fashion": ["https://picsum.photos/id/1080/800", "https://picsum.photos/id/1084/800"]
+};
+
+let imageList = [], currentIndex = 0, sessionTimer = null, isPaused = false;
+let imageDuration = 30, remaining = 0, elapsedTime = 0;
+let limitMode = "count", limitValue = 10, strictTime = false;
+let inBreak = false, breakTimeRemaining = 0, breaksTaken = 0;
+let breakEnabled = false, breakAfter = 20, breakDuration = 5;
+let bellTimes = [], bellFiredThisImage = new Set(), bellFiredThisBreak = new Set();
+let sessionMode = "standard";
+let classImageSchedule = [];
+let imageDisplayIndex = 0; // new tracker for actual images shown (not breaks)
+let sessionRemaining = null;
+let showImageTimer = true;
+let showSessionTimer = true;
+
+function startSession() {
+  const board = document.getElementById("board").value;
+  sessionMode = document.querySelector("input[name='mode']:checked").value;
+  limitMode = document.querySelector("input[name='limit']:checked").value;
+  if (limitMode === "time") {
+  limitValue = parseInt(document.getElementById("limitValue").value);
+} else if (limitMode === "count") {
+  limitValue = parseInt(document.getElementById("limitCountValue").value);
+}
+  strictTime = document.getElementById("strictTime").checked;
+  bellTimes = document.getElementById("bellTimes").value.split(",").map(n => parseInt(n.trim())).filter(n => !isNaN(n));
+  breakEnabled = document.getElementById("breaks").checked;
+  breakAfter = parseInt(document.getElementById("breakAfter").value);
+  breakDuration = parseInt(document.getElementById("breakDuration").value);
+
+  // Clear previous state
+  elapsedTime = 0;
+  breaksTaken = 0;
+  inBreak = false;
+  bellFiredThisImage.clear();
+  bellFiredThisBreak.clear();
+
+  imageList = shuffleArray([...mockBoards[board]]);
+  currentIndex = 0;
+imageDisplayIndex = 0;
+
+  if (sessionMode === "standard") {
+    const durationMin = parseInt(document.getElementById("durationMin").value || "0");
+    const durationSec = parseInt(document.getElementById("durationSec").value || "0");
+    imageDuration = durationMin * 60 + durationSec;
+    classImageSchedule = [];
+  } else {
+    classImageSchedule = [];
+   document.querySelectorAll("#classPhases .class-phase").forEach(phase => {
+  const isBreak = phase.querySelector(".phase-break").checked;
+  const duration = (
+    parseInt(phase.querySelector(".phase-minutes").value || "0") * 60 +
+    parseInt(phase.querySelector(".phase-seconds").value || "0")
+  );
+  const count = isBreak ? 1 : parseInt(phase.querySelector(".phase-count").value || "1");
+
+  for (let i = 0; i < count; i++) {
+    classImageSchedule.push({ duration, isBreak });
+  }
+});
+
+    limitMode = "count";
+    limitValue = classImageSchedule.length;
+  }
+
+  document.getElementById("setup").style.display = "none";
+  document.getElementById("viewer").style.display = "flex";
+  showImage();
+
+if (limitMode === "time") {
+  sessionRemaining = limitValue * 60;
+} else if (sessionMode === "class") {
+  sessionRemaining = classImageSchedule.reduce((sum, phase) => sum + phase.duration, 0);
+} else {
+  sessionRemaining = null; // No session-wide timer
+}
+}
+
+ 
+
+function shuffleArray(arr) {
+  return arr.sort(() => Math.random() - 0.5);
+}
+
+function showImage() {
+  // End session if we're out of phases
+  if (sessionMode === "class" && currentIndex >= classImageSchedule.length) {
+    endSession();
+    return;
+  }
+
+  document.getElementById("breakScreen").style.display = "none";
+  document.getElementById("viewer").style.display = "flex";
+  document.getElementById("breakNextLabel").style.display = "none";
+  bellFiredThisImage.clear();
+
+  const img = document.getElementById("currentImage");
+
+  if (sessionMode === "class") {
+    const schedule = classImageSchedule[currentIndex];
+    if (schedule.isBreak) {
+      startBreak(schedule.duration);
+      return;
+    }
+
+    remaining = schedule.duration;
+    img.src = imageList[imageDisplayIndex % imageList.length];
+    imageDisplayIndex++;
+  } else {
+    remaining = imageDuration;
+    img.src = imageList[imageDisplayIndex % imageList.length];
+    imageDisplayIndex++;
+  }
+
+  updateTimerDisplay();
+  runTimer();
+}
+
+function updateSessionTimer() {
+  const min = Math.floor(sessionRemaining / 60).toString().padStart(2, '0');
+  const sec = (sessionRemaining % 60).toString().padStart(2, '0');
+  const el = document.getElementById("sessionTimer");
+  el.innerText = `${min}:${sec}`;
+  el.style.display = showSessionTimer ? "block" : "none";
+}
+
+function runTimer() {
+  clearInterval(sessionTimer);
+  sessionTimer = setInterval(() => {
+    if (isPaused) return;
+
+    elapsedTime++
+if (sessionRemaining !== null && !inBreak) {
+  sessionRemaining--;
+  updateSessionTimer();
+  if (sessionRemaining <= 0) {
+    endSession();
+    return;
+  }
+};
+
+    // ✅ Check if session should end based on strict or flexible time before any other logic
+    if (shouldEndSession()) {
+      endSession();
+      return;
+    }
+
+    const timeUntilNextBreak = (breaksTaken + 1) * breakAfter * 60 - elapsedTime;
+
+    if (!inBreak && breakEnabled && timeUntilNextBreak <= imageDuration && remaining === imageDuration) {
+      document.getElementById("breakNextLabel").style.display = "block";
+    }
+
+    if (!inBreak && breakEnabled && timeUntilNextBreak <= 0) {
+      startBreak();
+      return;
+    }
+
+    if (inBreak) {
+      breakTimeRemaining--;
+      updateBreakTimer();
+      if (bellTimes.includes(breakTimeRemaining) && !bellFiredThisBreak.has(breakTimeRemaining)) {
+        document.getElementById("bellSound").play();
+        bellFiredThisBreak.add(breakTimeRemaining);
+      }
+      if (breakTimeRemaining <= 0) endBreak();
+      return;
+    }
+
+    remaining--;
+    updateTimerDisplay();
+
+    if (bellTimes.includes(remaining) && !bellFiredThisImage.has(remaining)) {
+      document.getElementById("bellSound").play();
+      bellFiredThisImage.add(remaining);
+    }
+
+    // ✅ If image time is done, proceed
+    if (remaining <= 0) {
+      nextImage();
+    }
+  }, 1000);
+}
+function updateTimerDisplay() {
+  const min = Math.floor(remaining / 60).toString().padStart(2, '0');
+  const sec = (remaining % 60).toString().padStart(2, '0');
+  document.getElementById("imageTimer").innerText = `${min}:${sec}`;
+document.getElementById("imageTimer").style.display = showImageTimer ? "block" : "none";
+}
+
+function toggleImageTimer() {
+  showImageTimer = !showImageTimer;
+  updateTimerDisplay();
+}
+
+function toggleSessionTimer() {
+  showSessionTimer = !showSessionTimer;
+  updateSessionTimer();
+}
+
+function updateBreakTimer() {
+  const min = Math.floor(breakTimeRemaining / 60).toString().padStart(2, '0');
+  const sec = (breakTimeRemaining % 60).toString().padStart(2, '0');
+  document.getElementById("breakTimer").innerText = `${min}:${sec}`;
+}
+
+function nextImage() {
+  currentIndex++;
+  showImage();
+}
+
+function prevImage() {
+  currentIndex = Math.max(0, currentIndex - 1);
+  showImage();
+}
+
+function togglePause() {
+  isPaused = !isPaused;
+  document.getElementById("pauseBtn").innerText = isPaused ? "▶️" : "⏸️";
+}
+
+function endSession() {
+  clearInterval(sessionTimer);
+  document.getElementById("viewer").style.display = "none";
+  document.getElementById("breakScreen").style.display = "none";
+  document.getElementById("finishedScreen").style.display = "flex";
+}
+
+function shouldEndSession() {
+  if (limitMode === "endless") return false;
+  if (limitMode === "count") return currentIndex >= limitValue;
+  if (limitMode === "time") {
+    const totalLimit = limitValue * 60;
+    return strictTime ? elapsedTime >= totalLimit : elapsedTime > totalLimit && remaining <= 0;
+  }
+  return false;
+}
+
+function startBreak(customDuration = breakDuration * 60) {
+  inBreak = true;
+  breaksTaken++;
+  bellFiredThisBreak.clear();
+  breakTimeRemaining = customDuration;
+  document.getElementById("viewer").style.display = "none";
+  document.getElementById("breakScreen").style.display = "flex";
+  updateBreakTimer();
+  runTimer();
+}
+
+function endBreak() {
+  inBreak = false;
+  document.getElementById("breakScreen").style.display = "none";
+  currentIndex++; // ✅ Move forward
+  showImage();     // ✅ Let showImage decide if next is break or image
+}
+
+function skipBreak() {
+  endBreak();
+}
+
+
+// Toggle custom class control
+document.getElementById("customClassToggle").addEventListener("change", (e) => {
+  document.getElementById("customControls").style.display = e.target.checked ? "block" : "none";
+});
+
+// Allow users to add new phases dynamically
+function addClassPhase() {
+  const container = document.getElementById("classPhases");
+  const div = document.createElement("div");
+  div.className = "class-phase";
+  div.innerHTML = `
+    <input type="number" class="phase-count" value="1" style="width: 3rem;" /> images for
+    <input type="number" class="phase-minutes" value="0" style="width: 3rem;" /> min
+    <input type="number" class="phase-seconds" value="30" style="width: 3rem;" /> sec
+    <label><input type="checkbox" class="phase-break" /> break</label>
+  `;
+  container.appendChild(div);
+}
+
+// Toggle class settings when session type is selected
+document.querySelectorAll('input[name="mode"]').forEach(radio => {
+  radio.addEventListener('change', () => {
+    const isClass = document.querySelector('input[name="mode"]:checked').value === "class";
+    document.getElementById("classSettings").style.display = isClass ? "block" : "none";
+    document.getElementById("limitSection").style.display = isClass ? "none" : "block";
+    document.getElementById("standardOptions").style.display = isClass ? "none" : "block"; // ✅ Add this
+  });
+});
+
+
+// Set initial visibility based on selected mode when page loads
+window.addEventListener('DOMContentLoaded', () => {
+  const isClass = document.querySelector('input[name="mode"]:checked').value === "class";
+  document.getElementById("classSettings").style.display = isClass ? "block" : "none";
+  document.getElementById("limitSection").style.display = isClass ? "none" : "block";
+  document.getElementById("standardOptions").style.display = isClass ? "none" : "block";
+
+  const isTime = document.querySelector('input[name="limit"]:checked').value === "time";
+  document.getElementById("limitTimeOptions").style.display = isTime ? "block" : "none";
+});
+
+document.querySelectorAll('input[name="pinterestSource"]').forEach(radio => {
+  radio.addEventListener('change', () => {
+    const source = document.querySelector('input[name="pinterestSource"]:checked').value;
+    document.getElementById("boardUrlSection").style.display = source === "board" ? "block" : "none";
+    document.getElementById("userBoardSection").style.display = source === "user" ? "block" : "none";
+  });
+});
+
+document.querySelectorAll('input[name="limit"]').forEach(radio => {
+  radio.addEventListener('change', () => {
+    const selected = document.querySelector('input[name="limit"]:checked').value;
+    document.getElementById("limitTimeOptions").style.display = selected === "time" ? "block" : "none";
+    document.getElementById("limitCountOptions").style.display = selected === "count" ? "block" : "none";
+  });
+});
+
+function loadUserBoards() {
+  const user = document.getElementById("pinterestUsername").value.trim();
+  const select = document.getElementById("userBoards");
+  select.innerHTML = ""; // Clear previous options
+
+  // ✨ Replace with real fetch later
+  const dummyBoards = ["poses", "fashion", "landscapes", "animals"];
+  dummyBoards.forEach(name => {
+    const opt = document.createElement("option");
+    opt.value = name;
+    opt.textContent = name;
+    select.appendChild(opt);
+  });
+}
+
+
+function backToSetup() {
+  document.getElementById("finishedScreen").style.display = "none";
+  document.getElementById("setup").style.display = "block";
+}
+
+
+</script>
+
+<!-- Session Finished Screen -->
+<div class="fullscreen" id="finishedScreen" style="background:#222; color:white;">
+  <div style="font-size:2rem;">Session finished! Awesome work! 😄</div>
+  <button onclick="backToSetup()" style="margin-top:2rem; padding:1rem 2rem; font-size:1.2rem;">Back to Setup</button>
+</div>
+
+</body>
+</html>
