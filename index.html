@@ -601,6 +601,7 @@ let imageDisplayIndex = 0; // new tracker for actual images shown (not breaks)
 let sessionRemaining = null;
 let showImageTimer = true;
 let showSessionTimer = true;
+let mockBoards = {};
 
 function startSession() {
   const source = document.querySelector('input[name="pinterestSource"]:checked').value;
@@ -956,49 +957,27 @@ document.querySelectorAll('input[name="limit"]').forEach(radio => {
 });
 
 async function loadUserBoards() {
-  const user = document.getElementById("pinterestUsername").value.trim();
   const select = document.getElementById("userBoards");
-  select.innerHTML = ""; // Clear previous
+  select.innerHTML = ""; // Clear previous options
 
   try {
-    const response = await fetch(`https://api.pinterest.com/v5/users/${user}/boards`, {
-      headers: {
-        'Authorization': `Bearer ${PINTEREST_ACCESS_TOKEN}`
-      }
-    });
-
-    if (!response.ok) throw new Error("Pinterest access not granted yet");
+    const response = await fetch("mock_boards/manifest.json");
+    if (!response.ok) throw new Error("Failed to fetch manifest");
 
     const data = await response.json();
-    data.items.forEach(board => {
+
+    // Update global mockBoards
+    mockBoards = data;
+
+    Object.keys(data).forEach(name => {
       const opt = document.createElement("option");
-      opt.value = board.id;
-      opt.textContent = board.name;
+      opt.value = name;
+      opt.textContent = name;
       select.appendChild(opt);
     });
-    } catch (err) {
-  alert("Pinterest not available yet — using local mock boards.");
-  try {
-    const res = await fetch("mock_boards/manifest.json");
-    const data = await res.json();
-
-    data.forEach(board => {
-      const opt = document.createElement("option");
-      opt.value = board.name;
-      opt.textContent = board.name;
-      select.appendChild(opt);
-    });
-
-    // Update the global mockBoards object
-    mockBoards = {};
-    data.forEach(board => {
-      mockBoards[board.name] = board.images;
-    });
-
-    // Optional: auto-select all
-    Array.from(select.options).forEach(opt => opt.selected = true);
-  } catch (manifestErr) {
-    console.error("Could not load mock board manifest:", manifestErr);
+  } catch (err) {
+    alert("Unable to load mock boards.");
+    console.error(err);
   }
 }
 
