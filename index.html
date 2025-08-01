@@ -1003,10 +1003,12 @@ function backToSetup() {
 <script>
   window.addEventListener("DOMContentLoaded", () => {
     function updateSourceVisibility() {
-      const source = document.querySelector('input[name="pinterestSource"]:checked').value;
-      document.getElementById("boardUrlSection").style.display = source === "board" ? "block" : "none";
-      document.getElementById("userBoardSection").style.display = source === "user" ? "block" : "none";
-    }
+  const source = document.querySelector('input[name="pinterestSource"]:checked').value;
+  document.getElementById("boardUrlSection").style.display = source === "board" ? "block" : "none";
+  document.getElementById("userBoardSection").style.display = source === "user" ? "block" : "none";
+  document.getElementById("staticBoardSection").style.display = source === "board" ? "block" : "none";
+}
+
 
     document.querySelectorAll('input[name="pinterestSource"]').forEach(radio => {
       radio.addEventListener('change', updateSourceVisibility);
