@@ -1027,6 +1027,13 @@ function backToSetup() {
 
 
 <script>
+
+window.addEventListener("DOMContentLoaded", () => {
+  document.getElementById("setup").style.display = "block";
+  document.getElementById("viewer").style.display = "none";
+});
+
+
   window.addEventListener("DOMContentLoaded", () => {
   function updateSourceVisibility() {
     const source = document.querySelector('input[name="pinterestSource"]:checked').value;
