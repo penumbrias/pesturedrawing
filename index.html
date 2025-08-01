@@ -120,7 +120,6 @@
   <option value="primates">primates</option>
   <option value="statuary">statuary</option>
   <option value="vehilcles">vehilcles</option>
-
 </select>
 </div>
 
@@ -621,40 +620,48 @@ let showSessionTimer = true;
 let mockBoards = {};
 
 function startSession() {
-  const source = document.querySelector('input[name="pinterestSource"]:checked').value;
-  let boards = [];
+  const sourceType = document.querySelector('input[name="pinterestSource"]:checked').value;
+  let selectedBoards = [];
 
-  if (source === "user") {
-    const selectedOptions = document.getElementById("userBoards").selectedOptions;
-    boards = Array.from(selectedOptions).map(opt => opt.value);
+  if (sourceType === "user") {
+    const options = document.getElementById("userBoards").selectedOptions;
+    selectedBoards = Array.from(options).map(opt => opt.value);
   } else {
-    boards = [document.getElementById("board").value];
+    const board = document.getElementById("board").value;
+    selectedBoards = [board];
   }
 
   sessionMode = document.querySelector("input[name='mode']:checked").value;
   limitMode = document.querySelector("input[name='limit']:checked").value;
+
   if (limitMode === "time") {
     limitValue = parseInt(document.getElementById("limitValue").value);
   } else if (limitMode === "count") {
     limitValue = parseInt(document.getElementById("limitCountValue").value);
   }
+
   strictTime = document.getElementById("strictTime").checked;
-  bellTimes = document.getElementById("bellTimes").value.split(",").map(n => parseInt(n.trim())).filter(n => !isNaN(n));
+  bellTimes = document.getElementById("bellTimes").value
+    .split(",")
+    .map(n => parseInt(n.trim()))
+    .filter(n => !isNaN(n));
   breakEnabled = document.getElementById("breaks").checked;
   breakAfter = parseInt(document.getElementById("breakAfter").value);
   breakDuration = parseInt(document.getElementById("breakDuration").value);
 
-  // Reset state
+  // Clear previous state
   elapsedTime = 0;
   breaksTaken = 0;
   inBreak = false;
   bellFiredThisImage.clear();
   bellFiredThisBreak.clear();
+
+  // Combine images from selected boards
+  imageList = shuffleArray(
+    selectedBoards.flatMap(name => mockBoards[name] || [])
+  );
   currentIndex = 0;
   imageDisplayIndex = 0;
-
-  // 🔁 Combine all selected boards' images
-  imageList = shuffleArray(boards.flatMap(name => mockBoards[name] || []));
 
   if (sessionMode === "standard") {
     const durationMin = parseInt(document.getElementById("durationMin").value || "0");
@@ -675,6 +682,7 @@ function startSession() {
         classImageSchedule.push({ duration, isBreak });
       }
     });
+
     limitMode = "count";
     limitValue = classImageSchedule.length;
   }
@@ -688,7 +696,7 @@ function startSession() {
   } else if (sessionMode === "class") {
     sessionRemaining = classImageSchedule.reduce((sum, phase) => sum + phase.duration, 0);
   } else {
-    sessionRemaining = null;
+    sessionRemaining = null; // No session-wide timer
   }
 }
 
