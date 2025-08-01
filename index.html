@@ -602,7 +602,17 @@ let showImageTimer = true;
 let showSessionTimer = true;
 
 function startSession() {
+  let selectedBoards = [];
+const pinterestSource = document.querySelector('input[name="pinterestSource"]:checked').value;
+
+if (pinterestSource === "user") {
+  const select = document.getElementById("userBoards");
+  selectedBoards = Array.from(select.selectedOptions).map(opt => opt.value);
+} else {
   const board = document.getElementById("board").value;
+  selectedBoards = [board];
+}
+
   sessionMode = document.querySelector("input[name='mode']:checked").value;
   limitMode = document.querySelector("input[name='limit']:checked").value;
   if (limitMode === "time") {
@@ -623,7 +633,10 @@ function startSession() {
   bellFiredThisImage.clear();
   bellFiredThisBreak.clear();
 
-  imageList = shuffleArray([...mockBoards[board]]);
+  imageList = shuffleArray(
+  selectedBoards.flatMap(board => mockBoards[board] || [])
+);
+
   currentIndex = 0;
 imageDisplayIndex = 0;
 
