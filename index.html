@@ -93,18 +93,17 @@
 <label><input type="radio" name="pinterestSource" value="board" checked> Paste Board URL(s)</label>
 <label><input type="radio" name="pinterestSource" value="user"> Use Pinterest Username</label>
 
-
 <div id="boardUrlSection" style="margin-top: 1rem;">
   <label>Board URL(s) (comma-separated):</label>
-  <input type="text" id="boardUrls" placeholder="https://www.pinterest.com/user/board1, https://..." />
+  <input type="text" id="boardUrls" />
 </div>
 
 <div id="userBoardSection" style="margin-top: 1rem; display: none;">
   <label>Pinterest Username:</label>
-  <input type="text" id="pinterestUsername" placeholder="e.g. penumbrialhexandroga" />
+  <input type="text" id="pinterestUsername" />
   <button type="button" onclick="loadUserBoards()">Load Boards</button>
 
-  <label style="margin-top: 0.5rem;">Choose Board(s):</label>
+  <label>Choose Board(s):</label>
   <select id="userBoards" multiple style="width: 100%; padding: 0.5rem;"></select>
 </div>
 
