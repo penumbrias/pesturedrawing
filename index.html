@@ -1019,5 +1019,22 @@ function backToSetup() {
   <button onclick="backToSetup()" style="margin-top:2rem; padding:1rem 2rem; font-size:1.2rem;">Back to Setup</button>
 </div>
 
+window.addEventListener("DOMContentLoaded", () => {
+  // Initial visibility setup
+  const source = document.querySelector('input[name="pinterestSource"]:checked').value;
+  document.getElementById("boardUrlSection").style.display = source === "board" ? "block" : "none";
+  document.getElementById("userBoardSection").style.display = source === "user" ? "block" : "none";
+
+  // Live toggle when switching radio buttons
+  document.querySelectorAll('input[name="pinterestSource"]').forEach(radio => {
+    radio.addEventListener('change', () => {
+      const selected = document.querySelector('input[name="pinterestSource"]:checked').value;
+      document.getElementById("boardUrlSection").style.display = selected === "board" ? "block" : "none";
+      document.getElementById("userBoardSection").style.display = selected === "user" ? "block" : "none";
+    });
+  });
+});
+
+
 </body>
 </html>
