@@ -939,24 +939,31 @@ async function loadUserBoards() {
       select.appendChild(opt);
     });
     } catch (err) {
-    alert("Pinterest not available yet — using local mock boards.");
-    try {
-      const res = await fetch("mock_boards/manifest.json");
-      const data = await res.json();
+  alert("Pinterest not available yet — using local mock boards.");
+  try {
+    const res = await fetch("mock_boards/manifest.json");
+    const data = await res.json();
 
-      Object.keys(data).forEach(name => {
-        const opt = document.createElement("option");
-        opt.value = name;
-        opt.textContent = name;
-        select.appendChild(opt);
-      });
+    data.forEach(board => {
+      const opt = document.createElement("option");
+      opt.value = board.name;
+      opt.textContent = board.name;
+      select.appendChild(opt);
+    });
 
-      // Update the global mockBoards so the session uses correct images
-      mockBoards = data;
-    } catch (manifestErr) {
-      console.error("Could not load mock board manifest:", manifestErr);
-    }
+    // Update the global mockBoards object
+    mockBoards = {};
+    data.forEach(board => {
+      mockBoards[board.name] = board.images;
+    });
+
+    // Optional: auto-select all
+    Array.from(select.options).forEach(opt => opt.selected = true);
+  } catch (manifestErr) {
+    console.error("Could not load mock board manifest:", manifestErr);
   }
+}
+
 
 }
 

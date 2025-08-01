@@ -1,0 +1,69 @@
+[
+  {
+    "name": "poses",
+    "images": [
+      "poses/image1.jpg",
+      "poses/image2.jpg",
+      "poses/image3.jpg"
+    ]
+  },
+  {
+    "name": "fashion",
+    "images": [
+      "fashion/image1.jpg",
+      "fashion/image2.jpg",
+      "fashion/image3.jpg"
+    ]
+  },
+  {
+    "name": "landscapes",
+    "images": [
+      "landscapes/image1.jpg",
+      "landscapes/image2.jpg",
+      "landscapes/image3.jpg"
+    ]
+  },
+  {
+    "name": "animals",
+    "images": [
+      "animals/image1.jpg",
+      "animals/image2.jpg",
+      "animals/image3.jpg"
+    ]
+  },
+  {
+    "name": "mammals",
+    "images": [
+      "mammals/image1.jpg",
+      "mammals/image2.jpg"
+    ]
+  },
+  {
+    "name": "fish",
+    "images": [
+      "fish/image1.jpg",
+      "fish/image2.jpg"
+    ]
+  },
+  {
+    "name": "portrait",
+    "images": [
+      "portrait/image1.jpg",
+      "portrait/image2.jpg"
+    ]
+  },
+  {
+    "name": "environments",
+    "images": [
+      "environments/image1.jpg",
+      "environments/image2.jpg"
+    ]
+  },
+  {
+    "name": "architecture",
+    "images": [
+      "architecture/image1.jpg",
+      "architecture/image2.jpg"
+    ]
+  }
+]
