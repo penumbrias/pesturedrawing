@@ -990,15 +990,6 @@ function backToSetup() {
   document.getElementById("setup").style.display = "block";
 }
 
-
-</script>
-
-<!-- Session Finished Screen -->
-<div class="fullscreen" id="finishedScreen" style="background:#222; color:white;">
-  <div style="font-size:2rem;">Session finished! Awesome work! 😄</div>
-  <button onclick="backToSetup()" style="margin-top:2rem; padding:1rem 2rem; font-size:1.2rem;">Back to Setup</button>
-</div>
-
 window.addEventListener("DOMContentLoaded", () => {
   function updateSourceVisibility() {
     const source = document.querySelector('input[name="pinterestSource"]:checked').value;
@@ -1014,6 +1005,16 @@ window.addEventListener("DOMContentLoaded", () => {
 
   updateSourceVisibility();
 });
+
+</script>
+
+<!-- Session Finished Screen -->
+<div class="fullscreen" id="finishedScreen" style="background:#222; color:white;">
+  <div style="font-size:2rem;">Session finished! Awesome work! 😄</div>
+  <button onclick="backToSetup()" style="margin-top:2rem; padding:1rem 2rem; font-size:1.2rem;">Back to Setup</button>
+</div>
+
+
 
 
 </body>
