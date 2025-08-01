@@ -602,40 +602,76 @@ let showImageTimer = true;
 let showSessionTimer = true;
 
 function startSession() {
-  let selectedBoards = [];
-const pinterestSource = document.querySelector('input[name="pinterestSource"]:checked').value;
+  const source = document.querySelector('input[name="pinterestSource"]:checked').value;
+  let boards = [];
 
-if (pinterestSource === "user") {
-  const select = document.getElementById("userBoards");
-  selectedBoards = Array.from(select.selectedOptions).map(opt => opt.value);
-} else {
-  const board = document.getElementById("board").value;
-  selectedBoards = [board];
-}
+  if (source === "user") {
+    const selectedOptions = document.getElementById("userBoards").selectedOptions;
+    boards = Array.from(selectedOptions).map(opt => opt.value);
+  } else {
+    boards = [document.getElementById("board").value];
+  }
 
   sessionMode = document.querySelector("input[name='mode']:checked").value;
   limitMode = document.querySelector("input[name='limit']:checked").value;
   if (limitMode === "time") {
-  limitValue = parseInt(document.getElementById("limitValue").value);
-} else if (limitMode === "count") {
-  limitValue = parseInt(document.getElementById("limitCountValue").value);
-}
+    limitValue = parseInt(document.getElementById("limitValue").value);
+  } else if (limitMode === "count") {
+    limitValue = parseInt(document.getElementById("limitCountValue").value);
+  }
   strictTime = document.getElementById("strictTime").checked;
   bellTimes = document.getElementById("bellTimes").value.split(",").map(n => parseInt(n.trim())).filter(n => !isNaN(n));
   breakEnabled = document.getElementById("breaks").checked;
   breakAfter = parseInt(document.getElementById("breakAfter").value);
   breakDuration = parseInt(document.getElementById("breakDuration").value);
 
-  // Clear previous state
+  // Reset state
   elapsedTime = 0;
   breaksTaken = 0;
   inBreak = false;
   bellFiredThisImage.clear();
   bellFiredThisBreak.clear();
+  currentIndex = 0;
+  imageDisplayIndex = 0;
 
-  imageList = shuffleArray(
-  selectedBoards.flatMap(board => mockBoards[board] || [])
-);
+  // 🔁 Combine all selected boards' images
+  imageList = shuffleArray(boards.flatMap(name => mockBoards[name] || []));
+
+  if (sessionMode === "standard") {
+    const durationMin = parseInt(document.getElementById("durationMin").value || "0");
+    const durationSec = parseInt(document.getElementById("durationSec").value || "0");
+    imageDuration = durationMin * 60 + durationSec;
+    classImageSchedule = [];
+  } else {
+    classImageSchedule = [];
+    document.querySelectorAll("#classPhases .class-phase").forEach(phase => {
+      const isBreak = phase.querySelector(".phase-break").checked;
+      const duration = (
+        parseInt(phase.querySelector(".phase-minutes").value || "0") * 60 +
+        parseInt(phase.querySelector(".phase-seconds").value || "0")
+      );
+      const count = isBreak ? 1 : parseInt(phase.querySelector(".phase-count").value || "1");
+
+      for (let i = 0; i < count; i++) {
+        classImageSchedule.push({ duration, isBreak });
+      }
+    });
+    limitMode = "count";
+    limitValue = classImageSchedule.length;
+  }
+
+  document.getElementById("setup").style.display = "none";
+  document.getElementById("viewer").style.display = "flex";
+  showImage();
+
+  if (limitMode === "time") {
+    sessionRemaining = limitValue * 60;
+  } else if (sessionMode === "class") {
+    sessionRemaining = classImageSchedule.reduce((sum, phase) => sum + phase.duration, 0);
+  } else {
+    sessionRemaining = null;
+  }
+}
 
   currentIndex = 0;
 imageDisplayIndex = 0;
