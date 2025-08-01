@@ -93,6 +93,7 @@
 <label><input type="radio" name="pinterestSource" value="board" checked> Paste Board URL(s)</label>
 <label><input type="radio" name="pinterestSource" value="user"> Use Pinterest Username</label>
 
+
 <div id="boardUrlSection" style="margin-top: 1rem;">
   <label>Board URL(s) (comma-separated):</label>
   <input type="text" id="boardUrls" placeholder="https://www.pinterest.com/user/board1, https://..." />
@@ -926,7 +927,7 @@ document.querySelectorAll('input[name="mode"]').forEach(radio => {
 });
 
 
-// Set initial visibility based on selected mode when page loads
+
 window.addEventListener('DOMContentLoaded', () => {
   const isClass = document.querySelector('input[name="mode"]:checked').value === "class";
   document.getElementById("classSettings").style.display = isClass ? "block" : "none";
@@ -1020,19 +1021,19 @@ function backToSetup() {
 </div>
 
 window.addEventListener("DOMContentLoaded", () => {
-  // Initial visibility setup
-  const source = document.querySelector('input[name="pinterestSource"]:checked').value;
-  document.getElementById("boardUrlSection").style.display = source === "board" ? "block" : "none";
-  document.getElementById("userBoardSection").style.display = source === "user" ? "block" : "none";
+  function updateSourceVisibility() {
+    const source = document.querySelector('input[name="pinterestSource"]:checked').value;
+    document.getElementById("boardUrlSection").style.display = source === "board" ? "block" : "none";
+    document.getElementById("userBoardSection").style.display = source === "user" ? "block" : "none";
+  }
 
-  // Live toggle when switching radio buttons
+
   document.querySelectorAll('input[name="pinterestSource"]').forEach(radio => {
-    radio.addEventListener('change', () => {
-      const selected = document.querySelector('input[name="pinterestSource"]:checked').value;
-      document.getElementById("boardUrlSection").style.display = selected === "board" ? "block" : "none";
-      document.getElementById("userBoardSection").style.display = selected === "user" ? "block" : "none";
-    });
+    radio.addEventListener('change', updateSourceVisibility);
   });
+
+
+  updateSourceVisibility();
 });
 
 
