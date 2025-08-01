@@ -107,7 +107,7 @@
   <select id="userBoards" multiple style="width: 100%; padding: 0.5rem;"></select>
 </div>
 
-
+<div id="staticBoardSection">
   <label>Pinterest Board:</label>
   <select id="board">
   <option value="action poses">action poses</option>
@@ -125,8 +125,8 @@
   <option value="primates">primates</option>
   <option value="statuary">statuary</option>
   <option value="vehilcles">vehilcles</option>
-</select>
-
+ </select>
+</div>
 
   <label>Session Type:</label>
   <label><input type="radio" name="mode" value="standard" checked> Standard</label>
@@ -1002,20 +1002,20 @@ function backToSetup() {
 
 <script>
   window.addEventListener("DOMContentLoaded", () => {
-    function updateSourceVisibility() {
-  const source = document.querySelector('input[name="pinterestSource"]:checked').value;
-  document.getElementById("boardUrlSection").style.display = source === "board" ? "block" : "none";
-  document.getElementById("userBoardSection").style.display = source === "user" ? "block" : "none";
-  document.getElementById("staticBoardSection").style.display = source === "board" ? "block" : "none";
-}
+  function updateSourceVisibility() {
+    const source = document.querySelector('input[name="pinterestSource"]:checked').value;
+    document.getElementById("boardUrlSection").style.display = source === "board" ? "block" : "none";
+    document.getElementById("userBoardSection").style.display = source === "user" ? "block" : "none";
+    document.getElementById("staticBoardSection").style.display = source === "board" ? "block" : "none";
+  }
 
-
-    document.querySelectorAll('input[name="pinterestSource"]').forEach(radio => {
-      radio.addEventListener('change', updateSourceVisibility);
-    });
-
-    updateSourceVisibility();
+  document.querySelectorAll('input[name="pinterestSource"]').forEach(radio => {
+    radio.addEventListener('change', updateSourceVisibility);
   });
+
+  updateSourceVisibility(); // run once on load
+});
+
 </script>
 
 </body>
