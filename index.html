@@ -990,21 +990,7 @@ function backToSetup() {
   document.getElementById("setup").style.display = "block";
 }
 
-window.addEventListener("DOMContentLoaded", () => {
-  function updateSourceVisibility() {
-    const source = document.querySelector('input[name="pinterestSource"]:checked').value;
-    document.getElementById("boardUrlSection").style.display = source === "board" ? "block" : "none";
-    document.getElementById("userBoardSection").style.display = source === "user" ? "block" : "none";
-  }
 
-
-  document.querySelectorAll('input[name="pinterestSource"]').forEach(radio => {
-    radio.addEventListener('change', updateSourceVisibility);
-  });
-
-
-  updateSourceVisibility();
-});
 
 </script>
 
@@ -1015,7 +1001,21 @@ window.addEventListener("DOMContentLoaded", () => {
 </div>
 
 
+<script>
+  window.addEventListener("DOMContentLoaded", () => {
+    function updateSourceVisibility() {
+      const source = document.querySelector('input[name="pinterestSource"]:checked').value;
+      document.getElementById("boardUrlSection").style.display = source === "board" ? "block" : "none";
+      document.getElementById("userBoardSection").style.display = source === "user" ? "block" : "none";
+    }
 
+    document.querySelectorAll('input[name="pinterestSource"]').forEach(radio => {
+      radio.addEventListener('change', updateSourceVisibility);
+    });
+
+    updateSourceVisibility();
+  });
+</script>
 
 </body>
 </html>
