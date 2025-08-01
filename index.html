@@ -1027,14 +1027,12 @@ function backToSetup() {
 
 
 <script>
-
 window.addEventListener("DOMContentLoaded", () => {
+  // Force initial screen state
   document.getElementById("setup").style.display = "block";
   document.getElementById("viewer").style.display = "none";
-});
 
-
-  window.addEventListener("DOMContentLoaded", () => {
+  // Set up source visibility logic
   function updateSourceVisibility() {
     const source = document.querySelector('input[name="pinterestSource"]:checked').value;
     document.getElementById("boardUrlSection").style.display = source === "board" ? "block" : "none";
@@ -1048,7 +1046,6 @@ window.addEventListener("DOMContentLoaded", () => {
 
   updateSourceVisibility(); // run once on load
 });
-
 </script>
 
 </body>
