@@ -662,10 +662,18 @@ function startSession() {
 imageList = [];
 
 (async () => {
-  for (const boardId of selectedBoards) {
-    const images = await fetchImagesFromBoard(boardId);
-    imageList.push(...images);
+for (const boardId of selectedBoards) {
+  let images = [];
+
+  // If the board ID is from a mock board, use mockBoards
+  if (mockBoards[boardId]) {
+    images = mockBoards[boardId];
+  } else {
+    images = await fetchImagesFromBoard(boardId); // fetch real Pinterest pins
   }
+
+  imageList.push(...images);
+}
 
   imageList = shuffleArray(imageList);
   startDrawingSession();
@@ -1024,6 +1032,9 @@ async function loadUserBoards() {
     if (!res.ok) throw new Error("Pinterest API request failed");
 
     const data = await res.json();
+    if (!data.items || data.items.length === 0) throw new Error("No boards returned");
+
+    // Load real Pinterest boards
     data.items.forEach(board => {
       const opt = document.createElement("option");
       opt.value = board.id;
@@ -1031,9 +1042,20 @@ async function loadUserBoards() {
       select.appendChild(opt);
     });
 
+    alert("Loaded real boards from Pinterest ✅");
+
   } catch (err) {
-    alert("Failed to load Pinterest boards.");
-    console.error(err);
+    console.warn("Pinterest access failed, falling back to mock boards:", err);
+
+    // Load fallback mock boards (as "sample")
+    Object.keys(mockBoards).forEach(name => {
+      const opt = document.createElement("option");
+      opt.value = name;
+      opt.textContent = `${name} (sample)`;
+      select.appendChild(opt);
+    });
+
+    alert("Pinterest access not available. Using sample boards instead.");
   }
 }
 
