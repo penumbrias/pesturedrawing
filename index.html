@@ -927,7 +927,7 @@ async function loadUserBoards() {
   try {
     const response = await fetch(`https://api.pinterest.com/v5/users/${user}/boards`, {
       headers: {
-        'Authorization': 'Bearer Paste_Access_code_here' // <-- replace dynamically if needed
+        'Authorization': 'Bearer Paste_Access_code_here_'
       }
     });
 
@@ -941,16 +941,9 @@ async function loadUserBoards() {
       select.appendChild(opt);
     });
   } catch (err) {
-    alert("Pinterest not available yet — using built-in sample boards.");
-
-    // Use same options as your static board dropdown
-    const boardOptions = [
-      "action poses", "architecture", "birds", "environments", "fashion", "felines",
-      "fish", "hands and extremities", "insects", "mammals", "misc. poses",
-      "portrait", "primates", "statuary", "vehilcles"
-    ];
-
-    boardOptions.forEach(name => {
+    alert("Pinterest not available yet — using sample boards.");
+    const dummyBoards = ["poses", "fashion", "landscapes", "animals"];
+    dummyBoards.forEach(name => {
       const opt = document.createElement("option");
       opt.value = name;
       opt.textContent = name + " (mock)";
