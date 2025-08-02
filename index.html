@@ -587,6 +587,18 @@ const mockBoards = {
   ]
 };
 
+let mockBoards = {};
+
+async function loadMockBoardsFromManifest() {
+  const res = await fetch("manifest.json");
+  const manifest = await res.json();
+
+  mockBoards = {};
+  manifest.forEach(board => {
+    mockBoards[board.name] = board.images.map(image => `mock_boards/${image}`);
+  });
+}
+
 
 let imageList = [], currentIndex = 0, sessionTimer = null, isPaused = false;
 let imageDuration = 30, remaining = 0, elapsedTime = 0;
@@ -601,7 +613,8 @@ let sessionRemaining = null;
 let showImageTimer = true;
 let showSessionTimer = true;
 
-function startSession() {
+async function startSession() {
+
   const board = document.getElementById("board").value;
   sessionMode = document.querySelector("input[name='mode']:checked").value;
   limitMode = document.querySelector("input[name='limit']:checked").value;
@@ -623,7 +636,9 @@ function startSession() {
   bellFiredThisImage.clear();
   bellFiredThisBreak.clear();
 
-  imageList = shuffleArray([...mockBoards[board]]);
+  await loadMockBoardsFromManifest();
+imageList = shuffleArray([...mockBoards[board]]);
+
   currentIndex = 0;
 imageDisplayIndex = 0;
 
