@@ -92,7 +92,6 @@
 <label>Image Source:</label>
 <label><input type="radio" name="pinterestSource" value="board" checked> Paste Board URL(s)</label>
 <label><input type="radio" name="pinterestSource" value="user"> Use Pinterest Username</label>
-<label><input type="radio" name="pinterestSource" value="sample"> Use Sample Boards</label>
 
 <div id="boardUrlSection" style="margin-top: 1rem;">
   <label>Board URL(s) (comma-separated):</label>
@@ -100,13 +99,11 @@
 </div>
 
 <div id="userBoardSection" style="margin-top: 1rem; display: none;">
-  <div id="pinterestAuthOnly">
-<label>Pinterest Username:</label>
+  <label>Pinterest Username:</label>
   <input type="text" id="pinterestUsername" placeholder="e.g. penumbrialhexandroga" />
   <label style="margin-top: 1rem;">Pinterest Access Token:</label>
   <input type="text" id="accessTokenInput" placeholder="Paste your token here" />
   <button type="button" onclick="loadUserBoards()">Load Boards</button>
-</div> <!-- end pinterestAuthOnly -->
 
   <label style="margin-top: 0.5rem;">Choose Board(s):</label>
   <select id="userBoards" multiple style="width: 100%; padding: 0.5rem; height: 10rem;">
@@ -991,8 +988,6 @@ document.querySelectorAll('input[name="pinterestSource"]').forEach(radio => {
   radio.addEventListener('change', () => {
     const source = document.querySelector('input[name="pinterestSource"]:checked').value;
     document.getElementById("boardUrlSection").style.display = source === "board" ? "block" : "none";
-    document.getElementById("userBoardSection").style.display = source === "user" || source === "sample" ? "block" : "none";
-    document.getElementById("pinterestAuthOnly").style.display = source === "user" ? "block" : "none";
     document.getElementById("userBoardSection").style.display = source === "user" ? "block" : "none";
   });
 });
@@ -1090,42 +1085,6 @@ function startDrawingSession() {
 }
 
 
-
-document.getElementById("pinterestUsername").addEventListener("input", async () => {
-  const username = document.getElementById("pinterestUsername").value.trim();
-  const boardSelect = document.getElementById("userBoards");
-  boardSelect.innerHTML = "";
-  if (!username) return;
-
-  try {
-    const res = await fetch(`https://www.pinterest.com/${username}/_created/`);
-    if (!res.ok) throw new Error("Failed to fetch boards.");
-    const text = await res.text();
-    const matches = [...text.matchAll(/"board_name":"(.*?)"/g)];
-    const uniqueBoards = [...new Set(matches.map(m => m[1]))];
-
-    if (uniqueBoards.length === 0) {
-      const opt = document.createElement("option");
-      opt.textContent = "No boards found";
-      opt.disabled = true;
-      boardSelect.appendChild(opt);
-    } else {
-      uniqueBoards.forEach(name => {
-        const opt = document.createElement("option");
-        opt.value = name;
-        opt.textContent = name;
-        boardSelect.appendChild(opt);
-      });
-    }
-  } catch (err) {
-    console.warn("Error loading Pinterest boards:", err);
-    const opt = document.createElement("option");
-    opt.textContent = "Error loading boards";
-    opt.disabled = true;
-    boardSelect.appendChild(opt);
-  }
-});
-
 </script>
 
 <!-- Session Finished Screen -->
@@ -1145,12 +1104,8 @@ window.addEventListener("DOMContentLoaded", () => {
   function updateSourceVisibility() {
     const source = document.querySelector('input[name="pinterestSource"]:checked').value;
     document.getElementById("boardUrlSection").style.display = source === "board" ? "block" : "none";
-    document.getElementById("userBoardSection").style.display = source === "user" || source === "sample" ? "block" : "none";
-    document.getElementById("pinterestAuthOnly").style.display = source === "user" ? "block" : "none";
     document.getElementById("userBoardSection").style.display = source === "user" ? "block" : "none";
     document.getElementById("staticBoardSection").style.display = source === "board" ? "block" : "none";
-    document.getElementById("userBoardSection").style.display = source === "user" ? "block" : "none";
-    document.getElementById("userBoardSection").style.display = source === "sample" ? "block" : "none";
   }
 
   document.querySelectorAll('input[name="pinterestSource"]').forEach(radio => {
