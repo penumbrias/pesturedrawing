@@ -101,6 +101,8 @@
 <div id="userBoardSection" style="margin-top: 1rem; display: none;">
   <label>Pinterest Username:</label>
   <input type="text" id="pinterestUsername" placeholder="e.g. penumbrialhexandroga" />
+  <label style="margin-top: 1rem;">Pinterest Access Token:</label>
+  <input type="text" id="accessTokenInput" placeholder="Paste your token here" />
   <button type="button" onclick="loadUserBoards()">Load Boards</button>
 
   <label style="margin-top: 0.5rem;">Choose Board(s):</label>
@@ -620,6 +622,7 @@ let showSessionTimer = true;
 
 
 function startSession() {
+  const accessToken = document.getElementById("accessTokenInput").value.trim();
   const sourceType = document.querySelector('input[name="pinterestSource"]:checked').value;
   let selectedBoards = [];
 
@@ -656,10 +659,27 @@ function startSession() {
   bellFiredThisImage.clear();
   bellFiredThisBreak.clear();
 
-  // Combine images from selected boards
-  imageList = shuffleArray(
-    selectedBoards.flatMap(name => mockBoards[name] || [])
-  );
+imageList = [];
+
+(async () => {
+  for (const boardId of selectedBoards) {
+    const images = await fetchImagesFromBoard(boardId);
+    imageList.push(...images);
+  }
+
+  imageList = shuffleArray(imageList);
+  startDrawingSession();
+})();
+
+(async () => {
+  for (const boardId of selectedBoards) {
+    const images = await fetchImagesFromBoard(boardId);
+    imageList.push(...images);
+  }
+
+  imageList = shuffleArray(imageList);
+  startDrawingSession(); // ← separate actual image display logic to keep `startSession()` clean
+})();
   currentIndex = 0;
   imageDisplayIndex = 0;
 
@@ -985,29 +1005,37 @@ async function loadUserBoards() {
   const select = document.getElementById("userBoards");
   select.innerHTML = ""; // Clear previous options
 
+  const username = document.getElementById("pinterestUsername").value.trim();
+  const accessToken = document.getElementById("accessTokenInput").value.trim();
+
+  if (!username || !accessToken) {
+    alert("Please enter both Pinterest username and access token.");
+    return;
+  }
+
   try {
-    const response = await fetch("mock_boards/manifest.json");
-    if (!response.ok) throw new Error("Failed to fetch manifest");
+    const res = await fetch(`https://api.pinterest.com/v5/users/${username}/boards`, {
+      headers: {
+        "Authorization": `Bearer ${accessToken}`,
+        "Content-Type": "application/json"
+      }
+    });
 
-    const data = await response.json();
+    if (!res.ok) throw new Error("Pinterest API request failed");
 
-    // Update global mockBoards
-    mockBoards = data;
-
-    Object.keys(data).forEach(name => {
+    const data = await res.json();
+    data.items.forEach(board => {
       const opt = document.createElement("option");
-      opt.value = name;
-      opt.textContent = name;
+      opt.value = board.id;
+      opt.textContent = board.name;
       select.appendChild(opt);
     });
+
   } catch (err) {
-    alert("Unable to load mock boards.");
+    alert("Failed to load Pinterest boards.");
     console.error(err);
   }
 }
-
-
-
 
 
 function backToSetup() {
@@ -1015,6 +1043,46 @@ function backToSetup() {
   document.getElementById("setup").style.display = "block";
 }
 
+function startDrawingSession() {
+  currentIndex = 0;
+  imageDisplayIndex = 0;
+
+  if (sessionMode === "standard") {
+    const durationMin = parseInt(document.getElementById("durationMin").value || "0");
+    const durationSec = parseInt(document.getElementById("durationSec").value || "0");
+    imageDuration = durationMin * 60 + durationSec;
+    classImageSchedule = [];
+  } else {
+    classImageSchedule = [];
+    document.querySelectorAll("#classPhases .class-phase").forEach(phase => {
+      const isBreak = phase.querySelector(".phase-break").checked;
+      const duration = (
+        parseInt(phase.querySelector(".phase-minutes").value || "0") * 60 +
+        parseInt(phase.querySelector(".phase-seconds").value || "0")
+      );
+      const count = isBreak ? 1 : parseInt(phase.querySelector(".phase-count").value || "1");
+
+      for (let i = 0; i < count; i++) {
+        classImageSchedule.push({ duration, isBreak });
+      }
+    });
+
+    limitMode = "count";
+    limitValue = classImageSchedule.length;
+  }
+
+  document.getElementById("setup").style.display = "none";
+  document.getElementById("viewer").style.display = "flex";
+  showImage();
+
+  if (limitMode === "time") {
+    sessionRemaining = limitValue * 60;
+  } else if (sessionMode === "class") {
+    sessionRemaining = classImageSchedule.reduce((sum, phase) => sum + phase.duration, 0);
+  } else {
+    sessionRemaining = null; // No session-wide timer
+  }
+}
 
 
 </script>
