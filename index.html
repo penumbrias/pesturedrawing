@@ -95,38 +95,19 @@
 
 <div id="boardUrlSection" style="margin-top: 1rem;">
   <label>Board URL(s) (comma-separated):</label>
-  <input type="text" id="boardUrls" />
+  <input type="text" id="boardUrls" placeholder="https://www.pinterest.com/user/board1, https://..." />
 </div>
 
 <div id="userBoardSection" style="margin-top: 1rem; display: none;">
   <label>Pinterest Username:</label>
-  <input type="text" id="pinterestUsername" placeholder="e.g. penumbrialhexandroga" />
-  <label style="margin-top: 1rem;">Pinterest Access Token:</label>
-  <input type="text" id="accessTokenInput" placeholder="Paste your token here" />
+  <input type="text" id="pinterestUsername" placeholder="e.g. artlover42" />
   <button type="button" onclick="loadUserBoards()">Load Boards</button>
 
   <label style="margin-top: 0.5rem;">Choose Board(s):</label>
-  <select id="userBoards" multiple style="width: 100%; padding: 0.5rem; height: 10rem;">
-  <option value="action poses">action poses</option>
-  <option value="architecture">architecture</option>
-  <option value="birds">birds</option>
-  <option value="environments">environments</option>
-  <option value="fashion">fashion</option>
-  <option value="felines">felines</option>
-  <option value="fish">fish</option>
-  <option value="hands and extremities">hands and extremities</option>
-  <option value="insects">insects</option>
-  <option value="mammals">mammals</option>
-  <option value="misc. poses">misc. poses</option>
-  <option value="portrait">portrait</option>
-  <option value="primates">primates</option>
-  <option value="statuary">statuary</option>
-  <option value="vehilcles">vehilcles</option>
-</select>
+  <select id="userBoards" multiple style="width: 100%; padding: 0.5rem;"></select>
 </div>
 
 
-<div id="staticBoardSection">
   <label>Pinterest Board:</label>
   <select id="board">
   <option value="action poses">action poses</option>
@@ -144,8 +125,8 @@
   <option value="primates">primates</option>
   <option value="statuary">statuary</option>
   <option value="vehilcles">vehilcles</option>
- </select>
-</div>
+</select>
+
 
   <label>Session Type:</label>
   <label><input type="radio" name="mode" value="standard" checked> Standard</label>
@@ -229,7 +210,7 @@
 
 
 <script>
-let mockBoards = {
+const mockBoards = {
   "environments": [
     "mock_boards/environments board/1. .jpg",
     "mock_boards/environments board/10. .jpg",
@@ -620,34 +601,17 @@ let sessionRemaining = null;
 let showImageTimer = true;
 let showSessionTimer = true;
 
-
 function startSession() {
-  const accessToken = document.getElementById("accessTokenInput").value.trim();
-  const sourceType = document.querySelector('input[name="pinterestSource"]:checked').value;
-  let selectedBoards = [];
-
-  if (sourceType === "user") {
-    const options = document.getElementById("userBoards").selectedOptions;
-    selectedBoards = Array.from(options).map(opt => opt.value);
-  } else {
-    const board = document.getElementById("board").value;
-    selectedBoards = [board];
-  }
-
+  const board = document.getElementById("board").value;
   sessionMode = document.querySelector("input[name='mode']:checked").value;
   limitMode = document.querySelector("input[name='limit']:checked").value;
-
   if (limitMode === "time") {
-    limitValue = parseInt(document.getElementById("limitValue").value);
-  } else if (limitMode === "count") {
-    limitValue = parseInt(document.getElementById("limitCountValue").value);
-  }
-
+  limitValue = parseInt(document.getElementById("limitValue").value);
+} else if (limitMode === "count") {
+  limitValue = parseInt(document.getElementById("limitCountValue").value);
+}
   strictTime = document.getElementById("strictTime").checked;
-  bellTimes = document.getElementById("bellTimes").value
-    .split(",")
-    .map(n => parseInt(n.trim()))
-    .filter(n => !isNaN(n));
+  bellTimes = document.getElementById("bellTimes").value.split(",").map(n => parseInt(n.trim())).filter(n => !isNaN(n));
   breakEnabled = document.getElementById("breaks").checked;
   breakAfter = parseInt(document.getElementById("breakAfter").value);
   breakDuration = parseInt(document.getElementById("breakDuration").value);
@@ -659,67 +623,7 @@ function startSession() {
   bellFiredThisImage.clear();
   bellFiredThisBreak.clear();
 
-imageList = [];
-
-(async () => {
-  for (const boardId of selectedBoards) {
-    const images = await fetchImagesFromBoard(boardId);
-    imageList.push(...images);
-  }
-
-  imageList = shuffleArray(imageList);
-  startDrawingSession();
-})();
-
-(async () => {
-  for (const boardId of selectedBoards) {
-    const images = await fetchImagesFromBoard(boardId);
-    imageList.push(...images);
-  }
-
-  imageList = shuffleArray(imageList);
-  startDrawingSession(); // ← separate actual image display logic to keep `startSession()` clean
-})();
-  currentIndex = 0;
-  imageDisplayIndex = 0;
-
-  if (sessionMode === "standard") {
-    const durationMin = parseInt(document.getElementById("durationMin").value || "0");
-    const durationSec = parseInt(document.getElementById("durationSec").value || "0");
-    imageDuration = durationMin * 60 + durationSec;
-    classImageSchedule = [];
-  } else {
-    classImageSchedule = [];
-    document.querySelectorAll("#classPhases .class-phase").forEach(phase => {
-      const isBreak = phase.querySelector(".phase-break").checked;
-      const duration = (
-        parseInt(phase.querySelector(".phase-minutes").value || "0") * 60 +
-        parseInt(phase.querySelector(".phase-seconds").value || "0")
-      );
-      const count = isBreak ? 1 : parseInt(phase.querySelector(".phase-count").value || "1");
-
-      for (let i = 0; i < count; i++) {
-        classImageSchedule.push({ duration, isBreak });
-      }
-    });
-
-    limitMode = "count";
-    limitValue = classImageSchedule.length;
-  }
-
-  document.getElementById("setup").style.display = "none";
-  document.getElementById("viewer").style.display = "flex";
-  showImage();
-
-  if (limitMode === "time") {
-    sessionRemaining = limitValue * 60;
-  } else if (sessionMode === "class") {
-    sessionRemaining = classImageSchedule.reduce((sum, phase) => sum + phase.duration, 0);
-  } else {
-    sessionRemaining = null; // No session-wide timer
-  }
-}
-
+  imageList = shuffleArray([...mockBoards[board]]);
   currentIndex = 0;
 imageDisplayIndex = 0;
 
@@ -758,7 +662,7 @@ if (limitMode === "time") {
 } else {
   sessionRemaining = null; // No session-wide timer
 }
-
+}
 
  
 
@@ -973,7 +877,7 @@ document.querySelectorAll('input[name="mode"]').forEach(radio => {
 });
 
 
-
+// Set initial visibility based on selected mode when page loads
 window.addEventListener('DOMContentLoaded', () => {
   const isClass = document.querySelector('input[name="mode"]:checked').value === "class";
   document.getElementById("classSettings").style.display = isClass ? "block" : "none";
@@ -992,7 +896,6 @@ document.querySelectorAll('input[name="pinterestSource"]').forEach(radio => {
   });
 });
 
-
 document.querySelectorAll('input[name="limit"]').forEach(radio => {
   radio.addEventListener('change', () => {
     const selected = document.querySelector('input[name="limit"]:checked').value;
@@ -1002,38 +905,35 @@ document.querySelectorAll('input[name="limit"]').forEach(radio => {
 });
 
 async function loadUserBoards() {
+  const user = document.getElementById("pinterestUsername").value.trim();
   const select = document.getElementById("userBoards");
-  select.innerHTML = ""; // Clear previous options
-
-  const username = document.getElementById("pinterestUsername").value.trim();
-  const accessToken = document.getElementById("accessTokenInput").value.trim();
-
-  if (!username || !accessToken) {
-    alert("Please enter both Pinterest username and access token.");
-    return;
-  }
+  select.innerHTML = ""; // Clear previous
 
   try {
-    const res = await fetch(`https://api.pinterest.com/v5/users/${username}/boards`, {
+    const response = await fetch(`https://api.pinterest.com/v5/users/${user}/boards`, {
       headers: {
-        "Authorization": `Bearer ${accessToken}`,
-        "Content-Type": "application/json"
+        'Authorization': 'Bearer pina_AMA42SYXACZUCAQAGDAAIBZ6ZZTWHGABQBIQD4EO5NOZ74ESBS3B4IFYA63MO3H6EX6UQRWPJXFO3YTGL37KLPHQCEX7EPIA'
       }
     });
 
-    if (!res.ok) throw new Error("Pinterest API request failed");
+    if (!response.ok) throw new Error("Pinterest access not granted yet");
 
-    const data = await res.json();
+    const data = await response.json();
     data.items.forEach(board => {
       const opt = document.createElement("option");
       opt.value = board.id;
       opt.textContent = board.name;
       select.appendChild(opt);
     });
-
   } catch (err) {
-    alert("Failed to load Pinterest boards.");
-    console.error(err);
+    alert("Pinterest not available yet — using sample boards.");
+    const dummyBoards = ["poses", "fashion", "landscapes", "animals"];
+    dummyBoards.forEach(name => {
+      const opt = document.createElement("option");
+      opt.value = name;
+      opt.textContent = name + " (mock)";
+      select.appendChild(opt);
+    });
   }
 }
 
@@ -1041,47 +941,6 @@ async function loadUserBoards() {
 function backToSetup() {
   document.getElementById("finishedScreen").style.display = "none";
   document.getElementById("setup").style.display = "block";
-}
-
-function startDrawingSession() {
-  currentIndex = 0;
-  imageDisplayIndex = 0;
-
-  if (sessionMode === "standard") {
-    const durationMin = parseInt(document.getElementById("durationMin").value || "0");
-    const durationSec = parseInt(document.getElementById("durationSec").value || "0");
-    imageDuration = durationMin * 60 + durationSec;
-    classImageSchedule = [];
-  } else {
-    classImageSchedule = [];
-    document.querySelectorAll("#classPhases .class-phase").forEach(phase => {
-      const isBreak = phase.querySelector(".phase-break").checked;
-      const duration = (
-        parseInt(phase.querySelector(".phase-minutes").value || "0") * 60 +
-        parseInt(phase.querySelector(".phase-seconds").value || "0")
-      );
-      const count = isBreak ? 1 : parseInt(phase.querySelector(".phase-count").value || "1");
-
-      for (let i = 0; i < count; i++) {
-        classImageSchedule.push({ duration, isBreak });
-      }
-    });
-
-    limitMode = "count";
-    limitValue = classImageSchedule.length;
-  }
-
-  document.getElementById("setup").style.display = "none";
-  document.getElementById("viewer").style.display = "flex";
-  showImage();
-
-  if (limitMode === "time") {
-    sessionRemaining = limitValue * 60;
-  } else if (sessionMode === "class") {
-    sessionRemaining = classImageSchedule.reduce((sum, phase) => sum + phase.duration, 0);
-  } else {
-    sessionRemaining = null; // No session-wide timer
-  }
 }
 
 
@@ -1092,29 +951,6 @@ function startDrawingSession() {
   <div style="font-size:2rem;">Session finished! Awesome work! 😄</div>
   <button onclick="backToSetup()" style="margin-top:2rem; padding:1rem 2rem; font-size:1.2rem;">Back to Setup</button>
 </div>
-
-
-<script>
-window.addEventListener("DOMContentLoaded", () => {
-  // Force initial screen state
-  document.getElementById("setup").style.display = "block";
-  document.getElementById("viewer").style.display = "none";
-
-  // Set up source visibility logic
-  function updateSourceVisibility() {
-    const source = document.querySelector('input[name="pinterestSource"]:checked').value;
-    document.getElementById("boardUrlSection").style.display = source === "board" ? "block" : "none";
-    document.getElementById("userBoardSection").style.display = source === "user" ? "block" : "none";
-    document.getElementById("staticBoardSection").style.display = source === "board" ? "block" : "none";
-  }
-
-  document.querySelectorAll('input[name="pinterestSource"]').forEach(radio => {
-    radio.addEventListener('change', updateSourceVisibility);
-  });
-
-  updateSourceVisibility(); // run once on load
-});
-</script>
 
 </body>
 </html>
