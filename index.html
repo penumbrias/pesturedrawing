@@ -1,77 +1,37 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Gesture Drawing App (Mock)</title>
+  <title>PestureDrawing — Gesture Drawing App</title>
   <style>
-    body {
-      margin: 0;
-      font-family: sans-serif;
-      background: #fafafa;
-    }
+    body { margin:0; font-family: system-ui, sans-serif; background:#fafafa; }
     .setup {
-      max-width: 400px;
-      margin: 2rem auto;
-      padding: 1rem 2rem;
-      background: white;
-      border-radius: 8px;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      max-width: 420px; margin: 2rem auto; padding: 1rem 1.25rem; background:#fff;
+      border-radius: 10px; box-shadow: 0 2px 12px rgba(0,0,0,0.08);
     }
-    .setup h2 {
-      text-align: center;
-    }
-    .setup label {
-      display: block;
-      margin-top: 1rem;
-    }
-    .setup input[type="text"],
-    .setup select,
-    .setup input[type="number"] {
-      width: 100%;
-      padding: 0.5rem;
-      margin-top: 0.25rem;
+    .setup h2 { text-align:center; margin:0 0 0.5rem; }
+    .setup label { display:block; margin-top: 0.75rem; }
+    .setup input[type="text"], .setup input[type="number"], .setup select {
+      width:100%; padding:0.5rem; margin-top:0.25rem;
     }
     .fullscreen {
-      position: fixed;
-      top: 0; left: 0;
-      width: 100%; height: 100%;
-      background: black;
-      display: none;
-      justify-content: center;
-      align-items: center;
-      flex-direction: column;
+      position: fixed; inset: 0; background:#000; display:none;
+      justify-content:center; align-items:center; flex-direction:column;
     }
-    .fullscreen img {
-      max-width: 100%;
-      max-height: 100%;
-    }
+    .fullscreen img { max-width: 100%; max-height: 100%; }
     .session-controls {
-      position: absolute;
-      top: 1rem;
-      right: 1rem;
-      display: flex;
-      gap: 1rem;
+      position:absolute; top:1rem; right:1rem; display:flex; gap:0.5rem;
     }
-    .session-controls button {
-      font-size: 1.2rem;
-      padding: 0.5rem;
-    }
+    .session-controls button { font-size:1.1rem; padding:0.45rem 0.65rem; }
     .timer {
-      position: absolute;
-      top: 1rem;
-      left: 1rem;
-      color: white;
-      font-size: 2rem;
+      position:absolute; left:1rem; color:#fff; font-size:2rem;
     }
+    #imageTimer { top:1rem; }
+    #sessionTimer { top:3.5rem; }
     #breakNextLabel {
-      position: absolute;
-      top: 1rem;
-      left: 50%;
-      transform: translateX(-50%);
-      color: gray;
-      font-size: 1.5rem;
-      display: none;
+      position:absolute; top:1rem; left:50%; transform: translateX(-50%);
+      color:#bbb; font-size:1.25rem; display:none;
     }
   </style>
   <audio id="bellSound" src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" preload="auto"></audio>
@@ -82,139 +42,127 @@
 <div class="fullscreen" id="breakScreen" style="background:#111; color:white;">
   <div style="font-size:2rem;">Break Time</div>
   <div id="breakTimer" style="font-size:3rem; margin-top:1rem;">05:00</div>
-  <button onclick="skipBreak()" style="margin-top:2rem; padding:1rem 2rem; font-size:1.2rem;">Skip Break</button>
+  <button onclick="skipBreak()" style="margin-top:2rem; padding:1rem 2rem; font-size:1.1rem;">Skip Break</button>
 </div>
 
 <!-- Setup Panel -->
 <div class="setup" id="setup">
   <h2>Start Drawing Session</h2>
 
-<label>Image Source:</label>
-<label><input type="radio" name="pinterestSource" value="board" checked> Paste Board URL(s)</label>
-<label><input type="radio" name="pinterestSource" value="user"> Use Pinterest Username</label>
+  <div style="display:flex; gap:8px; align-items:center; margin: 0.75rem 0;">
+    <button id="loginBtn" type="button">🔐 Login with Pinterest</button>
+    <button id="logoutBtn" type="button" style="display:none;">Log out</button>
+    <span id="authStatus" style="font-size:0.9rem; color:#555;"></span>
+  </div>
 
-<div id="boardUrlSection" style="margin-top: 1rem;">
-  <label>Board URL(s) (comma-separated):</label>
-  <input type="text" id="boardUrls" />
-</div>
+  <label>Image Source:</label>
+  <label><input type="radio" name="pinterestSource" value="board" checked> Paste Board URL(s)</label>
+  <label><input type="radio" name="pinterestSource" value="user"> Use Pinterest Username</label>
 
-<div id="userBoardSection" style="margin-top: 1rem; display: none;">
-  <label>Pinterest Username:</label>
-  <input type="text" id="pinterestUsername" placeholder="e.g. penumbrialhexandroga" />
-  <button type="button" onclick="loadUserBoards()">Load Boards</button>
+  <div id="boardUrlSection" style="margin-top: 0.5rem;">
+    <label>Board URL(s) (comma or space separated):</label>
+    <input type="text" id="boardUrls" placeholder="https://www.pinterest.com/.../boards/1234567890, https://..." />
+  </div>
 
-  <label style="margin-top: 0.5rem;">Choose Board(s):</label>
-  <select id="userBoards" multiple style="width: 100%; padding: 0.5rem; height: 10rem;">
-  <option value="action poses">action poses</option>
-  <option value="architecture">architecture</option>
-  <option value="birds">birds</option>
-  <option value="environments">environments</option>
-  <option value="fashion">fashion</option>
-  <option value="felines">felines</option>
-  <option value="fish">fish</option>
-  <option value="hands and extremities">hands and extremities</option>
-  <option value="insects">insects</option>
-  <option value="mammals">mammals</option>
-  <option value="misc. poses">misc. poses</option>
-  <option value="portrait">portrait</option>
-  <option value="primates">primates</option>
-  <option value="statuary">statuary</option>
-  <option value="vehilcles">vehilcles</option>
-</select>
-</div>
+  <div id="userBoardSection" style="margin-top: 0.5rem; display:none;">
+    <label>Pinterest Username:</label>
+    <input type="text" id="pinterestUsername" placeholder="e.g. artlover42" />
+    <button type="button" onclick="loadUserBoards()">Load Boards</button>
 
+    <label style="margin-top: 0.5rem;">Choose Board(s):</label>
+    <select id="userBoards" multiple style="width:100%; padding:0.5rem;"></select>
+  </div>
 
-<div id="staticBoardSection">
-  <label>Pinterest Board:</label>
+  <!-- Legacy dropdown (still supported as fallback/seed) -->
+  <label style="margin-top:0.75rem;">Pinterest Board (preset categories):</label>
   <select id="board">
-  <option value="action poses">action poses</option>
-  <option value="architecture">architecture</option>
-  <option value="birds">birds</option>
-  <option value="environments">environments</option>
-  <option value="fashion">fashion</option>
-  <option value="felines">felines</option>
-  <option value="fish">fish</option>
-  <option value="hands and extremities">hands and extremities</option>
-  <option value="insects">insects</option>
-  <option value="mammals">mammals</option>
-  <option value="misc. poses">misc. poses</option>
-  <option value="portrait">portrait</option>
-  <option value="primates">primates</option>
-  <option value="statuary">statuary</option>
-  <option value="vehilcles">vehilcles</option>
- </select>
-</div>
+    <option value="action-poses">action poses</option>
+    <option value="architecture">architecture</option>
+    <option value="birds">birds</option>
+    <option value="canine/canidae">canine/canidae</option>
+    <option value="environments">environments</option>
+    <option value="fashion">fashion</option>
+    <option value="felines">felines</option>
+    <option value="fish">fish</option>
+    <option value="fundamentals">fundamentals</option>
+    <option value="hands-and-extremities">hands and extremities</option>
+    <option value="insects">insects</option>
+    <option value="mammals">mammals</option>
+    <option value="misc.-poses">misc. poses</option>
+    <option value="mushrooms, plants, and flowers">mushrooms, plants, and flowers</option>
+    <option value="mustelids/rodentia/marsupials">mustelids/rodentia/marsupials</option>
+    <option value="portrait">portrait</option>
+    <option value="primates">primates</option>
+    <option value="reptiles/amphibians">reptiles/amphibians</option>
+    <option value="sea-animals">sea animals</option>
+    <option value="statuary">statuary</option>
+    <option value="trees">trees</option>
+    <option value="ungulates">ungulates</option>
+    <option value="vehicles">vehicles</option>
+  </select>
 
-  <label>Session Type:</label>
+  <label style="margin-top:0.75rem;">Session Type:</label>
   <label><input type="radio" name="mode" value="standard" checked> Standard</label>
   <label><input type="radio" name="mode" value="class"> Class</label>
 
-<div id="classSettings" style="display: none; margin-top: 1rem;">
-  <label><input type="checkbox" id="customClassToggle"> Customize Class</label>
-
-  <div id="classPhases">
-    <!-- Default steps -->
- <div class="class-phase">
-    <input type="number" class="phase-count" value="5" style="width: 3rem;" /> images for
-    <input type="number" class="phase-minutes" value="0" style="width: 3rem;" /> min
-    <input type="number" class="phase-seconds" value="10" style="width: 3rem;" /> sec
-    <label><input type="checkbox" class="phase-break" /> break</label>
+  <div id="classSettings" style="display:none; margin-top:0.5rem;">
+    <label><input type="checkbox" id="customClassToggle"> Customize Class</label>
+    <div id="classPhases" style="margin-top:0.5rem;">
+      <div class="class-phase">
+        <input type="number" class="phase-count" value="5" style="width:3rem;" /> images for
+        <input type="number" class="phase-minutes" value="0" style="width:3rem;" /> min
+        <input type="number" class="phase-seconds" value="10" style="width:3rem;" /> sec
+        <label><input type="checkbox" class="phase-break" /> break</label>
+      </div>
+    </div>
+    <div id="customControls" style="display:none; margin-top:0.5rem;">
+      <button type="button" onclick="addClassPhase()">Add Phase</button>
+    </div>
   </div>
-</div>
 
-  <div id="customControls" style="display: none; margin-top: 0.5rem;">
-    <button type="button" onclick="addClassPhase()">Add Phase</button>
+  <div id="limitSection" style="margin-top:0.75rem;">
+    <label>Session Limit:</label>
+    <label><input type="radio" name="limit" value="count" checked> Number of images</label>
+    <div id="limitCountOptions" style="display:block; margin-top:0.5rem;">
+      <input type="number" id="limitCountValue" value="10"/>
+    </div>
+    <label><input type="radio" name="limit" value="time"> Stop at time (minutes)</label>
+    <label><input type="radio" name="limit" value="endless"> Endless</label>
+
+    <div id="limitTimeOptions" style="display:none; margin-top:0.5rem;">
+      <input type="number" id="limitValue" value="10"/>
+      <label><input type="checkbox" id="strictTime"> Stop exactly at time</label>
+    </div>
   </div>
-</div>
 
-<div id="limitSection">
-  <label>Session Limit:</label>
-  <label><input type="radio" name="limit" value="count" checked> Number of images</label>
-<div id="limitCountOptions" style="display: block; margin-top: 0.5rem;">
-  <input type="number" id="limitCountValue" value="10" />
-</div>
-  <label><input type="radio" name="limit" value="time"> Stop at time (minutes)</label>
-  <label><input type="radio" name="limit" value="endless"> Endless</label>
+  <div id="standardOptions" style="margin-top:0.75rem;">
+    <label>Duration per Image:</label>
+    <div style="display:flex; gap:0.75rem; margin-top:0.25rem;">
+      <input type="number" id="durationMin" value="0" placeholder="Minutes" style="flex:1;"/>
+      <input type="number" id="durationSec" value="30" placeholder="Seconds" style="flex:1;"/>
+    </div>
 
-  <div id="limitTimeOptions" style="display: none; margin-top: 0.5rem;">
-    <input type="number" id="limitValue" value="10" />
-    <label><input type="checkbox" id="strictTime"> Stop exactly at time</label>
+    <label style="margin-top:0.5rem;">Bell Times (seconds, comma-separated):</label>
+    <input type="text" id="bellTimes" value="60,10,5"/>
+
+    <label style="margin-top:0.5rem;"><input type="checkbox" id="breaks" checked> Enable breaks</label>
+    <label>Break After (minutes):</label>
+    <input type="number" id="breakAfter" value="20"/>
+    <label>Break Duration (minutes):</label>
+    <input type="number" id="breakDuration" value="5"/>
   </div>
-</div>
 
-<div id="standardOptions">
-  <label>Duration per Image:</label>
-<div style="display: flex; gap: 1rem; margin-top: 0.25rem;">
-  <div style="flex: 1;">
-    <input type="number" id="durationMin" value="0" placeholder="Minutes" />
-  </div>
-  <div style="flex: 1;">
-    <input type="number" id="durationSec" value="30" placeholder="Seconds" />
-  </div>
-</div>
-
-
-  <label>Bell Times (seconds, comma-separated):</label>
-  <input type="text" id="bellTimes" value="60,10,5" />
-
-  <label><input type="checkbox" id="breaks" checked> Enable breaks</label>
-  <label>Break After (minutes):</label>
-  <input type="number" id="breakAfter" value="20" />
-  <label>Break Duration (minutes):</label>
-  <input type="number" id="breakDuration" value="5" />
-</div>
-
-  <button onclick="startSession()">Start Drawing</button>
+  <button onclick="startSession()" style="margin-top:1rem;">Start Drawing</button>
 </div>
 
 <!-- Image Viewer -->
 <div class="fullscreen" id="viewer">
-<div class="timer" id="imageTimer">00:00</div>
-<div class="timer" id="sessionTimer" style="top: 3.5rem;">00:00</div>
-<div style="position: absolute; bottom: 1rem; left: 1rem;">
-  <button onclick="toggleImageTimer()">Toggle Image Timer</button>
-  <button onclick="toggleSessionTimer()">Toggle Session Timer</button>
-</div>
+  <div class="timer" id="imageTimer">00:00</div>
+  <div class="timer" id="sessionTimer">00:00</div>
+  <div style="position:absolute; bottom:1rem; left:1rem;">
+    <button onclick="toggleImageTimer()">Toggle Image Timer</button>
+    <button onclick="toggleSessionTimer()">Toggle Session Timer</button>
+  </div>
   <div id="breakNextLabel">Break next</div>
   <div class="session-controls">
     <button onclick="prevImage()">⏮️</button>
@@ -222,831 +170,424 @@
     <button onclick="nextImage()">⏭️</button>
     <button onclick="endSession()">⏹️</button>
   </div>
-  <img id="currentImage" src="" />
+  <img id="currentImage" src=""/>
 </div>
 
+<!-- Session Finished Screen (Option B) -->
+<div class="fullscreen" id="finishedScreen" style="background:#222; color:#fff;">
+  <div style="font-size:2rem;">Session finished! Awesome work! 😄</div>
+  <button onclick="backToSetup()" style="margin-top:2rem; padding:1rem 2rem; font-size:1.1rem;">Back to Setup</button>
+</div>
 
 <script>
-let mockBoards = {
-  "environments": [
-    "mock_boards/environments board/1. .jpg",
-    "mock_boards/environments board/10. .jpg",
-    "mock_boards/environments board/11. .jpg",
-    "mock_boards/environments board/12. .jpg",
-    "mock_boards/environments board/13. .jpg",
-    "mock_boards/environments board/14. Discover Australia's.png",
-    "mock_boards/environments board/15. .jpg",
-    "mock_boards/environments board/2. .jpg",
-    "mock_boards/environments board/3. .jpg",
-    "mock_boards/environments board/4. .jpg",
-    "mock_boards/environments board/5. .png",
-    "mock_boards/environments board/6. .jpg",
-    "mock_boards/environments board/7. Discover Australia's.png",
-    "mock_boards/environments board/8. .jpg",
-    "mock_boards/environments board/9. .jpg"
-  ],
-  "medievalfantasy weapons": [
-    "mock_boards/medieval!fantasy weapons board/1. Bow tool sling.jpg",
-    "mock_boards/medieval!fantasy weapons board/10. .jpg",
-    "mock_boards/medieval!fantasy weapons board/11. Highly decorated.jpg",
-    "mock_boards/medieval!fantasy weapons board/12. Weapons  Morning.jpg",
-    "mock_boards/medieval!fantasy weapons board/13. .jpg",
-    "mock_boards/medieval!fantasy weapons board/14. Silver work.png",
-    "mock_boards/medieval!fantasy weapons board/15. .jpg",
-    "mock_boards/medieval!fantasy weapons board/2. .jpg",
-    "mock_boards/medieval!fantasy weapons board/3. .jpg",
-    "mock_boards/medieval!fantasy weapons board/4. .jpg",
-    "mock_boards/medieval!fantasy weapons board/5. .jpg",
-    "mock_boards/medieval!fantasy weapons board/6. .jpg",
-    "mock_boards/medieval!fantasy weapons board/7. .jpg",
-    "mock_boards/medieval!fantasy weapons board/8. .jpg",
-    "mock_boards/medieval!fantasy weapons board/9. .jpg"
-  ],
-  "fashion": [
-    "mock_boards/fashion board/1. .png",
-    "mock_boards/fashion board/10. .jpg",
-    "mock_boards/fashion board/11. .jpg",
-    "mock_boards/fashion board/12. .jpg",
-    "mock_boards/fashion board/13. On location,.jpg",
-    "mock_boards/fashion board/14. .jpg",
-    "mock_boards/fashion board/15. .png",
-    "mock_boards/fashion board/2. .jpg",
-    "mock_boards/fashion board/3. .jpg",
-    "mock_boards/fashion board/4. .jpg",
-    "mock_boards/fashion board/5. .jpg",
-    "mock_boards/fashion board/6. .jpg",
-    "mock_boards/fashion board/7. .jpg",
-    "mock_boards/fashion board/8. .jpg",
-    "mock_boards/fashion board/9. .png"
-  ],
-  "mushrooms plants and flowers": [
-    "mock_boards/mushrooms, plants and flowers board/1. .jpg",
-    "mock_boards/mushrooms, plants and flowers board/10. untitled-5.jpg.jpg",
-    "mock_boards/mushrooms, plants and flowers board/11. .png",
-    "mock_boards/mushrooms, plants and flowers board/12. .jpg",
-    "mock_boards/mushrooms, plants and flowers board/13. .png",
-    "mock_boards/mushrooms, plants and flowers board/14. Red and.jpg",
-    "mock_boards/mushrooms, plants and flowers board/15. .jpg",
-    "mock_boards/mushrooms, plants and flowers board/2. .jpg",
-    "mock_boards/mushrooms, plants and flowers board/3. .jpg",
-    "mock_boards/mushrooms, plants and flowers board/4. .jpg",
-    "mock_boards/mushrooms, plants and flowers board/5. .jpg",
-    "mock_boards/mushrooms, plants and flowers board/6. Big Bang.jpg",
-    "mock_boards/mushrooms, plants and flowers board/7. .jpg",
-    "mock_boards/mushrooms, plants and flowers board/8. This is.jpg",
-    "mock_boards/mushrooms, plants and flowers board/9. .jpg"
-  ],
-  "trees": [
-    "mock_boards/trees board/1. .jpg",
-    "mock_boards/trees board/10. .jpg",
-    "mock_boards/trees board/11. .png",
-    "mock_boards/trees board/12. How to.jpg",
-    "mock_boards/trees board/13. .jpg",
-    "mock_boards/trees board/14. .jpg",
-    "mock_boards/trees board/15. .jpg",
-    "mock_boards/trees board/2. .jpg",
-    "mock_boards/trees board/3. .jpg",
-    "mock_boards/trees board/4. .jpg",
-    "mock_boards/trees board/5. .jpg",
-    "mock_boards/trees board/6. .jpg",
-    "mock_boards/trees board/7. .jpg",
-    "mock_boards/trees board/8. .jpg",
-    "mock_boards/trees board/9. .jpg"
-  ],
-  "caninecanidae": [
-    "mock_boards/canine!canidae board/1. .jpg",
-    "mock_boards/canine!canidae board/10. Saluki Welpen.jpg",
-    "mock_boards/canine!canidae board/11. .jpg",
-    "mock_boards/canine!canidae board/12. Spanish Sighthound.jpg",
-    "mock_boards/canine!canidae board/13. borzoi.png",
-    "mock_boards/canine!canidae board/14. .png",
-    "mock_boards/canine!canidae board/15. .jpg",
-    "mock_boards/canine!canidae board/2. .jpg",
-    "mock_boards/canine!canidae board/3. .jpg",
-    "mock_boards/canine!canidae board/4. .jpg",
-    "mock_boards/canine!canidae board/5. .jpg",
-    "mock_boards/canine!canidae board/6. .jpg",
-    "mock_boards/canine!canidae board/7. Tangkhul Hui.jpg",
-    "mock_boards/canine!canidae board/8. Cirneco Dell'Etna-.jpg",
-    "mock_boards/canine!canidae board/9. Dog.jpg"
-  ],
-  "sea animals": [
-    "mock_boards/sea animals board/1. .jpg",
-    "mock_boards/sea animals board/10. Decorator crabs.png",
-    "mock_boards/sea animals board/11. .jpg",
-    "mock_boards/sea animals board/12. PixieWinks.jpg",
-    "mock_boards/sea animals board/13. Giant box.png",
-    "mock_boards/sea animals board/14. .jpg",
-    "mock_boards/sea animals board/15. New ‘Galaxy’.jpg",
-    "mock_boards/sea animals board/2. .jpg",
-    "mock_boards/sea animals board/3. It's Dive.jpg",
-    "mock_boards/sea animals board/4. Come brighten.jpg",
-    "mock_boards/sea animals board/5. .jpg",
-    "mock_boards/sea animals board/6. .jpg",
-    "mock_boards/sea animals board/7. .jpg",
-    "mock_boards/sea animals board/8. 🔥 East.jpg",
-    "mock_boards/sea animals board/9. Spiny monster.jpg"
-  ],
-  "ungulates": [
-    "mock_boards/ungulates board/1. .png",
-    "mock_boards/ungulates board/10. .jpg",
-    "mock_boards/ungulates board/11. Sichuan Takin.jpg",
-    "mock_boards/ungulates board/12. .jpg",
-    "mock_boards/ungulates board/13. Черная антилопа.jpg",
-    "mock_boards/ungulates board/14. .jpg",
-    "mock_boards/ungulates board/15. Scythian horse.jpg",
-    "mock_boards/ungulates board/2. .jpg",
-    "mock_boards/ungulates board/3. .jpg",
-    "mock_boards/ungulates board/4. Bull Okapi.jpg",
-    "mock_boards/ungulates board/5. Jentink’s Duiker.jpg",
-    "mock_boards/ungulates board/6. Hemitragus jemlahicus.jpg",
-    "mock_boards/ungulates board/7. .jpg",
-    "mock_boards/ungulates board/8. Saiga Antelope.jpg",
-    "mock_boards/ungulates board/9. Kafue Lechwe.jpg"
-  ],
-  "mustelidsrodentiamarsupials": [
-    "mock_boards/mustelids!rodentia!marsupials board/1. Lumholtz’s Tree.jpg",
-    "mock_boards/mustelids!rodentia!marsupials board/10. The Finnish.jpg",
-    "mock_boards/mustelids!rodentia!marsupials board/11. Kowari (Dasyuroides.png",
-    "mock_boards/mustelids!rodentia!marsupials board/12. I like.png",
-    "mock_boards/mustelids!rodentia!marsupials board/13. Stoat.jpg",
-    "mock_boards/mustelids!rodentia!marsupials board/14. Magical Nature.jpg",
-    "mock_boards/mustelids!rodentia!marsupials board/15. 🔥 European.png",
-    "mock_boards/mustelids!rodentia!marsupials board/2. .jpg",
-    "mock_boards/mustelids!rodentia!marsupials board/3. .jpg",
-    "mock_boards/mustelids!rodentia!marsupials board/4. .jpg",
-    "mock_boards/mustelids!rodentia!marsupials board/5. .jpg",
-    "mock_boards/mustelids!rodentia!marsupials board/6. .jpg",
-    "mock_boards/mustelids!rodentia!marsupials board/7. .jpg",
-    "mock_boards/mustelids!rodentia!marsupials board/8. ُ.jpg",
-    "mock_boards/mustelids!rodentia!marsupials board/9. .jpg"
-  ],
-  "mammals": [
-    "mock_boards/mammals board/1. .jpg",
-    "mock_boards/mammals board/10. Armadillo.jpg",
-    "mock_boards/mammals board/11. Tenrecs!.jpg",
-    "mock_boards/mammals board/12. Matschie's Tree.jpg",
-    "mock_boards/mammals board/13. .jpg",
-    "mock_boards/mammals board/14. .png",
-    "mock_boards/mammals board/15. I Capture.jpg",
-    "mock_boards/mammals board/2. Mara &.jpg",
-    "mock_boards/mammals board/3. Patagonian Mara.jpg",
-    "mock_boards/mammals board/4. Greater Hog.jpg",
-    "mock_boards/mammals board/5. .jpg",
-    "mock_boards/mammals board/6. .jpg",
-    "mock_boards/mammals board/7. .jpg",
-    "mock_boards/mammals board/8. Dingiso Tree.jpg",
-    "mock_boards/mammals board/9. .jpg"
-  ],
-  "reptilesamphibians": [
-    "mock_boards/reptiles!amphibians board/1. .jpg",
-    "mock_boards/reptiles!amphibians board/10. .jpg",
-    "mock_boards/reptiles!amphibians board/11. .jpg",
-    "mock_boards/reptiles!amphibians board/12. .jpg",
-    "mock_boards/reptiles!amphibians board/13. .jpg",
-    "mock_boards/reptiles!amphibians board/14. .jpg",
-    "mock_boards/reptiles!amphibians board/15. Duckbill Tree.jpg",
-    "mock_boards/reptiles!amphibians board/2. .jpg",
-    "mock_boards/reptiles!amphibians board/3. Tuatara.jpg",
-    "mock_boards/reptiles!amphibians board/4. .jpg",
-    "mock_boards/reptiles!amphibians board/5. Giant Armadillo.jpg",
-    "mock_boards/reptiles!amphibians board/6. .jpg",
-    "mock_boards/reptiles!amphibians board/7. Bornean Horned.jpg",
-    "mock_boards/reptiles!amphibians board/8. .jpg",
-    "mock_boards/reptiles!amphibians board/9. .jpg"
-  ],
-  "statuary": [
-    "mock_boards/statuary board/1. .jpg",
-    "mock_boards/statuary board/10. Bronze Figures.png",
-    "mock_boards/statuary board/11. .jpg",
-    "mock_boards/statuary board/12. Attilio Selva.jpg",
-    "mock_boards/statuary board/13. .jpg",
-    "mock_boards/statuary board/14. .jpg",
-    "mock_boards/statuary board/15. Readiness.jpg",
-    "mock_boards/statuary board/2. .jpg",
-    "mock_boards/statuary board/3. .jpg",
-    "mock_boards/statuary board/4. .jpg",
-    "mock_boards/statuary board/5. Statue of.jpg",
-    "mock_boards/statuary board/6. .jpg",
-    "mock_boards/statuary board/7. .jpg",
-    "mock_boards/statuary board/8. Joan of.jpg",
-    "mock_boards/statuary board/9. .jpg"
-  ],
-  "fish": [
-    "mock_boards/fish board/1. .jpg",
-    "mock_boards/fish board/10. Threadfin butterflyfish,.jpg",
-    "mock_boards/fish board/11. .jpg",
-    "mock_boards/fish board/12. 45 Beautiful.jpg",
-    "mock_boards/fish board/13. 9 Amazing.jpg",
-    "mock_boards/fish board/14. Picasso Triggerfish.jpg",
-    "mock_boards/fish board/15. Passer Angelfish.jpg",
-    "mock_boards/fish board/2. .jpg",
-    "mock_boards/fish board/3. .jpg",
-    "mock_boards/fish board/4. .jpg",
-    "mock_boards/fish board/5. .jpg",
-    "mock_boards/fish board/6. Longspine squirrelfish,.jpg",
-    "mock_boards/fish board/7. .jpg",
-    "mock_boards/fish board/8. Large Ocean.png",
-    "mock_boards/fish board/9. .jpg"
-  ],
-  "portrait": [
-    "mock_boards/portrait board/1. City Twists.jpg",
-    "mock_boards/portrait board/10. 🌙.jpg",
-    "mock_boards/portrait board/11. .jpg",
-    "mock_boards/portrait board/12. Sān child,.jpg",
-    "mock_boards/portrait board/13. .jpg",
-    "mock_boards/portrait board/14. .jpg",
-    "mock_boards/portrait board/15. .jpg",
-    "mock_boards/portrait board/2. .jpg",
-    "mock_boards/portrait board/3. .jpg",
-    "mock_boards/portrait board/4. .jpg",
-    "mock_boards/portrait board/5. How Beyoncé.jpg",
-    "mock_boards/portrait board/6. .jpg",
-    "mock_boards/portrait board/7. .jpg",
-    "mock_boards/portrait board/8. .jpg",
-    "mock_boards/portrait board/9. .jpg"
-  ],
-  "vehilcles": [
-    "mock_boards/vehilcles board/1. 1962 Mazda.jpg",
-    "mock_boards/vehilcles board/10. .jpg",
-    "mock_boards/vehilcles board/11. .jpg",
-    "mock_boards/vehilcles board/12. .jpg",
-    "mock_boards/vehilcles board/13. .jpg",
-    "mock_boards/vehilcles board/14. .jpg",
-    "mock_boards/vehilcles board/15. Ride the.jpg",
-    "mock_boards/vehilcles board/2. .jpg",
-    "mock_boards/vehilcles board/3. Comeng at.jpg",
-    "mock_boards/vehilcles board/4. .jpg",
-    "mock_boards/vehilcles board/5. Shikon® Embroidered.jpg",
-    "mock_boards/vehilcles board/6. .jpg",
-    "mock_boards/vehilcles board/7. .jpg",
-    "mock_boards/vehilcles board/8. .jpg",
-    "mock_boards/vehilcles board/9. .jpg"
-  ],
-  "birds": [
-    "mock_boards/birds board/1. .jpg",
-    "mock_boards/birds board/10. Mergansers,mother &.jpg",
-    "mock_boards/birds board/11. .jpg",
-    "mock_boards/birds board/12. .jpg",
-    "mock_boards/birds board/13. .jpg",
-    "mock_boards/birds board/14. Comb Duck.jpg",
-    "mock_boards/birds board/15. .jpg",
-    "mock_boards/birds board/2. .jpg",
-    "mock_boards/birds board/3. Vulture.jpg",
-    "mock_boards/birds board/4. .jpg",
-    "mock_boards/birds board/5. .jpg",
-    "mock_boards/birds board/6. .jpg",
-    "mock_boards/birds board/7. .jpg",
-    "mock_boards/birds board/8. .jpg",
-    "mock_boards/birds board/9. .jpg"
-  ],
-  "felines": [
-    "mock_boards/felines board/1. .jpg",
-    "mock_boards/felines board/10. .jpg",
-    "mock_boards/felines board/11. .jpg",
-    "mock_boards/felines board/12. .jpg",
-    "mock_boards/felines board/13. .jpg",
-    "mock_boards/felines board/14. PaleCoat.jpg",
-    "mock_boards/felines board/15. .jpg",
-    "mock_boards/felines board/2. .jpg",
-    "mock_boards/felines board/3. Peterbald Cat.jpg",
-    "mock_boards/felines board/4. .jpg",
-    "mock_boards/felines board/5. .jpg",
-    "mock_boards/felines board/6. .jpg",
-    "mock_boards/felines board/7. .jpg",
-    "mock_boards/felines board/8. LeapingStar.jpg",
-    "mock_boards/felines board/9. .jpg"
-  ],
-  "primates": [
-    "mock_boards/primates board/1. Hanuman Langur.jpg",
-    "mock_boards/primates board/10. .jpg",
-    "mock_boards/primates board/11. Hanuman Langur.jpg",
-    "mock_boards/primates board/12. These Intense.jpg",
-    "mock_boards/primates board/13. The independent.jpg",
-    "mock_boards/primates board/14. .jpg",
-    "mock_boards/primates board/15. .jpg",
-    "mock_boards/primates board/2. .jpg",
-    "mock_boards/primates board/3. .jpg",
-    "mock_boards/primates board/4. Red Ruffed.jpg",
-    "mock_boards/primates board/5. .jpg",
-    "mock_boards/primates board/6. .jpg",
-    "mock_boards/primates board/7. .jpg",
-    "mock_boards/primates board/8. .jpg",
-    "mock_boards/primates board/9. .jpg"
-  ],
-  "misc. poses": [
-    "mock_boards/misc. poses board/1. .jpg",
-    "mock_boards/misc. poses board/10. .jpg",
-    "mock_boards/misc. poses board/11. .jpg",
-    "mock_boards/misc. poses board/12. Female Models.jpg",
-    "mock_boards/misc. poses board/13. .jpg",
-    "mock_boards/misc. poses board/14. .jpg",
-    "mock_boards/misc. poses board/15. .jpg",
-    "mock_boards/misc. poses board/2. 🕸️.jpg",
-    "mock_boards/misc. poses board/3. .jpg",
-    "mock_boards/misc. poses board/4. .jpg",
-    "mock_boards/misc. poses board/5. Dynamic Posing.jpg",
-    "mock_boards/misc. poses board/6. .jpg",
-    "mock_boards/misc. poses board/7. .jpg",
-    "mock_boards/misc. poses board/8. How To.jpg",
-    "mock_boards/misc. poses board/9. .jpg"
-  ],
-  "action poses": [
-    "mock_boards/action poses board/1. PHOTOS  Rafael.jpg",
-    "mock_boards/action poses board/10. .jpg",
-    "mock_boards/action poses board/11. .jpg",
-    "mock_boards/action poses board/12. .jpg",
-    "mock_boards/action poses board/13. .jpg",
-    "mock_boards/action poses board/14. .jpg",
-    "mock_boards/action poses board/15. Life in.png",
-    "mock_boards/action poses board/2. .jpg",
-    "mock_boards/action poses board/3. .jpg",
-    "mock_boards/action poses board/4. .jpg",
-    "mock_boards/action poses board/5. Will Ospreay.jpg",
-    "mock_boards/action poses board/6. .jpg",
-    "mock_boards/action poses board/7. X.jpg",
-    "mock_boards/action poses board/8. .jpg",
-    "mock_boards/action poses board/9. .jpg"
-  ],
-  "hands and extremities": [
-    "mock_boards/hands and extremities board/1. .jpg",
-    "mock_boards/hands and extremities board/10. .jpg",
-    "mock_boards/hands and extremities board/11. pleasing.jpg",
-    "mock_boards/hands and extremities board/12. Premium Photo.jpg",
-    "mock_boards/hands and extremities board/13. 'Empty Hands'.jpg",
-    "mock_boards/hands and extremities board/14. .jpg",
-    "mock_boards/hands and extremities board/15. .jpg",
-    "mock_boards/hands and extremities board/2. .jpg",
-    "mock_boards/hands and extremities board/3. Show Photos.jpg",
-    "mock_boards/hands and extremities board/4. .jpg",
-    "mock_boards/hands and extremities board/5. Show Photos.jpg",
-    "mock_boards/hands and extremities board/6. .jpg",
-    "mock_boards/hands and extremities board/7. .jpg",
-    "mock_boards/hands and extremities board/8. .jpg",
-    "mock_boards/hands and extremities board/9. .jpg"
-  ],
-  "insects": [
-    "mock_boards/insects board/1. .jpg",
-    "mock_boards/insects board/10. fly.jpg",
-    "mock_boards/insects board/11. .jpg",
-    "mock_boards/insects board/12. anmal.jpg",
-    "mock_boards/insects board/13. .jpg",
-    "mock_boards/insects board/14. Katydid Nymph.jpg",
-    "mock_boards/insects board/15. 19 Creatures.jpg",
-    "mock_boards/insects board/2. The Lost.jpg",
-    "mock_boards/insects board/3. Emergence.jpg",
-    "mock_boards/insects board/4. Acid Picdump.jpg",
-    "mock_boards/insects board/5. .jpg",
-    "mock_boards/insects board/6. ..microscope.jpg",
-    "mock_boards/insects board/7. .jpg",
-    "mock_boards/insects board/8. Trilobite beetle.jpg",
-    "mock_boards/insects board/9. Perfectly Timed.jpg"
-  ]
-};
-
-
+/* ================== Global State ================== */
 let imageList = [], currentIndex = 0, sessionTimer = null, isPaused = false;
 let imageDuration = 30, remaining = 0, elapsedTime = 0;
 let limitMode = "count", limitValue = 10, strictTime = false;
 let inBreak = false, breakTimeRemaining = 0, breaksTaken = 0;
 let breakEnabled = false, breakAfter = 20, breakDuration = 5;
 let bellTimes = [], bellFiredThisImage = new Set(), bellFiredThisBreak = new Set();
-let sessionMode = "standard";
-let classImageSchedule = [];
-let imageDisplayIndex = 0; // new tracker for actual images shown (not breaks)
-let sessionRemaining = null;
-let showImageTimer = true;
-let showSessionTimer = true;
+let sessionMode = "standard", classImageSchedule = [];
+let imageDisplayIndex = 0, sessionRemaining = null;
+let showImageTimer = true, showSessionTimer = true;
 
+/* ================== OAuth + API Helpers ================== */
+const API_BASE = '/api';
+const LS_TOKEN_KEY = 'pd_access_token';
 
-function startSession() {
-  const sourceType = document.querySelector('input[name="pinterestSource"]:checked').value;
-  let selectedBoards = [];
+document.addEventListener('DOMContentLoaded', () => {
+  // Source toggles
+  document.querySelectorAll('input[name="pinterestSource"]').forEach(r => r.addEventListener('change', onSourceChange));
+  onSourceChange();
 
-  if (sourceType === "user") {
-    const options = document.getElementById("userBoards").selectedOptions;
-    selectedBoards = Array.from(options).map(opt => opt.value);
-  } else {
-    const board = document.getElementById("board").value;
-    selectedBoards = [board];
+  // Session type toggles
+  document.querySelectorAll('input[name="mode"]').forEach(r => r.addEventListener('change', () => {
+    const isClass = document.querySelector('input[name="mode"]:checked').value === "class";
+    document.getElementById("classSettings").style.display = isClass ? "block" : "none";
+    document.getElementById("limitSection").style.display = isClass ? "none" : "block";
+    document.getElementById("standardOptions").style.display = isClass ? "none" : "block";
+  }));
+  document.getElementById("customClassToggle").addEventListener("change", (e) => {
+    document.getElementById("customControls").style.display = e.target.checked ? "block" : "none";
+  });
+
+  // Limit toggles
+  document.querySelectorAll('input[name="limit"]').forEach(r => r.addEventListener('change', () => {
+    const v = document.querySelector('input[name="limit"]:checked').value;
+    document.getElementById("limitTimeOptions").style.display = v === "time" ? "block" : "none";
+    document.getElementById("limitCountOptions").style.display = v === "count" ? "block" : "none";
+  }));
+
+  // OAuth buttons
+  document.getElementById('loginBtn').addEventListener('click', startLogin);
+  document.getElementById('logoutBtn').addEventListener('click', logout);
+
+  // Handle OAuth callback if present
+  maybeHandleCallback();
+
+  // Initial UI state
+  updateAuthUI();
+});
+
+/* ========== OAuth Start/Exchange ========== */
+async function startLogin() {
+  try {
+    const r = await fetch(`${API_BASE}/auth/start`, { credentials: 'include' });
+    const { url } = await r.json();
+    if (!url) throw new Error('No auth URL');
+    window.location = url;
+  } catch {
+    setAuthStatus('Login failed to start.');
   }
+}
 
-  sessionMode = document.querySelector("input[name='mode']:checked").value;
-  limitMode = document.querySelector("input[name='limit']:checked").value;
-
-  if (limitMode === "time") {
-    limitValue = parseInt(document.getElementById("limitValue").value);
-  } else if (limitMode === "count") {
-    limitValue = parseInt(document.getElementById("limitCountValue").value);
+async function maybeHandleCallback() {
+  const params = new URLSearchParams(location.search);
+  const code = params.get('code');
+  const state = params.get('state');
+  const error = params.get('error');
+  if (error) {
+    setAuthStatus('Authorization cancelled or denied.');
+    clearQuery();
+    return;
   }
+  if (!code || !state) return;
 
-  strictTime = document.getElementById("strictTime").checked;
-  bellTimes = document.getElementById("bellTimes").value
-    .split(",")
-    .map(n => parseInt(n.trim()))
-    .filter(n => !isNaN(n));
-  breakEnabled = document.getElementById("breaks").checked;
-  breakAfter = parseInt(document.getElementById("breakAfter").value);
-  breakDuration = parseInt(document.getElementById("breakDuration").value);
-
-  // Clear previous state
-  elapsedTime = 0;
-  breaksTaken = 0;
-  inBreak = false;
-  bellFiredThisImage.clear();
-  bellFiredThisBreak.clear();
-
-  // Combine images from selected boards
-  imageList = shuffleArray(
-    selectedBoards.flatMap(name => mockBoards[name] || [])
-  );
-  currentIndex = 0;
-  imageDisplayIndex = 0;
-
-  if (sessionMode === "standard") {
-    const durationMin = parseInt(document.getElementById("durationMin").value || "0");
-    const durationSec = parseInt(document.getElementById("durationSec").value || "0");
-    imageDuration = durationMin * 60 + durationSec;
-    classImageSchedule = [];
-  } else {
-    classImageSchedule = [];
-    document.querySelectorAll("#classPhases .class-phase").forEach(phase => {
-      const isBreak = phase.querySelector(".phase-break").checked;
-      const duration = (
-        parseInt(phase.querySelector(".phase-minutes").value || "0") * 60 +
-        parseInt(phase.querySelector(".phase-seconds").value || "0")
-      );
-      const count = isBreak ? 1 : parseInt(phase.querySelector(".phase-count").value || "1");
-
-      for (let i = 0; i < count; i++) {
-        classImageSchedule.push({ duration, isBreak });
-      }
+  try {
+    const r = await fetch(`${API_BASE}/auth/exchange`, {
+      method: 'POST', credentials: 'include',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ code, state })
     });
-
-    limitMode = "count";
-    limitValue = classImageSchedule.length;
+    const data = await r.json();
+    if (!r.ok) throw new Error(JSON.stringify(data));
+    if (data && data.access_token) {
+      localStorage.setItem(LS_TOKEN_KEY, data.access_token);
+      setAuthStatus('Logged in.');
+    } else {
+      throw new Error('No access_token in response');
+    }
+  } catch {
+    setAuthStatus('Token exchange failed.');
+  } finally {
+    clearQuery();
+    updateAuthUI();
   }
+}
 
-  document.getElementById("setup").style.display = "none";
-  document.getElementById("viewer").style.display = "flex";
-  showImage();
+/* ========== Boards & Pins via backend proxy ========== */
+function getToken(){ return localStorage.getItem(LS_TOKEN_KEY); }
+function isAuthed(){ return !!getToken(); }
+function logout(){ localStorage.removeItem(LS_TOKEN_KEY); updateAuthUI(); setAuthStatus('Logged out.'); }
+function setAuthStatus(msg){ const el = document.getElementById('authStatus'); if (el) el.textContent = msg || ''; }
+function clearQuery(){ const u = new URL(location.href); u.search = ''; history.replaceState({}, '', u.toString()); }
 
-  if (limitMode === "time") {
-    sessionRemaining = limitValue * 60;
-  } else if (sessionMode === "class") {
-    sessionRemaining = classImageSchedule.reduce((sum, phase) => sum + phase.duration, 0);
+async function loadUserBoards() {
+  const token = getToken();
+  if (!token) { setAuthStatus('Please log in first.'); return; }
+  const sel = document.getElementById('userBoards');
+  sel.innerHTML = '';
+  try {
+    const r = await fetch(`${API_BASE}/boards`, { headers: { Authorization: `Bearer ${token}` }});
+    const data = await r.json();
+    const items = data.items || data.data || data.boards || [];
+    for (const b of items) {
+      const opt = document.createElement('option');
+      opt.value = b.id || b.owner?.id || b.name;
+      opt.textContent = b.name || b.title || b.id;
+      sel.appendChild(opt);
+    }
+    if (!sel.options.length) setAuthStatus('No boards found.');
+  } catch {
+    setAuthStatus('Failed to load boards.');
+  }
+}
+
+async function getPinsForBoard(boardId) {
+  const token = getToken();
+  if (!token) throw new Error('Not logged in');
+  const r = await fetch(`${API_BASE}/boards/${encodeURIComponent(boardId)}/pins`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  const data = await r.json();
+  const items = data.items || data.data || [];
+  const urls = [];
+  for (const pin of items) {
+    const img = pin.media?.images?.originals?.url
+            || pin.media?.images?.['600x']?.url
+            || pin.link
+            || pin.image_url;
+    if (img) urls.push(img);
+  }
+  return urls;
+}
+
+/* ================== UI helpers ================== */
+function onSourceChange() {
+  const val = document.querySelector('input[name="pinterestSource"]:checked')?.value || 'board';
+  document.getElementById('userBoardSection').style.display = val === 'user' ? 'block' : 'none';
+  document.getElementById('boardUrlSection').style.display = val === 'user' ? 'none' : 'block';
+}
+
+function updateAuthUI() {
+  const loginBtn = document.getElementById('loginBtn');
+  const logoutBtn = document.getElementById('logoutBtn');
+  const status = document.getElementById('authStatus');
+  if (isAuthed()) {
+    loginBtn.style.display = 'none';
+    logoutBtn.style.display = 'inline-block';
+    status.textContent = 'Ready';
   } else {
-    sessionRemaining = null; // No session-wide timer
+    loginBtn.style.display = 'inline-block';
+    logoutBtn.style.display = 'none';
+    status.textContent = 'Not logged in';
   }
 }
 
-  currentIndex = 0;
-imageDisplayIndex = 0;
-
-  if (sessionMode === "standard") {
-    const durationMin = parseInt(document.getElementById("durationMin").value || "0");
-    const durationSec = parseInt(document.getElementById("durationSec").value || "0");
-    imageDuration = durationMin * 60 + durationSec;
-    classImageSchedule = [];
-  } else {
-    classImageSchedule = [];
-   document.querySelectorAll("#classPhases .class-phase").forEach(phase => {
-  const isBreak = phase.querySelector(".phase-break").checked;
-  const duration = (
-    parseInt(phase.querySelector(".phase-minutes").value || "0") * 60 +
-    parseInt(phase.querySelector(".phase-seconds").value || "0")
-  );
-  const count = isBreak ? 1 : parseInt(phase.querySelector(".phase-count").value || "1");
-
-  for (let i = 0; i < count; i++) {
-    classImageSchedule.push({ duration, isBreak });
-  }
-});
-
-    limitMode = "count";
-    limitValue = classImageSchedule.length;
-  }
-
-  document.getElementById("setup").style.display = "none";
-  document.getElementById("viewer").style.display = "flex";
-  showImage();
-
-if (limitMode === "time") {
-  sessionRemaining = limitValue * 60;
-} else if (sessionMode === "class") {
-  sessionRemaining = classImageSchedule.reduce((sum, phase) => sum + phase.duration, 0);
-} else {
-  sessionRemaining = null; // No session-wide timer
-}
-
-
- 
-
-function shuffleArray(arr) {
-  return arr.sort(() => Math.random() - 0.5);
-}
-
-function showImage() {
-  // End session if we're out of phases
-  if (sessionMode === "class" && currentIndex >= classImageSchedule.length) {
-    endSession();
-    return;
-  }
-
-  document.getElementById("breakScreen").style.display = "none";
-  document.getElementById("viewer").style.display = "flex";
-  document.getElementById("breakNextLabel").style.display = "none";
-  bellFiredThisImage.clear();
-
-  const img = document.getElementById("currentImage");
-
-  if (sessionMode === "class") {
-    const schedule = classImageSchedule[currentIndex];
-    if (schedule.isBreak) {
-      startBreak(schedule.duration);
-      return;
-    }
-
-    remaining = schedule.duration;
-    img.src = imageList[imageDisplayIndex % imageList.length];
-    imageDisplayIndex++;
-  } else {
-    remaining = imageDuration;
-    img.src = imageList[imageDisplayIndex % imageList.length];
-    imageDisplayIndex++;
-  }
-
-  updateTimerDisplay();
-  runTimer();
-}
-
-function updateSessionTimer() {
-  const min = Math.floor(sessionRemaining / 60).toString().padStart(2, '0');
-  const sec = (sessionRemaining % 60).toString().padStart(2, '0');
-  const el = document.getElementById("sessionTimer");
-  el.innerText = `${min}:${sec}`;
-  el.style.display = showSessionTimer ? "block" : "none";
-}
-
-function runTimer() {
-  clearInterval(sessionTimer);
-  sessionTimer = setInterval(() => {
-    if (isPaused) return;
-
-    elapsedTime++
-if (sessionRemaining !== null && !inBreak) {
-  sessionRemaining--;
-  updateSessionTimer();
-  if (sessionRemaining <= 0) {
-    endSession();
-    return;
-  }
-};
-
-    // ✅ Check if session should end based on strict or flexible time before any other logic
-    if (shouldEndSession()) {
-      endSession();
-      return;
-    }
-
-    const timeUntilNextBreak = (breaksTaken + 1) * breakAfter * 60 - elapsedTime;
-
-    if (!inBreak && breakEnabled && timeUntilNextBreak <= imageDuration && remaining === imageDuration) {
-      document.getElementById("breakNextLabel").style.display = "block";
-    }
-
-    if (!inBreak && breakEnabled && timeUntilNextBreak <= 0) {
-      startBreak();
-      return;
-    }
-
-    if (inBreak) {
-      breakTimeRemaining--;
-      updateBreakTimer();
-      if (bellTimes.includes(breakTimeRemaining) && !bellFiredThisBreak.has(breakTimeRemaining)) {
-        document.getElementById("bellSound").play();
-        bellFiredThisBreak.add(breakTimeRemaining);
-      }
-      if (breakTimeRemaining <= 0) endBreak();
-      return;
-    }
-
-    remaining--;
-    updateTimerDisplay();
-
-    if (bellTimes.includes(remaining) && !bellFiredThisImage.has(remaining)) {
-      document.getElementById("bellSound").play();
-      bellFiredThisImage.add(remaining);
-    }
-
-    // ✅ If image time is done, proceed
-    if (remaining <= 0) {
-      nextImage();
-    }
-  }, 1000);
-}
-function updateTimerDisplay() {
-  const min = Math.floor(remaining / 60).toString().padStart(2, '0');
-  const sec = (remaining % 60).toString().padStart(2, '0');
-  document.getElementById("imageTimer").innerText = `${min}:${sec}`;
-document.getElementById("imageTimer").style.display = showImageTimer ? "block" : "none";
-}
-
-function toggleImageTimer() {
-  showImageTimer = !showImageTimer;
-  updateTimerDisplay();
-}
-
-function toggleSessionTimer() {
-  showSessionTimer = !showSessionTimer;
-  updateSessionTimer();
-}
-
-function updateBreakTimer() {
-  const min = Math.floor(breakTimeRemaining / 60).toString().padStart(2, '0');
-  const sec = (breakTimeRemaining % 60).toString().padStart(2, '0');
-  document.getElementById("breakTimer").innerText = `${min}:${sec}`;
-}
-
-function nextImage() {
-  currentIndex++;
-  showImage();
-}
-
-function prevImage() {
-  currentIndex = Math.max(0, currentIndex - 1);
-  showImage();
-}
-
-function togglePause() {
-  isPaused = !isPaused;
-  document.getElementById("pauseBtn").innerText = isPaused ? "▶️" : "⏸️";
-}
-
-function endSession() {
-  clearInterval(sessionTimer);
-  document.getElementById("viewer").style.display = "none";
-  document.getElementById("breakScreen").style.display = "none";
-  document.getElementById("finishedScreen").style.display = "flex";
-}
-
-function shouldEndSession() {
-  if (limitMode === "endless") return false;
-  if (limitMode === "count") return currentIndex >= limitValue;
-  if (limitMode === "time") {
-    const totalLimit = limitValue * 60;
-    return strictTime ? elapsedTime >= totalLimit : elapsedTime > totalLimit && remaining <= 0;
-  }
-  return false;
-}
-
-function startBreak(customDuration = breakDuration * 60) {
-  inBreak = true;
-  breaksTaken++;
-  bellFiredThisBreak.clear();
-  breakTimeRemaining = customDuration;
-  document.getElementById("viewer").style.display = "none";
-  document.getElementById("breakScreen").style.display = "flex";
-  updateBreakTimer();
-  runTimer();
-}
-
-function endBreak() {
-  inBreak = false;
-  document.getElementById("breakScreen").style.display = "none";
-  currentIndex++; // ✅ Move forward
-  showImage();     // ✅ Let showImage decide if next is break or image
-}
-
-function skipBreak() {
-  endBreak();
-}
-
-
-// Toggle custom class control
-document.getElementById("customClassToggle").addEventListener("change", (e) => {
-  document.getElementById("customControls").style.display = e.target.checked ? "block" : "none";
-});
-
-// Allow users to add new phases dynamically
 function addClassPhase() {
   const container = document.getElementById("classPhases");
   const div = document.createElement("div");
   div.className = "class-phase";
   div.innerHTML = `
-    <input type="number" class="phase-count" value="1" style="width: 3rem;" /> images for
-    <input type="number" class="phase-minutes" value="0" style="width: 3rem;" /> min
-    <input type="number" class="phase-seconds" value="30" style="width: 3rem;" /> sec
+    <input type="number" class="phase-count" value="1" style="width:3rem;" /> images for
+    <input type="number" class="phase-minutes" value="0" style="width:3rem;" /> min
+    <input type="number" class="phase-seconds" value="30" style="width:3rem;" /> sec
     <label><input type="checkbox" class="phase-break" /> break</label>
   `;
   container.appendChild(div);
 }
 
-// Toggle class settings when session type is selected
-document.querySelectorAll('input[name="mode"]').forEach(radio => {
-  radio.addEventListener('change', () => {
-    const isClass = document.querySelector('input[name="mode"]:checked').value === "class";
-    document.getElementById("classSettings").style.display = isClass ? "block" : "none";
-    document.getElementById("limitSection").style.display = isClass ? "none" : "block";
-    document.getElementById("standardOptions").style.display = isClass ? "none" : "block"; // ✅ Add this
-  });
-});
+/* ================== Session Wiring ================== */
+function uniq(arr){ const s=new Set(); const out=[]; for(const x of arr){ if(!s.has(x)){ s.add(x); out.push(x);} } return out; }
+function shuffle(arr){ for(let i=arr.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [arr[i],arr[j]]=[arr[j],arr[i]];} return arr; }
 
-
-
-window.addEventListener('DOMContentLoaded', () => {
-  const isClass = document.querySelector('input[name="mode"]:checked').value === "class";
-  document.getElementById("classSettings").style.display = isClass ? "block" : "none";
-  document.getElementById("limitSection").style.display = isClass ? "none" : "block";
-  document.getElementById("standardOptions").style.display = isClass ? "none" : "block";
-
-  const isTime = document.querySelector('input[name="limit"]:checked').value === "time";
-  document.getElementById("limitTimeOptions").style.display = isTime ? "block" : "none";
-});
-
-document.querySelectorAll('input[name="pinterestSource"]').forEach(radio => {
-  radio.addEventListener('change', () => {
-    const source = document.querySelector('input[name="pinterestSource"]:checked').value;
-    document.getElementById("boardUrlSection").style.display = source === "board" ? "block" : "none";
-    document.getElementById("userBoardSection").style.display = source === "user" ? "block" : "none";
-  });
-});
-
-
-document.querySelectorAll('input[name="limit"]').forEach(radio => {
-  radio.addEventListener('change', () => {
-    const selected = document.querySelector('input[name="limit"]:checked').value;
-    document.getElementById("limitTimeOptions").style.display = selected === "time" ? "block" : "none";
-    document.getElementById("limitCountOptions").style.display = selected === "count" ? "block" : "none";
-  });
-});
-
-async function loadUserBoards() {
-  const select = document.getElementById("userBoards");
-  select.innerHTML = ""; // Clear previous options
-
+async function startSession() {
   try {
-    const response = await fetch("mock_boards/manifest.json");
-    if (!response.ok) throw new Error("Failed to fetch manifest");
+    // Build list of board IDs from UI
+    const sourceType = document.querySelector('input[name="pinterestSource"]:checked')?.value || 'board';
+    let selectedBoards = [];
+    if (sourceType === 'user') {
+      const options = document.getElementById('userBoards')?.selectedOptions || [];
+      selectedBoards = Array.from(options).map(o => o.value).filter(Boolean);
+    } else {
+      const raw = (document.getElementById('boardUrls')?.value || '').trim();
+      const parts = raw.split(/[\s,]+/).map(s => s.trim()).filter(Boolean);
+      for (const p of parts) {
+        const m = p.match(/boards\/(\d+)/); // extract numeric ID if URL form
+        selectedBoards.push(m ? m[1] : p);
+      }
+    }
+    if (!selectedBoards.length) {
+      const legacy = document.getElementById('board')?.value;
+      if (legacy) selectedBoards = [legacy];
+    }
 
-    const data = await response.json();
+    // Fetch pins from selected boards
+    let urls = [];
+    for (const bId of selectedBoards) {
+      try { urls.push(...await getPinsForBoard(bId)); }
+      catch (e) { console.warn('Board failed', bId, e); }
+    }
 
-    // Update global mockBoards
-    mockBoards = data;
+    // Fallback to local manifest.json if none fetched
+    if (!urls.length) {
+      try {
+        const r = await fetch('./manifest.json'); const manifest = await r.json();
+        const chosen = document.getElementById('board')?.value;
+        const all = [];
+        for (const section of manifest) {
+          if (!chosen || section.name === chosen) all.push(...section.images);
+        }
+        urls = all;
+      } catch {}
+    }
 
-    Object.keys(data).forEach(name => {
-      const opt = document.createElement("option");
-      opt.value = name;
-      opt.textContent = name;
-      select.appendChild(opt);
-    });
-  } catch (err) {
-    alert("Unable to load mock boards.");
-    console.error(err);
+    imageList = shuffle(uniq(urls));
+    if (!imageList.length) { alert('No images found. Please log in and select at least one board.'); return; }
+
+    // Read session settings
+    sessionMode = document.querySelector('input[name="mode"]:checked')?.value || 'standard';
+    const min = parseInt(document.getElementById('durationMin')?.value || '0', 10);
+    const sec = parseInt(document.getElementById('durationSec')?.value || '30', 10);
+    imageDuration = Math.max(1, (min*60) + sec | 0);
+
+    const bellStr = (document.getElementById('bellTimes')?.value || '').trim();
+    bellTimes = bellStr ? bellStr.split(',').map(s=>parseInt(s,10)).filter(n=>!isNaN(n)&&n>0).sort((a,b)=>b-a) : [];
+    bellFiredThisImage = new Set();
+
+    breakEnabled = !!document.getElementById('breaks')?.checked;
+    breakAfter = parseInt(document.getElementById('breakAfter')?.value || '20', 10);
+    breakDuration = parseInt(document.getElementById('breakDuration')?.value || '5', 10);
+    breaksTaken = 0;
+
+    limitMode = document.querySelector('input[name="limit"]:checked')?.value || 'count';
+    if (limitMode === 'time') {
+      strictTime = !!document.getElementById('strictTime')?.checked;
+      const mins = parseInt(document.getElementById('limitValue')?.value || '10', 10);
+      limitValue = Math.max(1, mins);
+      sessionRemaining = limitValue * 60;
+    } else if (limitMode === 'count') {
+      strictTime = false;
+      const cnt = parseInt(document.getElementById('limitCountValue')?.value || '10', 10);
+      limitValue = Math.max(1, cnt);
+      sessionRemaining = null;
+    } else {
+      strictTime = false; limitValue = Infinity; sessionRemaining = null;
+    }
+
+    // Show viewer and start
+    currentIndex = 0; imageDisplayIndex = 0; isPaused = false; inBreak = false;
+    remaining = imageDuration; elapsedTime = 0;
+    document.getElementById('setup').style.display = 'none';
+    document.getElementById('finishedScreen').style.display = 'none';
+    const viewer = document.getElementById('viewer'); viewer.style.display = 'flex';
+    document.getElementById('breakScreen').style.display = 'none';
+    document.getElementById('pauseBtn').textContent = '⏸️';
+
+    showImage(currentIndex);
+    startTickLoop();
+  } catch (e) {
+    console.error(e);
+    alert('Could not start session. Please try again.');
   }
 }
 
+/* ================== Playback & Timers ================== */
+function showImage(i) {
+  const img = document.getElementById('currentImage');
+  if (!img) return;
+  img.src = imageList[i % imageList.length];
+  bellFiredThisImage = new Set();
+}
 
+function startTickLoop() {
+  clearInterval(sessionTimer);
+  sessionTimer = setInterval(() => {
+    if (isPaused) return;
 
+    if (inBreak) {
+      breakTimeRemaining -= 1;
+      updateBreakTimerLabel();
+      if (breakTimeRemaining <= 0) endBreak();
+      return;
+    }
 
+    remaining -= 1;
+    updateImageTimerLabel();
+    fireBells();
 
+    if (remaining <= 0) nextImage();
+
+    if (sessionRemaining != null) {
+      sessionRemaining -= 1;
+      updateSessionTimerLabel();
+      if (sessionRemaining <= 0 && strictTime) endSession();
+    } else {
+      updateSessionTimerLabel(); // show elapsed time
+      elapsedTime = (elapsedTime || 0) + 1;
+    }
+  }, 1000);
+}
+
+function nextImage() {
+  currentIndex = (currentIndex + 1) % imageList.length;
+  imageDisplayIndex += 1;
+
+  if (breakEnabled) {
+    const minutesShown = Math.floor((imageDisplayIndex * imageDuration) / 60);
+    const lbl = document.getElementById('breakNextLabel');
+    if (lbl) lbl.style.display = (minutesShown + imageDuration/60 >= breakAfter) ? 'block' : 'none';
+    if (minutesShown >= breakAfter) { startBreak(); return; }
+  }
+
+  if (limitMode === 'count' && imageDisplayIndex >= limitValue) { endSession(); return; }
+
+  remaining = imageDuration;
+  showImage(currentIndex);
+}
+
+function prevImage() {
+  currentIndex = (currentIndex - 1 + imageList.length) % imageList.length;
+  remaining = imageDuration;
+  showImage(currentIndex);
+}
+
+function togglePause() {
+  isPaused = !isPaused;
+  const btn = document.getElementById('pauseBtn');
+  if (btn) btn.textContent = isPaused ? '▶️' : '⏸️';
+}
+
+function endSession() {
+  clearInterval(sessionTimer);
+  document.getElementById('viewer').style.display = 'none';
+  document.getElementById('breakScreen').style.display = 'none';
+  document.getElementById('finishedScreen').style.display = 'flex'; // Option B
+}
+
+function startBreak() {
+  inBreak = true; breaksTaken += 1;
+  breakTimeRemaining = Math.max(1, breakDuration) * 60;
+  document.getElementById('viewer').style.display = 'none';
+  const bs = document.getElementById('breakScreen'); bs.style.display = 'flex';
+  document.getElementById('breakNextLabel').style.display = 'none';
+  bellFiredThisBreak = new Set();
+  updateBreakTimerLabel();
+}
+
+function endBreak() {
+  inBreak = false;
+  document.getElementById('breakScreen').style.display = 'none';
+  document.getElementById('viewer').style.display = 'flex';
+  imageDisplayIndex = 0; // reset counter towards next break window
+  remaining = imageDuration;
+  showImage(currentIndex);
+}
+
+function skipBreak(){ endBreak(); }
+
+function updateImageTimerLabel() {
+  const el = document.getElementById('imageTimer'); if (!el) return;
+  const m = Math.floor(Math.max(0, remaining)/60);
+  const s = Math.max(0, remaining) % 60;
+  el.textContent = `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  el.style.display = showImageTimer ? 'block' : 'none';
+}
+
+function updateSessionTimerLabel() {
+  const el = document.getElementById('sessionTimer'); if (!el) return;
+  let seconds;
+  if (sessionRemaining != null) {
+    seconds = Math.max(0, sessionRemaining);
+  } else {
+    seconds = elapsedTime || 0;
+  }
+  const m = Math.floor(seconds/60);
+  const s = seconds % 60;
+  el.textContent = `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  el.style.display = showSessionTimer ? 'block' : 'none';
+}
+
+function fireBells() {
+  if (!bellTimes?.length) return;
+  const t = remaining;
+  const bell = document.getElementById('bellSound');
+  for (const mark of bellTimes) {
+    if (t === mark && !bellFiredThisImage.has(mark)) {
+      try { bell?.play?.(); } catch {}
+      bellFiredThisImage.add(mark);
+    }
+  }
+}
+
+function toggleImageTimer(){ showImageTimer = !showImageTimer; updateImageTimerLabel(); }
+function toggleSessionTimer(){ showSessionTimer = !showSessionTimer; updateSessionTimerLabel(); }
+
+/* Finished screen -> back to setup */
 function backToSetup() {
-  document.getElementById("finishedScreen").style.display = "none";
-  document.getElementById("setup").style.display = "block";
+  document.getElementById('finishedScreen').style.display = 'none';
+  document.getElementById('setup').style.display = 'block';
 }
-
-
-
 </script>
-
-<!-- Session Finished Screen -->
-<div class="fullscreen" id="finishedScreen" style="background:#222; color:white;">
-  <div style="font-size:2rem;">Session finished! Awesome work! 😄</div>
-  <button onclick="backToSetup()" style="margin-top:2rem; padding:1rem 2rem; font-size:1.2rem;">Back to Setup</button>
-</div>
-
-
-<script>
-window.addEventListener("DOMContentLoaded", () => {
-  // Force initial screen state
-  document.getElementById("setup").style.display = "block";
-  document.getElementById("viewer").style.display = "none";
-
-  // Set up source visibility logic
-  function updateSourceVisibility() {
-    const source = document.querySelector('input[name="pinterestSource"]:checked').value;
-    document.getElementById("boardUrlSection").style.display = source === "board" ? "block" : "none";
-    document.getElementById("userBoardSection").style.display = source === "user" ? "block" : "none";
-    document.getElementById("staticBoardSection").style.display = source === "board" ? "block" : "none";
-  }
-
-  document.querySelectorAll('input[name="pinterestSource"]').forEach(radio => {
-    radio.addEventListener('change', updateSourceVisibility);
-  });
-
-  updateSourceVisibility(); // run once on load
-});
-</script>
-
 </body>
 </html>
