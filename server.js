@@ -1,193 +1,152 @@
 // server.js
 // Express backend for PestureDrawing: Pinterest OAuth (PKCE) + proxy endpoints.
 
-
-
-require('dotenv').config(); // optional (local dev)
 const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
-const crypto = require('crypto');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+app.use(cookieParser());
 
-// ==== Required env vars ====
 const {
   PINTEREST_CLIENT_ID,
   PINTEREST_CLIENT_SECRET,
   PINTEREST_REDIRECT_URI,
-  ALLOWED_ORIGINS // e.g. "https://pesturedrawing.com,https://<user>.github.io"
+  ALLOWED_ORIGINS
 } = process.env;
 
-// ---- CORS (GitHub Pages + custom domain) ----
-const allowedOrigins = (ALLOWED_ORIGINS || 'https://pesturedrawing.com')
-  .split(',')
-  .map(s => s.trim())
-  .filter(Boolean);
-
+const allowedOrigins = (ALLOWED_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean);
 app.use(cors({
-  origin: function (origin, cb) {
-    // allow same-origin / server-to-server / curl
-    if (!origin) return cb(null, true);
-    const ok = allowedOrigins.some(o => origin === o || (o.startsWith('https://*.') && origin.endsWith(o.slice('https://*'.length))));
-    cb(null, ok);
-  },
+  origin: allowedOrigins,
   credentials: true
 }));
 
-app.use(express.json());
-app.use(cookieParser());
-
-// ---- Cookie helpers ----
-const COOKIE_OPTS = {
-  httpOnly: true,
-  secure: true,         // must be true for SameSite=None
-  sameSite: 'none',     // needed when frontend is on a different site (e.g., GitHub Pages)
-  path: '/',
-  maxAge: 5 * 60 * 1000 // 5 minutes
-};
-
-function b64url(buf) {
-  return Buffer.from(buf).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+function setAuthCookie(res, token) {
+  res.cookie('pd_pin_token', token, {
+    httpOnly: true,
+    sameSite: 'none',
+    secure: true,
+    path: '/'
+  });
 }
-function randomB64Url(n = 32) { return b64url(crypto.randomBytes(n)); }
-function sha256B64Url(str) {
-  const h = crypto.createHash('sha256').update(str).digest();
-  return b64url(h);
+function getAuthToken(req) {
+  return req.cookies?.pd_pin_token || '';
 }
 
-// ================= OAuth: Start =================
-// GET /api/auth/start  -> { url }
-app.get('/api/auth/start', (req, res) => {
+// 1) Status
+app.get('/api/auth/status', async (req, res) => {
+  const token = getAuthToken(req);
+  if (!token) return res.json({ authorized: false });
+  // optional: look up current user
   try {
-    if (!PINTEREST_CLIENT_ID || !PINTEREST_REDIRECT_URI) {
-      return res.status(500).json({ error: 'Server not configured for OAuth' });
-    }
-
-    const state = randomB64Url(16);
-    const codeVerifier = randomB64Url(64);
-    const codeChallenge = sha256B64Url(codeVerifier);
-
-    // Save short-lived verifier + state in HttpOnly cookies
-    res.cookie('pd_state', state, COOKIE_OPTS);
-    res.cookie('pd_verifier', codeVerifier, COOKIE_OPTS);
-
-    // Pinterest OAuth authorize URL (v5)
-    const scopes = ['user_accounts:read', 'boards:read', 'pins:read'].join(' ');
-    const params = new URLSearchParams({
-      client_id: PINTEREST_CLIENT_ID,
-      redirect_uri: PINTEREST_REDIRECT_URI,
-      response_type: 'code',
-      scope: scopes,
-      state,
-      code_challenge: codeChallenge,
-      code_challenge_method: 'S256'
-    });
-
-    const url = `https://www.pinterest.com/oauth/?${params.toString()}`;
-    res.json({ url });
-  } catch (e) {
-    res.status(500).json({ error: 'Failed to start auth' });
-  }
-});
-
-// ================= OAuth: Exchange =================
-// POST /api/auth/exchange  body: { code, state } -> { access_token, ... }
-app.post('/api/auth/exchange', async (req, res) => {
-  try {
-    const { code, state } = req.body || {};
-    const cookieState = req.cookies.pd_state;
-    const verifier = req.cookies.pd_verifier;
-
-    if (!code || !state) return res.status(400).json({ error: 'Missing code/state' });
-    if (!cookieState || !verifier) return res.status(400).json({ error: 'Missing auth cookies' });
-    if (state !== cookieState) return res.status(400).json({ error: 'Invalid state' });
-
-    // Exchange code -> token (Pinterest v5)
-    const form = new URLSearchParams({
-      grant_type: 'authorization_code',
-      code,
-      redirect_uri: PINTEREST_REDIRECT_URI,
-      client_id: PINTEREST_CLIENT_ID,
-      code_verifier: verifier
-    });
-
-    // If your app is confidential, include client_secret:
-    if (PINTEREST_CLIENT_SECRET) form.set('client_secret', PINTEREST_CLIENT_SECRET);
-
-    const tokenRes = await axios.post('https://api.pinterest.com/v5/oauth/token', form, {
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
-    });
-
-    // Clear one-time cookies
-    res.clearCookie('pd_state', { ...COOKIE_OPTS, maxAge: 0 });
-    res.clearCookie('pd_verifier', { ...COOKIE_OPTS, maxAge: 0 });
-
-    // Send token payload back to frontend (frontend stores access_token)
-    res.json(tokenRes.data);
-  } catch (e) {
-    const status = e.response?.status || 500;
-    res.status(status).json({
-      error: 'Token exchange failed',
-      details: e.response?.data || e.message
-    });
-  }
-});
-
-// ================ Pinterest API Proxies =================
-// Expect Authorization: Bearer <access_token> from the frontend.
-
-function getBearer(req) {
-  const h = req.headers.authorization || '';
-  const m = /^Bearer\s+(.+)$/i.exec(h);
-  return m ? m[1] : null;
-}
-
-// GET /api/boards
-app.get('/api/boards', async (req, res) => {
-  const token = getBearer(req);
-  if (!token) return res.status(401).json({ error: 'Missing token' });
-
-  try {
-    const r = await axios.get('https://api.pinterest.com/v5/boards?page_size=100', {
+    const me = await axios.get('https://api.pinterest.com/v5/user_account', {
       headers: { Authorization: `Bearer ${token}` }
     });
-    res.json(r.data);
-  } catch (e) {
-    res.status(e.response?.status || 500).json({
-      error: 'Failed to fetch boards',
-      details: e.response?.data || e.message
-    });
+    return res.json({ authorized: true, user: me.data?.username || me.data?.id || null });
+  } catch {
+    return res.json({ authorized: false });
   }
 });
 
-// GET /api/boards/:boardId/pins
-app.get('/api/boards/:boardId/pins', async (req, res) => {
-  const token = getBearer(req);
-  if (!token) return res.status(401).json({ error: 'Missing token' });
+// 2) Start login (regular OAuth2 code flow)
+app.get('/api/auth/login', (req, res) => {
+  const scopes = [
+  'user_accounts:read',
+  'boards:read',
+  'pins:read',
+].join(' ');
+  const state = Buffer.from(JSON.stringify({
+    next: req.query.next || ''
+  })).toString('base64url');
 
+  const authUrl = new URL('https://www.pinterest.com/oauth/');
+  authUrl.searchParams.set('client_id', PINTEREST_CLIENT_ID);
+  authUrl.searchParams.set('redirect_uri', PINTEREST_REDIRECT_URI);
+  authUrl.searchParams.set('response_type', 'code');
+  authUrl.searchParams.set('scope', scopes);
+  authUrl.searchParams.set('state', state);
+
+  res.redirect(authUrl.toString());
+});
+
+// 3) Callback: exchange code for token
+app.get('/api/auth/callback', async (req, res) => {
+  const { code, state } = req.query;
+  if (!code) return res.status(400).send('Missing code');
+
+  try {
+    const form = new URLSearchParams({
+  grant_type: 'authorization_code',
+  code,
+  redirect_uri: PINTEREST_REDIRECT_URI,
+  client_id: PINTEREST_CLIENT_ID,
+  client_secret: PINTEREST_CLIENT_SECRET
+});
+const tokenRes = await axios.post('https://api.pinterest.com/v5/oauth/token', form, {
+  headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+});
+
+    const access = tokenRes.data?.access_token;
+    if (!access) return res.status(400).send('No access token');
+
+    setAuthCookie(res, access);
+
+    let next = '/';
+    if (state) {
+      try { next = JSON.parse(Buffer.from(state, 'base64url').toString()).next || '/'; } catch {}
+    }
+    // bounce back to the app
+    res.redirect(next);
+  } catch (err) {
+    console.error('OAuth token exchange failed', err?.response?.data || err.message);
+    res.status(500).send('OAuth failed');
+  }
+});
+
+// 4) Log out
+app.get('/api/auth/logout', (req, res) => {
+  res.clearCookie('pd_pin_token', { path: '/', secure: true, sameSite: 'none' });
+  res.json({ ok: true });
+});
+
+
+
+// Get public/authorized boards for a user
+app.get('/api/pinterest/users/:username/boards', async (req, res) => {
+  const token = getAuthToken(req);
+  const { username } = req.params;
+  try {
+    const r = await axios.get(`https://api.pinterest.com/v5/users/${encodeURIComponent(username)}/boards`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    // Normalize a little for the frontend
+    const boards = (r.data?.items || []).map(b => ({
+      id: b.id || b.board_id,
+      name: b.name || b.title || b.id
+    }));
+    res.json({ boards });
+  } catch (e) {
+    console.error('Boards error', e?.response?.data || e.message);
+    res.status(e?.response?.status || 500).json({ error: 'Failed to fetch boards' });
+  }
+});
+
+// Get pins for a board
+app.get('/api/pinterest/boards/:boardId/pins', async (req, res) => {
+  const token = getAuthToken(req);
   const { boardId } = req.params;
   try {
-    const r = await axios.get(`https://api.pinterest.com/v5/boards/${encodeURIComponent(boardId)}/pins?page_size=100`, {
+    const r = await axios.get(`https://api.pinterest.com/v5/boards/${encodeURIComponent(boardId)}/pins`, {
       headers: { Authorization: `Bearer ${token}` }
     });
-    res.json(r.data);
+    const pins = (r.data?.items || []).map(p => ({
+      image_url: p?.media?.images?.orig?.url || p?.link || p?.id
+    })).filter(x => !!x.image_url);
+    res.json({ pins });
   } catch (e) {
-    res.status(e.response?.status || 500).json({
-      error: 'Failed to fetch pins',
-      details: e.response?.data || e.message
-    });
+    console.error('Pins error', e?.response?.data || e.message);
+    res.status(e?.response?.status || 500).json({ error: 'Failed to fetch pins' });
   }
 });
 
-// Optional: healthcheck
-app.get('/api/health', (_req, res) => res.json({ ok: true }));
-
-app.listen(PORT, () => {
-  console.log(`PestureDrawing backend listening on :${PORT}`);
-  if (!PINTEREST_CLIENT_ID || !PINTEREST_REDIRECT_URI) {
-    console.warn('⚠️  Missing required env vars: PINTEREST_CLIENT_ID, PINTEREST_REDIRECT_URI');
-  }
-});

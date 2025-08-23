@@ -65,6 +65,11 @@
         <h3>Image Source</h3>
         <label><input type="radio" name="pinterestSource" value="board" checked> Paste Board URL(s)</label>
         <label><input type="radio" name="pinterestSource" value="user"> Use Pinterest Username</label>
+        <div class="row" id="pinAuthRow" style="margin-top:.5rem; align-items:center;">
+  <div id="pinAuthStatus" class="hint" style="flex:1;">Not connected to Pinterest</div>
+  <button class="btn" id="pinConnectBtn" type="button">Connect Pinterest</button>
+  <button class="btn" id="pinLogoutBtn" type="button" style="display:none;">Log out</button>
+</div>
         <div id="boardUrlSection" style="margin-top: .75rem;">
           <label>Board URL(s) (comma-separated):</label>
           <input type="text" id="boardUrls" placeholder="https://www.pinterest.com/user/board1, https://..." />
@@ -85,7 +90,45 @@
         </div>
       </div>
 
-<div class="col-6 card">
+<div class="col-12 card">
+  <h3>Session Type</h3>
+  <label><input type="radio" name="mode" value="standard" checked> Standard</label>
+  <label style="display:flex; align-items:center; gap:.5rem;">
+    <input type="radio" name="mode" value="class"> Class
+    <select id="classPreset" style="display:none;">
+      <option value="">Preset…</option>
+      <option value="15m">Class • 15 min</option>
+      <option value="30m">Class • 30 min</option>
+      <option value="60m">Class • 1 hour</option>
+      <option value="120m">Class • 2 hours</option>
+      <option value="180m">Class • 3 hours</option>
+    </select>
+  </label>
+
+  
+
+  <div id="classSettings" style="display:none; margin-top:.75rem;">
+    <div class="row" style="justify-content:space-between; gap:.5rem;">
+      <label style="flex:0 0 auto;"><input type="checkbox" id="customClassToggle"> Customize Class</label>
+      <div id="customControls" style="display:none;">
+        <button class="btn" type="button" id="addPhaseBtn">Add Phase</button>
+        <button class="btn" type="button" id="insertBreakBtn">Insert Break</button>
+      </div>
+    </div>
+
+    <div id="classPhases" style="margin-top:.5rem;">
+      <!-- default example phase row -->
+      <div class="class-row class-phase" draggable="true" style="display:flex;align-items:center;gap:.5rem;margin:.25rem 0;">
+        <span class="drag-handle" title="Drag to reorder" style="cursor:grab; user-select:none;">⋮⋮</span>
+        <input type="number" class="phase-count" value="5" style="width:3rem;" /> images for
+        <input type="number" class="phase-minutes" value="0" style="width:3rem;" /> min
+        <input type="number" class="phase-seconds" value="10" style="width:3rem;" /> sec
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="col-12 card">
   <h3>Quick Sample Boards</h3>
   <label>Sample Boards</label>
 
@@ -100,30 +143,10 @@
   </div>
 
   <div class="hint" style="margin-top:.25rem">
-    Tip: Click to select one or many boards. Use the buttons above for quick multi-select.
+    Tip: Click to select one or more boards. Use the buttons above for quick multi-select.
   </div>
 </div>
 
-      <div class="col-6 card">
-        <h3>Session Type</h3>
-        <label><input type="radio" name="mode" value="standard" checked> Standard</label>
-        <label><input type="radio" name="mode" value="class"> Class</label>
-
-        <div id="classSettings" style="display:none; margin-top:.75rem;">
-          <label><input type="checkbox" id="customClassToggle"> Customize Class</label>
-          <div id="classPhases" style="margin-top:.5rem;">
-            <div class="class-phase">
-              <input type="number" class="phase-count" value="5" style="width:3rem;" /> images for
-              <input type="number" class="phase-minutes" value="0" style="width:3rem;" /> min
-              <input type="number" class="phase-seconds" value="10" style="width:3rem;" /> sec
-              <label><input type="checkbox" class="phase-break" /> break</label>
-            </div>
-          </div>
-          <div id="customControls" style="display:none; margin-top:.5rem;">
-            <button class="btn" type="button" id="addPhaseBtn">Add Phase</button>
-          </div>
-        </div>
-      </div>
 
       <div class="col-12 card" id="limitSection">
         <h3>Session Limit</h3>
@@ -591,6 +614,11 @@ const SAMPLE_BOARDS = {
 };
 
 
+
+
+
+
+
 // Utility: shuffle copy
 function shuffleArray(arr) { return [...arr].sort(() => Math.random() - 0.5); }
 
@@ -674,6 +702,37 @@ function updateSessionTimer() {
   el.style.display = showSessionTimer ? "block" : "none";
 }
 
+async function checkAuth() {
+  try {
+    const res = await fetch(`${BACKEND_BASE}/api/auth/status`, { credentials: 'include' });
+    const data = await res.json();
+    const authed = !!data?.authorized;
+    document.getElementById('pinAuthStatus').textContent = authed
+      ? `Connected to Pinterest ${data.user ? `as ${data.user}` : ''}`
+      : 'Not connected to Pinterest';
+    document.getElementById('pinConnectBtn').style.display = authed ? 'none' : 'inline-block';
+    document.getElementById('pinLogoutBtn').style.display  = authed ? 'inline-block' : 'none';
+    return authed;
+  } catch {
+    document.getElementById('pinAuthStatus').textContent = 'Not connected to Pinterest';
+    document.getElementById('pinConnectBtn').style.display = 'inline-block';
+    document.getElementById('pinLogoutBtn').style.display  = 'none';
+    return false;
+  }
+}
+
+function connectPinterest() {
+  // Let the backend initiate the OAuth redirect; it will bounce back to us
+  const next = encodeURIComponent(window.location.href);
+  window.location.href = `${BACKEND_BASE}/api/auth/login?next=${next}`;
+}
+
+async function logoutPinterest() {
+  await fetch(`${BACKEND_BASE}/api/auth/logout`, { credentials: 'include' });
+  checkAuth();
+}
+
+
 function shouldEndSession() {
   if (limitMode === "endless") return false;
   if (limitMode === "count") return currentIndex >= limitValue;
@@ -755,14 +814,34 @@ function showImage() {
     imageList = Object.values(SAMPLE_BOARDS).flat();
   }
 
-  img.src = safeURL(imageList[imageDisplayIndex % imageList.length]);
-  imageDisplayIndex++;
-  updateTimerDisplay();
+img.src = safeURL(imageList[(imageDisplayIndex + imageList.length) % imageList.length]);  updateTimerDisplay();
   runTimer();
 }
 
-function nextImage() { currentIndex++; showImage(); }
-function prevImage() { currentIndex = Math.max(0, currentIndex - 1); showImage(); }
+function nextImage() {
+  if (imageList.length) {
+    imageDisplayIndex = (imageDisplayIndex + 1) % imageList.length;
+  }
+  currentIndex++;
+  showImage();
+}
+function prevImage() {
+  // Move schedule pointer back (skip break phases in Class mode)
+  if (sessionMode === "class") {
+    let idx = Math.max(0, currentIndex - 1);
+    while (idx > 0 && classImageSchedule[idx]?.isBreak) idx--;
+    currentIndex = idx;
+  } else {
+    currentIndex = Math.max(0, currentIndex - 1);
+  }
+
+  // Move image pointer back one
+  if (imageList.length) {
+    imageDisplayIndex = (imageDisplayIndex - 1 + imageList.length) % imageList.length;
+  }
+
+  showImage();
+}
 function togglePause() { isPaused = !isPaused; document.getElementById("pauseBtn").innerText = isPaused ? "▶️" : "⏸️"; }
 function endSession() { clearInterval(sessionTimer); document.getElementById("viewer").style.display = "none"; document.getElementById("breakScreen").style.display = "none"; document.getElementById("finishedScreen").style.display = "flex"; }
 
@@ -772,8 +851,8 @@ function endSession() { clearInterval(sessionTimer); document.getElementById("vi
 function parseBellTimes() { return document.getElementById("bellTimes").value.split(",").map(n=>parseInt(n.trim())).filter(n=>!isNaN(n)); }
 
 async function startSession() {
-  // Read source
-  const source = document.querySelector('input[name="pinterestSource"]:checked').value;
+// Read source
+const source = document.querySelector('input[name="pinterestSource"]:checked').value;
   sessionMode = document.querySelector('input[name="mode"]:checked').value;
   limitMode = document.querySelector('input[name="limit"]:checked').value;
   if (limitMode === 'time') { limitValue = parseInt(document.getElementById('limitValue').value); }
@@ -793,17 +872,25 @@ async function startSession() {
     const durationSec = parseInt(document.getElementById('durationSec').value || '0');
     imageDuration = durationMin * 60 + durationSec;
     classImageSchedule = [];
-  } else {
-    classImageSchedule = [];
-    document.querySelectorAll('#classPhases .class-phase').forEach(phase => {
-      const isBreak = phase.querySelector('.phase-break').checked;
-      const duration = (parseInt(phase.querySelector('.phase-minutes').value || '0') * 60 + parseInt(phase.querySelector('.phase-seconds').value || '0'));
-      const count = isBreak ? 1 : parseInt(phase.querySelector('.phase-count').value || '1');
-      for (let i=0;i<count;i++) classImageSchedule.push({ duration, isBreak });
-    });
-    limitMode = 'count';
-    limitValue = classImageSchedule.length;
-  }
+} else {
+  classImageSchedule = [];
+  // Iterate in DOM order; each row is either .class-phase (images) or .break-row (single break)
+  document.querySelectorAll('#classPhases .class-row').forEach(row => {
+    if (row.classList.contains('break-row')) {
+      const dur = (parseInt(row.querySelector('.break-minutes').value || '0') * 60 +
+                   parseInt(row.querySelector('.break-seconds').value || '0'));
+      classImageSchedule.push({ duration: dur, isBreak: true });
+    } else {
+      const count = parseInt(row.querySelector('.phase-count').value || '1');
+      const dur = (parseInt(row.querySelector('.phase-minutes').value || '0') * 60 +
+                   parseInt(row.querySelector('.phase-seconds').value || '0'));
+      for (let i = 0; i < count; i++) classImageSchedule.push({ duration: dur, isBreak: false });
+    }
+  });
+  limitMode = 'count';
+  limitValue = classImageSchedule.length;
+}
+
 
   // Build imageList based on source
   if (source === 'user') {
@@ -852,7 +939,7 @@ async function startSession() {
   showImage();
 }
 
-async function onLoadBoardsClick() {
+async function loadUserBoards() {
   const btn = document.getElementById('loadBoardsBtn');
   const user = document.getElementById('pinterestUsername').value.trim();
   const select = document.getElementById('userBoards');
@@ -883,7 +970,10 @@ document.getElementById('toggleImgTimerBtn').addEventListener('click', toggleIma
 document.getElementById('toggleSessTimerBtn').addEventListener('click', toggleSessionTimer);
 document.getElementById('skipBreakBtn').addEventListener('click', skipBreak);
 document.getElementById('backToSetupBtn').addEventListener('click', backToSetup);
-document.getElementById('loadBoardsBtn').addEventListener('click', onLoadBoardsClick);
+document.getElementById('loadBoardsBtn').addEventListener('click', loadUserBoards);
+document.getElementById('pinConnectBtn').addEventListener('click', connectPinterest);
+document.getElementById('pinLogoutBtn').addEventListener('click', logoutPinterest);
+
 
 document.querySelectorAll('input[name="pinterestSource"]').forEach(r => {
   r.addEventListener('change', () => {
@@ -893,22 +983,216 @@ document.querySelectorAll('input[name="pinterestSource"]').forEach(r => {
   });
 });
 
+document.getElementById('classPreset').addEventListener('change', (e) => {
+  const key = e.target.value;
+  if (!key) return;
+  populateClassPreset(key);
+});
+
+
 document.getElementById('customClassToggle').addEventListener('change', (e) => {
   document.getElementById('customControls').style.display = e.target.checked ? 'block' : 'none';
 });
 
 document.getElementById('addPhaseBtn').addEventListener('click', () => {
   const container = document.getElementById('classPhases');
-  const div = document.createElement('div');
-  div.className = 'class-phase';
-  div.innerHTML = `
+  const row = document.createElement('div');
+  row.className = 'class-row class-phase';
+  row.setAttribute('draggable', 'true');
+  row.style.cssText = 'display:flex;align-items:center;gap:.5rem;margin:.25rem 0;';
+  row.innerHTML = `
+    <span class="drag-handle" title="Drag to reorder" style="cursor:grab; user-select:none;">⋮⋮</span>
     <input type="number" class="phase-count" value="1" style="width:3rem;" /> images for
     <input type="number" class="phase-minutes" value="0" style="width:3rem;" /> min
     <input type="number" class="phase-seconds" value="30" style="width:3rem;" /> sec
-    <label><input type="checkbox" class="phase-break" /> break</label>
+    <button class="btn" type="button" onclick="this.parentElement.remove()">Remove</button>
   `;
-  container.appendChild(div);
+  container.appendChild(row);
+  enableClassRowDrag(container);
 });
+
+document.getElementById('insertBreakBtn').addEventListener('click', () => {
+  const container = document.getElementById('classPhases');
+  const row = document.createElement('div');
+  row.className = 'class-row break-row';
+  row.setAttribute('draggable', 'true');
+  row.style.cssText = 'display:flex;align-items:center;gap:.5rem;margin:.25rem 0; background:#12131a; border:1px dashed #2a2d3a; padding:.35rem .5rem; border-radius:8px;';
+  row.innerHTML = `
+    <span class="drag-handle" title="Drag to reorder" style="cursor:grab; user-select:none;">⋮⋮</span>
+    <strong>Break</strong> for
+    <input type="number" class="break-minutes" value="2" style="width:3rem;" /> min
+    <input type="number" class="break-seconds" value="0" style="width:3rem;" /> sec
+    <button class="btn" type="button" onclick="this.parentElement.remove()">Remove</button>
+  `;
+  container.appendChild(row);
+  enableClassRowDrag(container);
+});
+
+// ---- Class presets (durations in seconds) ----
+const CLASS_PRESETS = {
+  // 6×30s, 3×1m, 2×2m, 1×5m
+  '15m': [
+    {type:'phase', n:6, sec:30},
+    {type:'phase', n:3, sec:60},
+    {type:'phase', n:2, sec:120},
+    {type:'phase', n:1, sec:300},
+  ],
+  // 6×10s, 6×30s, 3×1m, 3×2m, 2×5m, 1×7m
+  '30m': [
+    {type:'phase', n:6, sec:10},
+    {type:'phase', n:6, sec:30},
+    {type:'phase', n:3, sec:60},
+    {type:'phase', n:3, sec:120},
+    {type:'phase', n:2, sec:300},
+    {type:'phase', n:1, sec:420},
+  ],
+  // break 2m in the middle: … then 1×10m, 1×25m
+  '60m': [
+    {type:'phase', n:6, sec:10},
+    {type:'phase', n:6, sec:30},
+    {type:'phase', n:3, sec:60},
+    {type:'phase', n:3, sec:120},
+    {type:'phase', n:2, sec:300},
+    {type:'break', sec:120},
+    {type:'phase', n:1, sec:600},
+    {type:'phase', n:1, sec:1500},
+  ],
+  // break 2m, then 2×10m, 2×15m, break 5m, 1×40m
+  '120m': [
+    {type:'phase', n:6, sec:10},
+    {type:'phase', n:6, sec:30},
+    {type:'phase', n:3, sec:60},
+    {type:'phase', n:3, sec:120},
+    {type:'phase', n:2, sec:300},
+    {type:'break', sec:120},
+    {type:'phase', n:2, sec:600},
+    {type:'phase', n:2, sec:900},
+    {type:'break', sec:300},
+    {type:'phase', n:1, sec:2400},
+  ],
+  // break 2m, 2×10m, 2×15m, break 5m, 1×35m, break 5m, 1×60m
+  '180m': [
+    {type:'phase', n:6, sec:10},
+    {type:'phase', n:6, sec:30},
+    {type:'phase', n:3, sec:60},
+    {type:'phase', n:3, sec:120},
+    {type:'phase', n:2, sec:300},
+    {type:'break', sec:120},
+    {type:'phase', n:2, sec:600},
+    {type:'phase', n:2, sec:900},
+    {type:'break', sec:300},
+    {type:'phase', n:1, sec:2100},
+    {type:'break', sec:300},
+    {type:'phase', n:1, sec:3600},
+  ],
+};
+
+// Small helpers to build rows like your UI buttons do
+function addPhaseRow(count, min, sec) {
+  const container = document.getElementById('classPhases');
+  const row = document.createElement('div');
+  row.className = 'class-row class-phase';
+  row.setAttribute('draggable', 'true');
+  row.style.cssText = 'display:flex;align-items:center;gap:.5rem;margin:.25rem 0;';
+  row.innerHTML = `
+    <span class="drag-handle" title="Drag to reorder" style="cursor:grab; user-select:none;">⋮⋮</span>
+    <input type="number" class="phase-count" value="${count}" style="width:3rem;" /> images for
+    <input type="number" class="phase-minutes" value="${min}" style="width:3rem;" /> min
+    <input type="number" class="phase-seconds" value="${sec}" style="width:3rem;" /> sec
+    <button class="btn" type="button" onclick="this.parentElement.remove()">Remove</button>
+  `;
+  container.appendChild(row);
+}
+
+function addBreakRow(min, sec) {
+  const container = document.getElementById('classPhases');
+  const row = document.createElement('div');
+  row.className = 'class-row break-row';
+  row.setAttribute('draggable', 'true');
+  row.style.cssText = 'display:flex;align-items:center;gap:.5rem;margin:.25rem 0; background:#12131a; border:1px dashed #2a2d3a; padding:.35rem .5rem; border-radius:8px;';
+  row.innerHTML = `
+    <span class="drag-handle" title="Drag to reorder" style="cursor:grab; user-select:none;">⋮⋮</span>
+    <strong>Break</strong> for
+    <input type="number" class="break-minutes" value="${min}" style="width:3rem;" /> min
+    <input type="number" class="break-seconds" value="${sec}" style="width:3rem;" /> sec
+    <button class="btn" type="button" onclick="this.parentElement.remove()">Remove</button>
+  `;
+  container.appendChild(row);
+}
+
+function populateClassPreset(key) {
+  const data = CLASS_PRESETS[key];
+  if (!data) return;
+
+  // force Class mode visible
+  document.querySelector('input[name="mode"][value="class"]').checked = true;
+  document.getElementById('classSettings').style.display = 'block';
+  document.getElementById('limitSection').style.display = 'none';
+  document.getElementById('standardOptions').style.display = 'none';
+
+  // make sure custom controls are on (so Add Phase / Insert Break are visible)
+  const toggle = document.getElementById('customClassToggle');
+  toggle.checked = true;
+  document.getElementById('customControls').style.display = 'block';
+
+  // clear and rebuild rows
+  const container = document.getElementById('classPhases');
+  container.innerHTML = '';
+
+  for (const item of data) {
+    if (item.type === 'break') {
+      const m = Math.floor(item.sec / 60), s = item.sec % 60;
+      addBreakRow(m, s);
+    } else {
+      const m = Math.floor(item.sec / 60), s = item.sec % 60;
+      addPhaseRow(item.n, m, s);
+    }
+  }
+
+  // re-enable dragging on fresh rows
+  enableClassRowDrag(container);
+}
+
+
+function enableClassRowDrag(container = document.getElementById('classPhases')) {
+  let dragSrc = null;
+
+  container.querySelectorAll('.class-row').forEach(row => {
+    row.addEventListener('dragstart', (e) => {
+      dragSrc = row;
+      e.dataTransfer.effectAllowed = 'move';
+      // visualize
+      row.style.opacity = '0.5';
+    });
+
+    row.addEventListener('dragend', () => {
+      if (dragSrc) dragSrc.style.opacity = '';
+      dragSrc = null;
+    });
+
+    row.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+    });
+
+    row.addEventListener('drop', (e) => {
+      e.preventDefault();
+      if (!dragSrc || dragSrc === row) return;
+      // Insert before or after based on mouse Y
+      const rect = row.getBoundingClientRect();
+      const before = (e.clientY - rect.top) < rect.height / 2;
+      if (before) {
+        container.insertBefore(dragSrc, row);
+      } else {
+        container.insertBefore(dragSrc, row.nextSibling);
+      }
+    });
+  });
+}
+
+
+
+
 
 document.querySelectorAll('input[name="mode"]').forEach(radio => {
   radio.addEventListener('change', () => {
@@ -916,8 +1200,11 @@ document.querySelectorAll('input[name="mode"]').forEach(radio => {
     document.getElementById('classSettings').style.display = isClass ? 'block' : 'none';
     document.getElementById('limitSection').style.display = isClass ? 'none' : 'block';
     document.getElementById('standardOptions').style.display = isClass ? 'none' : 'block';
+    const presetSel = document.getElementById('classPreset');
+    if (presetSel) presetSel.style.display = isClass ? 'inline-block' : 'none';
   });
 });
+
 
 document.querySelectorAll('input[name="limit"]').forEach(radio => {
   radio.addEventListener('change', () => {
@@ -938,21 +1225,31 @@ document.querySelectorAll('input[name="limit"]').forEach(radio => {
 });
 
 // Initial layout state + build sample board list
+// initialize once on load (drag, auth, initial visibility, and sample boards)
 window.addEventListener('DOMContentLoaded', () => {
-  // -- existing layout toggles --
+  // 1) Drag on default row + auth banner
+  const container = document.getElementById('classPhases');
+  if (container) enableClassRowDrag(container);
+  checkAuth();
+
+  // 2) Initial section visibility
   const isClass = document.querySelector('input[name="mode"]:checked').value === 'class';
   document.getElementById('classSettings').style.display = isClass ? 'block' : 'none';
-  document.getElementById('limitSection').style.display = isClass ? 'none' : 'block';
-  document.getElementById('standardOptions').style.display = isClass ? 'none' : 'block';
+  document.getElementById('limitSection').style.display   = isClass ? 'none'  : 'block';
+  document.getElementById('standardOptions').style.display= isClass ? 'none'  : 'block';
   const isTime = document.querySelector('input[name="limit"]:checked').value === 'time';
   document.getElementById('limitTimeOptions').style.display = isTime ? 'block' : 'none';
 
-  // -- build the sample boards list (checkboxes) --
+  // 3) Preset dropdown visibility on load
+  const presetSel = document.getElementById('classPreset');
+  if (presetSel) presetSel.style.display = isClass ? 'inline-block' : 'none';
+
+  // 4) Build the sample boards list (checkboxes)
   const list = document.getElementById('sampleBoardList');
   if (list) {
     list.innerHTML = '';
     Object.keys(SAMPLE_BOARDS).forEach(name => {
-      const id = 'sb_' + name.replace(/[^a-z0-9]+/gi, '_');
+      const id  = 'sb_' + name.replace(/[^a-z0-9]+/gi, '_');
       const row = document.createElement('label');
       row.style.display = 'flex';
       row.style.alignItems = 'center';
@@ -963,14 +1260,14 @@ window.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // -- select all / clear --
+  // 5) Select all / clear handlers
   const allBtn = document.getElementById('sbSelectAll');
   const clrBtn = document.getElementById('sbClear');
   if (allBtn) allBtn.addEventListener('click', () => {
-    document.querySelectorAll('#sampleBoardList input[type="checkbox"]').forEach(cb => cb.checked = true);
+    document.querySelectorAll('#sampleBoardList input[type="checkbox"]').forEach(cb => (cb.checked = true));
   });
   if (clrBtn) clrBtn.addEventListener('click', () => {
-    document.querySelectorAll('#sampleBoardList input[type="checkbox"]').forEach(cb => cb.checked = false);
+    document.querySelectorAll('#sampleBoardList input[type="checkbox"]').forEach(cb => (cb.checked = false));
   });
 });
 
