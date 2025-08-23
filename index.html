@@ -128,24 +128,6 @@
   </div>
 </div>
 
-<div class="col-12 card">
-  <h3>Quick Sample Boards</h3>
-  <label>Sample Boards</label>
-
-  <div id="sampleBoardList"
-       style="max-height:220px; overflow:auto; border:1px solid #222430; border-radius:10px; padding:.35rem; background:#101217;">
-    <!-- JS will populate checkboxes here -->
-  </div>
-
-  <div class="row" style="margin-top:.35rem; gap:.5rem;">
-    <button class="btn" id="sbSelectAll" type="button">Select all</button>
-    <button class="btn" id="sbClear" type="button">Clear</button>
-  </div>
-
-  <div class="hint" style="margin-top:.25rem">
-    Tip: Click to select one or more boards. Use the buttons above for quick multi-select.
-  </div>
-</div>
 
 
       <div class="col-12 card" id="limitSection">
@@ -188,6 +170,26 @@
           </div>
         </div>
       </div>
+
+<div class="col-12 card">
+  <h3>Quick Sample Boards</h3>
+  <label>Sample Boards</label>
+
+  <div id="sampleBoardList"
+       style="max-height:220px; overflow:auto; border:1px solid #222430; border-radius:10px; padding:.35rem; background:#101217;">
+    <!-- JS will populate checkboxes here -->
+  </div>
+
+  <div class="row" style="margin-top:.35rem; gap:.5rem;">
+    <button class="btn" id="sbSelectAll" type="button">Select all</button>
+    <button class="btn" id="sbClear" type="button">Clear</button>
+  </div>
+
+  <div class="hint" style="margin-top:.25rem">
+    Tip: Click to select one or more boards. Use the buttons above for quick multi-select.
+  </div>
+</div>
+
 
       <div class="col-12" style="display:flex; gap:.75rem; justify-content:flex-end;">
         <button class="btn" id="testFallbackBtn" type="button">Test Fallback (no Pinterest)</button>
