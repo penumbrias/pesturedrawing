@@ -64,7 +64,8 @@
       <div class="col-12 card">
         <h3>Image Source</h3>
         <label><input type="radio" name="pinterestSource" value="board" checked> Paste Board URL(s)</label>
-        <label><input type="radio" name="pinterestSource" value="user"> Use Pinterest Username</label>
+        <label><input type="radio" name="pinterestSource" value="user"> Use my Pinterest boards (connected)</label>
+
         <div class="row" id="pinAuthRow" style="margin-top:.5rem; align-items:center;">
   <div id="pinAuthStatus" class="hint" style="flex:1;">Not connected to Pinterest</div>
   <button class="btn" id="pinConnectBtn" type="button">Connect to Pinterest</button>
@@ -235,7 +236,7 @@
 /******************************
  *  Pinterest + Fallback Core *
  ******************************/
-const BACKEND_BASE = window.PD_BACKEND || "https://pesturedrawing.vercel.app"; // change if needed
+const BACKEND_BASE = window.PD_BACKEND || "https://pesture-oauth-backend.vercel.app";
 
 
 // Sample images per board (always available)
@@ -627,19 +628,19 @@ function shuffleArray(arr) { return [...arr].sort(() => Math.random() - 0.5); }
 
 // Fetch user boards from backend; fallback to sample if fails
 async function fetchUserBoards(username) {
-  async function fetchUserBoards(username) {
-  const url = `${BACKEND_BASE}/api/pinterest/boards`;
+  const url = `${BACKEND_BASE}/api/pinterest/boards`; // backend returns the token user's boards
   try {
     const res = await fetch(url, { credentials: "include" });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
-    // Normalize into {id, name}
-    const boards = (data?.boards || data || []).map(b => ({ id: b.id || b.board_id || b.url || b.name, name: b.name || b.title || b.url || "Board" }));
+    const boards = (data?.boards || data || []).map(b => ({
+      id: b.id || b.board_id || b.url || b.name,
+      name: b.name || b.title || b.url || "Board"
+    }));
     if (!boards.length) throw new Error("Empty board list");
     return { ok: true, boards };
   } catch (e) {
     console.warn("Pinterest boards fetch failed — using sample boards.", e);
-    // Fallback: map sample keys to objects
     const boards = Object.keys(SAMPLE_BOARDS).map((name, i) => ({ id: `sample-${i}`, name }));
     return { ok: false, boards };
   }
@@ -759,8 +760,12 @@ function updateBreakTimer() {
   const s = String(breakTimeRemaining%60).padStart(2,'0');
   document.getElementById("breakTimer").innerText = `${m}:${s}`;
 }
-function endBreak() { inBreak = false; document.getElementById("breakScreen").style.display = "none"; currentIndex++; showImage(); }
-
+function endBreak() {
+  inBreak = false;
+  document.getElementById("breakScreen").style.display = "none";
+  if (sessionMode === 'class') { currentIndex++; }  // advance only for Class schedule rows
+  showImage();
+}
 function runTimer() {
   clearInterval(sessionTimer);
   sessionTimer = setInterval(() => {
@@ -898,15 +903,12 @@ const source = document.querySelector('input[name="pinterestSource"]:checked').v
 
   // Build imageList based on source
   if (source === 'user') {
-    const user = document.getElementById('pinterestUsername').value.trim();
-    const select = document.getElementById('userBoards');
-    const selected = Array.from(select.selectedOptions).map(o => ({ id:o.value, name:o.textContent }));
-    if (!user) { alert('Please enter a Pinterest username (or switch to sample boards).'); return; }
-    if (!selected.length) { alert('Please choose at least one board.'); return; }
+  const select = document.getElementById('userBoards');
+  const selected = Array.from(select.selectedOptions).map(o => ({ id:o.value, name:o.textContent }));
+  if (!selected.length) { alert('Please choose at least one board.'); return; }
 
-    // Load pins (real or sample)
-    imageList = await fetchPinsForBoards(selected);
-  } else {
+  imageList = await fetchPinsForBoards(selected);
+} else {
     // Quick sample boards now use checkboxes, not a dropdown
     const checked = Array.from(
       document.querySelectorAll('#sampleBoardList input[type="checkbox"]:checked')
