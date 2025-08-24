@@ -67,7 +67,7 @@
         <label><input type="radio" name="pinterestSource" value="user"> Use Pinterest Username</label>
         <div class="row" id="pinAuthRow" style="margin-top:.5rem; align-items:center;">
   <div id="pinAuthStatus" class="hint" style="flex:1;">Not connected to Pinterest</div>
-  <button class="btn" id="pinConnectBtn" type="button">Connect Pinterest</button>
+  <button class="btn" id="pinConnectBtn" type="button">Connect to Pinterest</button>
   <button class="btn" id="pinLogoutBtn" type="button" style="display:none;">Log out</button>
 </div>
         <div id="boardUrlSection" style="margin-top: .75rem;">
@@ -235,7 +235,7 @@
 /******************************
  *  Pinterest + Fallback Core *
  ******************************/
-const BACKEND_BASE = window.PD_BACKEND || "https://pesture-oauth-backend.vercel.app"; // change if needed
+const BACKEND_BASE = window.PD_BACKEND || "https://pesturedrawing.vercel.app"; // change if needed
 
 
 // Sample images per board (always available)
@@ -627,7 +627,8 @@ function shuffleArray(arr) { return [...arr].sort(() => Math.random() - 0.5); }
 
 // Fetch user boards from backend; fallback to sample if fails
 async function fetchUserBoards(username) {
-  const url = `${BACKEND_BASE}/api/pinterest/users/${encodeURIComponent(username)}/boards`;
+  async function fetchUserBoards(username) {
+  const url = `${BACKEND_BASE}/api/pinterest/boards`;
   try {
     const res = await fetch(url, { credentials: "include" });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -947,7 +948,7 @@ async function loadUserBoards() {
   const user = document.getElementById('pinterestUsername').value.trim();
   const select = document.getElementById('userBoards');
   select.innerHTML = '';
-  if (!user) { alert('Enter a username first.'); return; }
+  
 
   btn.disabled = true; btn.textContent = 'Loading…';
   const { ok, boards } = await fetchUserBoards(user);
