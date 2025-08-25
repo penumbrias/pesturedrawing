@@ -627,7 +627,7 @@ const SAMPLE_BOARDS = {
 function shuffleArray(arr) { return [...arr].sort(() => Math.random() - 0.5); }
 
 // Fetch user boards from backend; fallback to sample if fails
-async function fetchUserBoards(username) {
+async function fetchUserBoards() {
   const url = `${BACKEND_BASE}/api/pinterest/boards`; // backend returns the token user's boards
   try {
     const res = await fetch(url, { credentials: "include" });
@@ -902,11 +902,10 @@ const source = document.querySelector('input[name="pinterestSource"]:checked').v
 
 
   // Build imageList based on source
-  if (source === 'user') {
+if (source === 'user') {
   const select = document.getElementById('userBoards');
   const selected = Array.from(select.selectedOptions).map(o => ({ id:o.value, name:o.textContent }));
   if (!selected.length) { alert('Please choose at least one board.'); return; }
-
   imageList = await fetchPinsForBoards(selected);
 } else {
     // Quick sample boards now use checkboxes, not a dropdown
@@ -947,14 +946,17 @@ const source = document.querySelector('input[name="pinterestSource"]:checked').v
 
 async function loadUserBoards() {
   const btn = document.getElementById('loadBoardsBtn');
-  const user = document.getElementById('pinterestUsername').value.trim();
   const select = document.getElementById('userBoards');
   select.innerHTML = '';
-  
 
   btn.disabled = true; btn.textContent = 'Loading…';
-  const { ok, boards } = await fetchUserBoards(user);
-  boards.forEach(b => { const opt = document.createElement('option'); opt.value = b.id; opt.textContent = b.name; select.appendChild(opt); });
+  const { ok, boards } = await fetchUserBoards();
+  boards.forEach(b => {
+    const opt = document.createElement('option');
+    opt.value = b.id;
+    opt.textContent = b.name;
+    select.appendChild(opt);
+  });
   btn.disabled = false; btn.textContent = ok ? 'Reload Boards' : 'Loaded Samples';
 }
 
