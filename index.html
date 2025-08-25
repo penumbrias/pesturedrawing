@@ -63,32 +63,30 @@
     <div class="grid">
       <div class="col-12 card">
         <h3>Image Source</h3>
-        <label><input type="radio" name="pinterestSource" value="board" checked> Paste Board URL(s)</label>
-        <label><input type="radio" name="pinterestSource" value="user"> Use my Pinterest boards (connected)</label>
+<label><input type="radio" name="pinterestSource" value="board" checked> Paste Board URL(s)</label>
+<label><input type="radio" name="pinterestSource" value="user"> Use my Pinterest boards</label>
 
-        <div class="row" id="pinAuthRow" style="margin-top:.5rem; align-items:center;">
+<div class="row" id="pinAuthRow" style="margin-top:.5rem; align-items:center;">
   <div id="pinAuthStatus" class="hint" style="flex:1;">Not connected to Pinterest</div>
   <button class="btn" id="pinConnectBtn" type="button">Connect to Pinterest</button>
   <button class="btn" id="pinLogoutBtn" type="button" style="display:none;">Log out</button>
 </div>
-        <div id="boardUrlSection" style="margin-top: .75rem;">
-          <label>Board URL(s) (comma-separated):</label>
-          <input type="text" id="boardUrls" placeholder="https://www.pinterest.com/user/board1, https://..." />
-        </div>
-        <div id="userBoardSection" style="margin-top: .75rem; display:none;">
-          <div class="row">
-            <div>
-              <label>Pinterest Username</label>
-              <input type="text" id="pinterestUsername" placeholder="e.g. artlover42" />
-            </div>
-            <div style="align-self:flex-end;">
-              <button class="btn" id="loadBoardsBtn" type="button">Load Boards</button>
-            </div>
-          </div>
-          <label style="margin-top:.5rem;">Choose Board(s)</label>
-          <select id="userBoards" multiple style="min-height: 140px;"></select>
-          <div class="hint" style="margin-top:.25rem">Tip: Ctrl/Cmd-click to select multiple.</div>
-        </div>
+
+<div id="boardUrlSection" style="margin-top: .75rem;">
+  <label>Board URL(s) (comma-separated):</label>
+  <input type="text" id="boardUrls" placeholder="https://www.pinterest.com/user/board1, https://..." />
+</div>
+
+<div id="userBoardSection" style="margin-top: .75rem; display:none;">
+  <div class="row" style="align-items:center;">
+    <button class="btn" id="loadBoardsBtn" type="button" disabled>Load my Pinterest boards</button>
+    <div class="hint" id="loadBoardsHint">Connect to Pinterest first</div>
+  </div>
+  <label style="margin-top:.5rem;">Choose Board(s)</label>
+  <select id="userBoards" multiple style="min-height: 140px;"></select>
+  <div class="hint" style="margin-top:.25rem">Tip: Ctrl/Cmd-click to select multiple.</div>
+</div>
+
       </div>
 
 <div class="col-12 card">
@@ -626,9 +624,9 @@ const SAMPLE_BOARDS = {
 // Utility: shuffle copy
 function shuffleArray(arr) { return [...arr].sort(() => Math.random() - 0.5); }
 
-// Fetch user boards from backend; fallback to sample if fails
+// Fetch boards for the connected Pinterest account; fallback to samples if it fails
 async function fetchUserBoards() {
-  const url = `${BACKEND_BASE}/api/pinterest/boards`; // backend returns the token user's boards
+  const url = `${BACKEND_BASE}/api/pinterest/boards`;
   try {
     const res = await fetch(url, { credentials: "include" });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -708,23 +706,41 @@ function updateSessionTimer() {
 }
 
 async function checkAuth() {
+  const statusEl = document.getElementById('pinAuthStatus');
+  const connectBtn = document.getElementById('pinConnectBtn');
+  const logoutBtn  = document.getElementById('pinLogoutBtn');
+  const loadBtn    = document.getElementById('loadBoardsBtn');
+  const loadHint   = document.getElementById('loadBoardsHint');
+
   try {
     const res = await fetch(`${BACKEND_BASE}/api/auth/status`, { credentials: 'include' });
     const data = await res.json();
     const authed = !!data?.authorized;
-    document.getElementById('pinAuthStatus').textContent = authed
-      ? `Connected to Pinterest ${data.user ? `as ${data.user}` : ''}`
-      : 'Not connected to Pinterest';
-    document.getElementById('pinConnectBtn').style.display = authed ? 'none' : 'inline-block';
-    document.getElementById('pinLogoutBtn').style.display  = authed ? 'inline-block' : 'none';
+
+    if (authed) {
+      statusEl.textContent = `Connected to Pinterest${data.user ? ` as ${data.user}` : ''}`;
+      connectBtn.style.display = 'none';
+      logoutBtn.style.display  = 'inline-block';
+      if (loadBtn) { loadBtn.disabled = false; }
+      if (loadHint) { loadHint.textContent = 'Click “Load my Pinterest boards”'; }
+    } else {
+      statusEl.textContent = 'Not connected to Pinterest';
+      connectBtn.style.display = 'inline-block';
+      logoutBtn.style.display  = 'none';
+      if (loadBtn) { loadBtn.disabled = true; }
+      if (loadHint) { loadHint.textContent = 'Connect to Pinterest first'; }
+    }
     return authed;
   } catch {
-    document.getElementById('pinAuthStatus').textContent = 'Not connected to Pinterest';
-    document.getElementById('pinConnectBtn').style.display = 'inline-block';
-    document.getElementById('pinLogoutBtn').style.display  = 'none';
+    statusEl.textContent = 'Not connected to Pinterest';
+    connectBtn.style.display = 'inline-block';
+    logoutBtn.style.display  = 'none';
+    if (loadBtn) loadBtn.disabled = true;
+    if (loadHint) loadHint.textContent = 'Connect to Pinterest first';
     return false;
   }
 }
+
 
 function connectPinterest() {
   // Let the backend initiate the OAuth redirect; it will bounce back to us
@@ -946,10 +962,25 @@ if (source === 'user') {
 
 async function loadUserBoards() {
   const btn = document.getElementById('loadBoardsBtn');
+  const hint = document.getElementById('loadBoardsHint');
   const select = document.getElementById('userBoards');
+
+  // clear list
   select.innerHTML = '';
 
-  btn.disabled = true; btn.textContent = 'Loading…';
+  // ensure connected first
+  const authed = await checkAuth();
+  if (!authed) {
+    btn.disabled = true;
+    hint.textContent = 'Connect to Pinterest first';
+    alert('Please connect to Pinterest first.');
+    return;
+  }
+
+  btn.disabled = true; 
+  btn.textContent = 'Loading…';
+  hint.textContent = 'Fetching your boards…';
+
   const { ok, boards } = await fetchUserBoards();
   boards.forEach(b => {
     const opt = document.createElement('option');
@@ -957,8 +988,12 @@ async function loadUserBoards() {
     opt.textContent = b.name;
     select.appendChild(opt);
   });
-  btn.disabled = false; btn.textContent = ok ? 'Reload Boards' : 'Loaded Samples';
+
+  btn.disabled = false;
+  btn.textContent = ok ? 'Reload my boards' : 'Loaded samples';
+  hint.textContent = ok ? 'Select one or more boards below' : 'Could not reach Pinterest — showing samples';
 }
+
 
 // Basic helpers
 function backToSetup(){ document.getElementById('finishedScreen').style.display = 'none'; document.getElementById('setup').style.display = 'block'; }
@@ -988,6 +1023,9 @@ document.querySelectorAll('input[name="pinterestSource"]').forEach(r => {
     const source = document.querySelector('input[name="pinterestSource"]:checked').value;
     document.getElementById('boardUrlSection').style.display = source === 'board' ? 'block':'none';
     document.getElementById('userBoardSection').style.display = source === 'user' ? 'block':'none';
+document.getElementById('loadBoardsBtn').addEventListener('click', loadUserBoards);
+document.getElementById('pinConnectBtn').addEventListener('click', connectPinterest);
+document.getElementById('pinLogoutBtn').addEventListener('click', logoutPinterest);
   });
 });
 
