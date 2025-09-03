@@ -763,6 +763,21 @@ let sessionRemaining = null; // seconds
 let showImageTimer = true; let showSessionTimer = true;
 let fitToScreen = false;
 let slotHistory = {}; // { [slotIndex]: number[] } remembers image indices shown in each slot
+let deck = []; // indices not yet used this cycle
+
+function buildDeck() {
+  deck = Array.from({ length: imageList.length }, (_, i) => i);
+  // Fisher–Yates shuffle
+  for (let i = deck.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [deck[i], deck[j]] = [deck[j], deck[i]];
+  }
+}
+
+function dealOne() {
+  if (!deck.length) buildDeck();   // when exhausted, reshuffle for the next cycle
+  return deck.pop();
+}
 
 function toggleFitToScreen() {
   fitToScreen = !fitToScreen;
@@ -924,24 +939,30 @@ function showImage() {
 
 
 
-// record this slot’s image (avoid duplicates)
-const hist = slotHistory[currentIndex] || (slotHistory[currentIndex] = []);
-if (hist[hist.length - 1] !== imageDisplayIndex) hist.push(imageDisplayIndex);
+// Deal an image for this slot if it doesn't already have one
+let hist = slotHistory[currentIndex];
+if (!hist || hist.length === 0) {
+  imageDisplayIndex = dealOne();
+  slotHistory[currentIndex] = [imageDisplayIndex];
+} else {
+  // Reuse the last image assigned to this slot (supports Back button)
+  imageDisplayIndex = hist[hist.length - 1];
+}
 
-const nextSrc = safeURL(imageList[(imageDisplayIndex + imageList.length) % imageList.length]);
-img.src = nextSrc;
+// Show it
+img.src = safeURL(imageList[imageDisplayIndex]);
+updateTimerDisplay();
+runTimer();
 updateTimerDisplay();
 runTimer();
 
 }
 
 function nextImage() {
-  if (imageList.length) {
-    imageDisplayIndex = (imageDisplayIndex + 1) % imageList.length;
-  }
   currentIndex++;
-  showImage();
+  showImage(); // showImage will deal the next unused image for the new slot
 }
+
 function prevImage() {
   // If we refreshed in this slot, step back to the previous image in the same slot
   const hist = slotHistory[currentIndex];
@@ -965,7 +986,7 @@ function prevImage() {
 
     // show the prior image without advancing/rewinding schedule
     const img = document.getElementById("currentImage");
-    img.src = safeURL(imageList[(imageDisplayIndex + imageList.length) % imageList.length]);
+    img.src = safeURL(imageList[imageDisplayIndex]);
     return;
   }
 
@@ -978,26 +999,26 @@ function prevImage() {
     currentIndex = Math.max(0, currentIndex - 1);
   }
 
-  // Prefer the exact image we used in that previous slot, if known
   const prevHist = slotHistory[currentIndex];
-  if (prevHist && prevHist.length) {
-    imageDisplayIndex = prevHist[prevHist.length - 1];
-  } else if (imageList.length) {
-    imageDisplayIndex = (imageDisplayIndex - 1 + imageList.length) % imageList.length;
-  }
-
-  showImage();
+if (prevHist && prevHist.length) {
+  imageDisplayIndex = prevHist[prevHist.length - 1];
+} else {
+  // If this slot somehow has no record, deal one now and record it
+  imageDisplayIndex = dealOne();
+  slotHistory[currentIndex] = [imageDisplayIndex];
+}
+showImage();
 }
 
 function refreshImage() {
-  if (inBreak) return; // no-op during breaks
+  if (inBreak) return;
 
   // Full duration for this slot
   const duration = (sessionMode === 'class')
     ? (classImageSchedule[currentIndex]?.duration || imageDuration)
     : imageDuration;
 
-  // Reset the image countdown and keep overall session time consistent
+  // Reset image countdown and keep overall session time consistent
   const oldRemaining = remaining;
   remaining = duration;
   bellFiredThisImage.clear();
@@ -1007,23 +1028,17 @@ function refreshImage() {
     updateSessionTimer();
   }
 
-  // Pick a different random image without advancing class/image counters
-  if (imageList.length > 1) {
-    let newIdx;
-    do {
-      newIdx = Math.floor(Math.random() * imageList.length);
-    } while (newIdx === imageDisplayIndex);
-    imageDisplayIndex = newIdx;
-  }
+  // Pick the next unused image from the deck (no repeats until deck cycles)
+  imageDisplayIndex = dealOne();
 
   // Record this new image in the current slot’s history
   const hist = slotHistory[currentIndex] || (slotHistory[currentIndex] = []);
   if (hist[hist.length - 1] !== imageDisplayIndex) hist.push(imageDisplayIndex);
 
   // Swap the image
-    const img = document.getElementById("currentImage");
-  img.classList.toggle('fit-contain', fitToScreen);   // keep in sync on refresh
-  img.src = safeURL(imageList[(imageDisplayIndex + imageList.length) % imageList.length]);
+  const img = document.getElementById("currentImage");
+  img.classList.toggle('fit-contain', fitToScreen);
+  img.src = safeURL(imageList[imageDisplayIndex]);
 }
 
 function togglePause() { isPaused = !isPaused; document.getElementById("pauseBtn").innerText = isPaused ? "▶️" : "⏸️"; }
@@ -1103,10 +1118,15 @@ async function startSession() {
   else { sessionRemaining = null; }
   updateSessionTimer();
 
-  // Pick the first image index and preload that image so we don't show a black screen
-  if (imageList.length) imageDisplayIndex = Math.floor(Math.random() * imageList.length);
-  const firstSrc = safeURL(imageList[(imageDisplayIndex + imageList.length) % imageList.length]);
+// Build a no-repeat deck and deal the first image
+buildDeck();
+imageDisplayIndex = dealOne();
+slotHistory[currentIndex] = [imageDisplayIndex];
 
+// Preload that first image so we don't flash a black screen
+const firstSrc = safeURL(imageList[imageDisplayIndex]);
+setLoading(true, 'Loading first image…');
+await preloadImage(firstSrc);
   setLoading(true, 'Loading first image…');
   await preloadImage(firstSrc); // returns quickly if cached or after a short timeout
 
