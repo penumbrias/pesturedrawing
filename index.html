@@ -636,7 +636,7 @@ function shuffleArray(arr) {
 
 // Fetch boards for the connected Pinterest account; fallback to samples if it fails
 async function fetchUserBoards() {
-  const url = `${BACKEND_BASE}/api/pinterest/boards`;
+  const url = `${BACKEND_BASE}/api/pinterest/boards?all=1&page_size=250`;
   try {
     const res = await fetch(url, { credentials: "include" });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -645,6 +645,8 @@ async function fetchUserBoards() {
       id: b.id || b.board_id || b.url || b.name,
       name: b.name || b.title || b.url || "Board"
     }));
+    boards.sort((a, b) => (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' }));
+
     if (!boards.length) throw new Error("Empty board list");
     return { ok: true, boards };
   } catch (e) {
