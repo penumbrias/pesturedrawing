@@ -5,6 +5,35 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Pesture Drawing</title>
   <style>
+
+/* Loading overlay */
+.loading-overlay {
+  position: fixed;
+  inset: 0;
+  display: none;              /* toggled via JS */
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 0.75rem;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 10000;
+}
+.loading-overlay .spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid rgba(255,255,255,.25);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: pd_spin 1s linear infinite;
+}
+.loading-overlay .text {
+  color: #fff;
+  font-size: 1rem;
+  opacity: 0.95;
+  text-align: center;
+}
+@keyframes pd_spin { to { transform: rotate(360deg); } }
+
     :root {
       --bg: #0b0b0c;
       --panel: #111216;
@@ -206,34 +235,6 @@
       </div>
     </div>
   </div>
-
-/* Loading overlay */
-.loading-overlay {
-  position: fixed;
-  inset: 0;
-  display: none;              /* toggled via JS */
-  align-items: center;
-  justify-content: center;
-  flex-direction: column;
-  gap: 0.75rem;
-  background: rgba(0, 0, 0, 0.6);
-  z-index: 10000;
-}
-.loading-overlay .spinner {
-  width: 48px;
-  height: 48px;
-  border: 4px solid rgba(255,255,255,.25);
-  border-top-color: #fff;
-  border-radius: 50%;
-  animation: pd_spin 1s linear infinite;
-}
-.loading-overlay .text {
-  color: #fff;
-  font-size: 1rem;
-  opacity: 0.95;
-  text-align: center;
-}
-@keyframes pd_spin { to { transform: rotate(360deg); } }
 
   <!-- Viewer -->
   <div class="fullscreen" id="viewer">
@@ -1118,51 +1119,7 @@ async function startSession() {
 
 
 
-  // Build imageList based on source
-if (source === 'user') {
-  const select = document.getElementById('userBoards');
-  const selected = Array.from(select.selectedOptions).map(o => ({ id:o.value, name:o.textContent }));
-  if (!selected.length) { alert('Please choose at least one board.'); return; }
-  imageList = await fetchPinsForBoards(selected);
-} else {
-    // Quick sample boards now use checkboxes, not a dropdown
-    const checked = Array.from(
-      document.querySelectorAll('#sampleBoardList input[type="checkbox"]:checked')
-    ).map(cb => cb.value);
 
-    // Build pools from all selected boards; if none selected, use ALL boards
-    const pools = checked.length
-      ? checked.map(name => SAMPLE_BOARDS[name] || [])
-      : Object.values(SAMPLE_BOARDS);
-
-    imageList = shuffleArray(pools.flat());
-
-    // If user pasted board URLs, attempt future parsing (no-op now)
-    const pasted = document.getElementById('boardUrls').value.trim();
-    if (pasted && !imageList.length) {
-      imageList = shuffleArray(Object.values(SAMPLE_BOARDS).flat());
-    }
-  }
-
-  if (!imageList.length) {
-    // Last-resort fallback to ALL samples
-    imageList = shuffleArray(Object.values(SAMPLE_BOARDS).flat());
-  }
-
-  // Setup session timers
-  if (limitMode === 'time') { sessionRemaining = limitValue * 60; }
-  else if (sessionMode === 'class') { sessionRemaining = classImageSchedule.reduce((s,p)=>s+p.duration,0); }
-  else { sessionRemaining = null; }
-  updateSessionTimer();
-
-  // Show viewer
-  document.getElementById('setup').style.display = 'none';
-  document.getElementById('viewer').style.display = 'flex';
-// Start from a random slot in the shuffled deck (no repeats until deck cycles)
-if (imageList.length) imageDisplayIndex = Math.floor(Math.random() * imageList.length);
-showImage();
-
-}
 
 async function loadUserBoards() {
   const btn = document.getElementById('loadBoardsBtn');
