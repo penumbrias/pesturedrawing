@@ -101,11 +101,11 @@
     <input type="radio" name="mode" value="class"> Class
     <select id="classPreset" style="display:none;">
       <option value="">Preset…</option>
-      <option value="15m">Class • 15 min</option>
-      <option value="30m">Class • 30 min</option>
-      <option value="60m">Class • 1 hour</option>
-      <option value="120m">Class • 2 hours</option>
-      <option value="180m">Class • 3 hours</option>
+      <option value="15m">15 min</option>
+      <option value="30m">30 min</option>
+      <option value="60m">1 hour</option>
+      <option value="120m">2 hours</option>
+      <option value="180m">3 hours</option>
     </select>
   </label>
 
@@ -1264,7 +1264,20 @@ document.querySelectorAll('input[name="limit"]').forEach(radio => {
 
 // Initial layout state + build sample board list
 // initialize once on load (drag, auth, initial visibility, and sample boards)
-window.addEventListener('DOMContentLoaded', () => {
+window.addEventListener('DOMContentLoaded', async () => {
+  // If we just returned from Pinterest, exchange the handoff for a partitioned cookie
+  try {
+    const u = new URL(window.location.href);
+    const pd = u.searchParams.get('pd_token');
+    if (pd) {
+      await fetch(`${BACKEND_BASE}/api/auth/set?t=${encodeURIComponent(pd)}`, { credentials: 'include' });
+      u.searchParams.delete('pd_token');           // clean the URL so the token never leaks further
+      window.history.replaceState({}, '', u.toString());
+    }
+  } catch (e) {
+    console.warn('Finalize cookie failed', e);
+  }
+
   // 1) Drag on default row + auth banner
   const container = document.getElementById('classPhases');
   if (container) enableClassRowDrag(container);
