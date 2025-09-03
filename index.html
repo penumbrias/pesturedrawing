@@ -42,12 +42,12 @@
     .fullscreen { position: fixed; inset:0; display:none; align-items:center; justify-content:center; background: #000; }
     .fullscreen img { max-width:100%; max-height:100%; object-fit:contain; }
 /* When enabled, fill the entire viewport; may crop edges */
-.fit-cover {
+.fit-contain {
   width: 100vw;
   height: 100vh;
   max-width: none;
   max-height: none;
-  object-fit: cover !important;
+  object-fit: contain !important; /* fill as much as possible without cropping */
 }
 
     .session-controls { position: absolute; top: 1rem; right: 1rem; display: flex; gap: .5rem; }
@@ -182,7 +182,7 @@
 
 <div class="col-12 card">
   <h3>Quick Sample Boards</h3>
-  <label>Sample Boards</label>
+  <label>Sample Boards - these boards have 15 only images each</label>
 
   <div id="sampleBoardList"
        style="max-height:220px; overflow:auto; border:1px solid #222430; border-radius:10px; padding:.35rem; background:#101217;">
@@ -201,7 +201,7 @@
 
 
       <div class="col-12" style="display:flex; gap:.75rem; justify-content:flex-end;">
-        <button class="btn" id="testFallbackBtn" type="button">Test Fallback (no Pinterest)</button>
+        
         <button class="btn primary" id="startBtn" type="button">Start Drawing</button>
       </div>
     </div>
@@ -718,7 +718,7 @@ let slotHistory = {}; // { [slotIndex]: number[] } remembers image indices shown
 function toggleFitToScreen() {
   fitToScreen = !fitToScreen;
   const img = document.getElementById('currentImage');
-  img.classList.toggle('fit-cover', fitToScreen);
+  img.classList.toggle('fit-contain', fitToScreen); // ← changed
   const btn = document.getElementById('fitToScreenBtn');
   if (btn) btn.textContent = fitToScreen ? 'Fit to Screen: On' : 'Fit to Screen: Off';
 }
@@ -858,7 +858,7 @@ function showImage() {
 
   const img = document.getElementById("currentImage");
   // ✅ Step 6: keep Fit‑to‑Screen in sync on each image
-  img.classList.toggle('fit-cover', fitToScreen);
+  img.classList.toggle('fit-contain', fitToScreen);
 
   if (sessionMode === "class") {
     const schedule = classImageSchedule[currentIndex];
@@ -973,7 +973,7 @@ function refreshImage() {
 
   // Swap the image
     const img = document.getElementById("currentImage");
-  img.classList.toggle('fit-cover', fitToScreen);   // keep in sync on refresh
+  img.classList.toggle('fit-contain', fitToScreen);   // keep in sync on refresh
   img.src = safeURL(imageList[(imageDisplayIndex + imageList.length) % imageList.length]);
 }
 
