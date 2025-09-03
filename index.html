@@ -625,7 +625,14 @@ const SAMPLE_BOARDS = {
 
 
 // Utility: shuffle copy
-function shuffleArray(arr) { return [...arr].sort(() => Math.random() - 0.5); }
+function shuffleArray(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
 
 // Fetch boards for the connected Pinterest account; fallback to samples if it fails
 async function fetchUserBoards() {
@@ -663,7 +670,7 @@ async function fetchPinsForBoards(boardObjs) {
   // Real Pinterest path (best-guess endpoints; adjust to your backend)
   const all = [];
   for (const b of boardObjs) {
-    const pinsUrl = `${BACKEND_BASE}/api/pinterest/boards/${encodeURIComponent(b.id)}/pins`;
+    const pinsUrl = `${BACKEND_BASE}/api/pinterest/boards/${encodeURIComponent(b.id)}/pins?all=1&page_size=250`;
     try {
       const res = await fetch(pinsUrl, { credentials: "include" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -992,7 +999,10 @@ if (source === 'user') {
   // Show viewer
   document.getElementById('setup').style.display = 'none';
   document.getElementById('viewer').style.display = 'flex';
-  showImage();
+// Start from a random slot in the shuffled deck (no repeats until deck cycles)
+if (imageList.length) imageDisplayIndex = Math.floor(Math.random() * imageList.length);
+showImage();
+
 }
 
 async function loadUserBoards() {
