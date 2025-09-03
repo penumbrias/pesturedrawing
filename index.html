@@ -670,8 +670,11 @@ async function fetchPinsForBoards(boardObjs) {
       const res = await fetch(pinsUrl, { credentials: "include" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      const urls = (data?.pins || data || []).map(p => p.image_url || p.link || p.media?.images?.orig?.url).filter(Boolean);
-      all.push(...urls);
+const urls = (data?.pins || data || [])
+  .map(p => typeof p === 'string' ? p : (p.image_url || p.link || p.media?.images?.orig?.url))
+  .filter(u => typeof u === 'string' && /^https?:\/\//i.test(u));
+all.push(...urls);
+
     } catch (e) {
       console.warn("Pins fetch error for board", b.id, e);
     }
