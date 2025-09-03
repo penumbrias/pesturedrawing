@@ -872,15 +872,7 @@ function showImage() {
     imageList = Object.values(SAMPLE_BOARDS).flat();
   }
 
-  // record this slot’s image (avoid duplicates)
-  const hist = slotHistory[currentIndex] || (slotHistory[currentIndex] = []);
-  if (hist[hist.length - 1] !== imageDisplayIndex) hist.push(imageDisplayIndex);
 
-  const nextSrc = safeURL(imageList[(imageDisplayIndex + imageList.length) % imageList.length]);
-  img.src = nextSrc;
-  updateTimerDisplay();
-  runTimer();
-}
 
 
 // record this slot’s image (avoid duplicates)
