@@ -41,6 +41,14 @@
 
     .fullscreen { position: fixed; inset:0; display:none; align-items:center; justify-content:center; background: #000; }
     .fullscreen img { max-width:100%; max-height:100%; object-fit:contain; }
+/* When enabled, fill the entire viewport; may crop edges */
+.fit-cover {
+  width: 100vw;
+  height: 100vh;
+  max-width: none;
+  max-height: none;
+  object-fit: cover !important;
+}
 
     .session-controls { position: absolute; top: 1rem; right: 1rem; display: flex; gap: .5rem; }
     .session-controls .btn { padding: .5rem .75rem; font-size: 1rem; }
@@ -212,9 +220,10 @@
                <button class="btn" id="refreshBtn" title="Refresh image">🔄</button>
     </div>
     <div style="position:absolute; bottom:1rem; left:1rem; display:flex; gap:.5rem;">
-      <button class="btn" id="toggleImgTimerBtn">Toggle Image Timer</button>
-      <button class="btn" id="toggleSessTimerBtn">Toggle Session Timer</button>
-    </div>
+  <button class="btn" id="fitToScreenBtn" type="button">Fit to Screen: Off</button>
+  <button class="btn" id="toggleImgTimerBtn">Toggle Image Timer</button>
+  <button class="btn" id="toggleSessTimerBtn">Toggle Session Timer</button>
+</div>
     <img id="currentImage" alt="reference" src="" />
   </div>
 
@@ -703,6 +712,17 @@ let classImageSchedule = [];
 let imageDisplayIndex = 0; // images shown
 let sessionRemaining = null; // seconds
 let showImageTimer = true; let showSessionTimer = true;
+let fitToScreen = false;
+let slotHistory = {}; // { [slotIndex]: number[] } remembers image indices shown in each slot
+
+function toggleFitToScreen() {
+  fitToScreen = !fitToScreen;
+  const img = document.getElementById('currentImage');
+  img.classList.toggle('fit-cover', fitToScreen);
+  const btn = document.getElementById('fitToScreenBtn');
+  if (btn) btn.textContent = fitToScreen ? 'Fit to Screen: On' : 'Fit to Screen: Off';
+}
+
 
 function updateTimerDisplay() {
   const m = String(Math.floor(remaining/60)).padStart(2,'0');
@@ -837,6 +857,9 @@ function showImage() {
   bellFiredThisImage.clear();
 
   const img = document.getElementById("currentImage");
+  // ✅ Step 6: keep Fit‑to‑Screen in sync on each image
+  img.classList.toggle('fit-cover', fitToScreen);
+
   if (sessionMode === "class") {
     const schedule = classImageSchedule[currentIndex];
     if (schedule.isBreak) { startBreak(schedule.duration); return; }
@@ -846,12 +869,29 @@ function showImage() {
   }
 
   if (!imageList.length) {
-    // absolute last-resort fallback
     imageList = Object.values(SAMPLE_BOARDS).flat();
   }
 
-img.src = safeURL(imageList[(imageDisplayIndex + imageList.length) % imageList.length]);  updateTimerDisplay();
+  // record this slot’s image (avoid duplicates)
+  const hist = slotHistory[currentIndex] || (slotHistory[currentIndex] = []);
+  if (hist[hist.length - 1] !== imageDisplayIndex) hist.push(imageDisplayIndex);
+
+  const nextSrc = safeURL(imageList[(imageDisplayIndex + imageList.length) % imageList.length]);
+  img.src = nextSrc;
+  updateTimerDisplay();
   runTimer();
+}
+
+
+// record this slot’s image (avoid duplicates)
+const hist = slotHistory[currentIndex] || (slotHistory[currentIndex] = []);
+if (hist[hist.length - 1] !== imageDisplayIndex) hist.push(imageDisplayIndex);
+
+const nextSrc = safeURL(imageList[(imageDisplayIndex + imageList.length) % imageList.length]);
+img.src = nextSrc;
+updateTimerDisplay();
+runTimer();
+
 }
 
 function nextImage() {
@@ -862,7 +902,33 @@ function nextImage() {
   showImage();
 }
 function prevImage() {
-  // Move schedule pointer back (skip break phases in Class mode)
+  // If we refreshed in this slot, step back to the previous image in the same slot
+  const hist = slotHistory[currentIndex];
+  if (hist && hist.length > 1 && !inBreak) {
+    // pop current, go to previous in this slot
+    hist.pop();
+    imageDisplayIndex = hist[hist.length - 1];
+
+    // reset slot timer and keep overall session timer consistent
+    const duration = (sessionMode === 'class')
+      ? (classImageSchedule[currentIndex]?.duration || imageDuration)
+      : imageDuration;
+    const oldRemaining = remaining;
+    remaining = duration;
+    bellFiredThisImage.clear();
+    updateTimerDisplay();
+    if (sessionRemaining !== null) {
+      sessionRemaining += (remaining - oldRemaining);
+      updateSessionTimer();
+    }
+
+    // show the prior image without advancing/rewinding schedule
+    const img = document.getElementById("currentImage");
+    img.src = safeURL(imageList[(imageDisplayIndex + imageList.length) % imageList.length]);
+    return;
+  }
+
+  // Otherwise, move to the previous slot (original behavior)
   if (sessionMode === "class") {
     let idx = Math.max(0, currentIndex - 1);
     while (idx > 0 && classImageSchedule[idx]?.isBreak) idx--;
@@ -871,8 +937,11 @@ function prevImage() {
     currentIndex = Math.max(0, currentIndex - 1);
   }
 
-  // Move image pointer back one
-  if (imageList.length) {
+  // Prefer the exact image we used in that previous slot, if known
+  const prevHist = slotHistory[currentIndex];
+  if (prevHist && prevHist.length) {
+    imageDisplayIndex = prevHist[prevHist.length - 1];
+  } else if (imageList.length) {
     imageDisplayIndex = (imageDisplayIndex - 1 + imageList.length) % imageList.length;
   }
 
@@ -882,18 +951,18 @@ function prevImage() {
 function refreshImage() {
   if (inBreak) return; // no-op during breaks
 
-  // Determine the full duration for this slot
+  // Full duration for this slot
   const duration = (sessionMode === 'class')
     ? (classImageSchedule[currentIndex]?.duration || imageDuration)
     : imageDuration;
 
-  // Reset the image countdown (and keep session timer consistent if shown)
+  // Reset the image countdown and keep overall session time consistent
   const oldRemaining = remaining;
   remaining = duration;
   bellFiredThisImage.clear();
   updateTimerDisplay();
   if (sessionRemaining !== null) {
-    sessionRemaining += (remaining - oldRemaining); // keep overall session length consistent
+    sessionRemaining += (remaining - oldRemaining);
     updateSessionTimer();
   }
 
@@ -906,8 +975,13 @@ function refreshImage() {
     imageDisplayIndex = newIdx;
   }
 
+  // Record this new image in the current slot’s history
+  const hist = slotHistory[currentIndex] || (slotHistory[currentIndex] = []);
+  if (hist[hist.length - 1] !== imageDisplayIndex) hist.push(imageDisplayIndex);
+
   // Swap the image
-  const img = document.getElementById("currentImage");
+    const img = document.getElementById("currentImage");
+  img.classList.toggle('fit-cover', fitToScreen);   // keep in sync on refresh
   img.src = safeURL(imageList[(imageDisplayIndex + imageList.length) % imageList.length]);
 }
 
@@ -934,6 +1008,8 @@ const source = 'user';
 
   // Reset state
   elapsedTime = 0; breaksTaken = 0; inBreak = false; bellFiredThisImage.clear(); bellFiredThisBreak.clear();
+slotHistory = {};
+
   imageDisplayIndex = 0; currentIndex = 0; imageList = []; sessionRemaining = null;
 
   if (sessionMode === 'standard') {
@@ -1059,6 +1135,7 @@ document.getElementById('refreshBtn').addEventListener('click', refreshImage);
 document.getElementById('endBtn').addEventListener('click', endSession);
 document.getElementById('toggleImgTimerBtn').addEventListener('click', toggleImageTimer);
 document.getElementById('toggleSessTimerBtn').addEventListener('click', toggleSessionTimer);
+document.getElementById('fitToScreenBtn').addEventListener('click', toggleFitToScreen);
 document.getElementById('skipBreakBtn').addEventListener('click', skipBreak);
 document.getElementById('backToSetupBtn').addEventListener('click', backToSetup);
 
