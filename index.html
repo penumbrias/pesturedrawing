@@ -126,7 +126,7 @@
   </div>
 </div>
 
-      </div>
+     
 
 <div class="col-12 card">
   <h3>Session Type</h3>
@@ -1165,6 +1165,7 @@ function toggleSessionTimer(){ showSessionTimer = !showSessionTimer; updateSessi
 /**********************
  *  DOM Listeners     *
  **********************/
+// Wire up buttons once DOM is ready
 document.getElementById('startBtn').addEventListener('click', startSession);
 document.getElementById('prevBtn').addEventListener('click', prevImage);
 document.getElementById('pauseBtn').addEventListener('click', togglePause);
@@ -1180,7 +1181,6 @@ document.getElementById('backToSetupBtn').addEventListener('click', backToSetup)
 document.getElementById('loadBoardsBtn').addEventListener('click', loadUserBoards);
 document.getElementById('pinConnectBtn').addEventListener('click', connectPinterest);
 document.getElementById('pinLogoutBtn').addEventListener('click', logoutPinterest);
-
 
 
 
