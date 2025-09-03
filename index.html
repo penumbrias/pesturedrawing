@@ -66,22 +66,18 @@
   <h3>Image Source</h3>
 
 
-  <label><input type="radio" name="pinterestSource" value="user"> Use my Pinterest boards</label>
+<div class="hint" style="margin-bottom:.25rem">Using your Pinterest boards</div>
 
-  <div class="row" id="pinAuthRow" style="margin-top:.5rem; align-items:center;">
+<div class="row" id="pinAuthRow" style="margin-top:.5rem; align-items:center;">
     <div id="pinAuthStatus" class="hint" style="flex:1;">Not connected to Pinterest</div>
     <button class="btn" id="pinConnectBtn" type="button">Connect to Pinterest</button>
     <button class="btn" id="pinLogoutBtn" type="button" style="display:none;">Log out</button>
   </div>
 
-  <!-- Paste-URL mode -->
-  <div id="boardUrlSection" style="margin-top:.75rem;">
-    <label>Board URL(s) (comma-separated):</label>
-    <input type="text" id="boardUrls" placeholder="https://www.pinterest.com/user/board1, https://..." />
-  </div>
+
 
   <!-- User boards mode (no username field) -->
-  <div id="userBoardSection" style="margin-top:.75rem; display:none;">
+<div id="userBoardSection" style="margin-top:.75rem;">
     <div class="row" style="align-items:flex-end;">
       <div style="flex:0 0 auto;">
         <button class="btn" id="loadBoardsBtn" type="button" disabled>Load my boards</button>
@@ -732,16 +728,16 @@ async function checkAuth() {
 
     connectEl.style.display = authed ? 'none'        : 'inline-block';
     logoutEl.style.display  = authed ? 'inline-block': 'none';
-    loadBtn.disabled        = !authed;
-    userRadio.disabled      = !authed;
+loadBtn.disabled        = !authed;
+if (userRadio) userRadio.disabled = !authed;
 
     return authed;
   } catch {
     statusEl.textContent    = 'Not connected to Pinterest';
     connectEl.style.display = 'inline-block';
     logoutEl.style.display  = 'none';
-    loadBtn.disabled        = true;
-    userRadio.disabled      = true;
+loadBtn.disabled        = true;
+if (userRadio) userRadio.disabled = true;
     return false;
   }
 }
@@ -881,8 +877,8 @@ function endSession() { clearInterval(sessionTimer); document.getElementById("vi
 function parseBellTimes() { return document.getElementById("bellTimes").value.split(",").map(n=>parseInt(n.trim())).filter(n=>!isNaN(n)); }
 
 async function startSession() {
-// Read source
-const source = document.querySelector('input[name="pinterestSource"]:checked').value;
+// Read source (only Pinterest boards are supported now)
+const source = 'user';
   sessionMode = document.querySelector('input[name="mode"]:checked').value;
   limitMode = document.querySelector('input[name="limit"]:checked').value;
   if (limitMode === 'time') { limitValue = parseInt(document.getElementById('limitValue').value); }
@@ -1023,13 +1019,7 @@ document.getElementById('loadBoardsBtn').addEventListener('click', loadUserBoard
 document.getElementById('pinConnectBtn').addEventListener('click', connectPinterest);
 document.getElementById('pinLogoutBtn').addEventListener('click', logoutPinterest);
 
-document.querySelectorAll('input[name="pinterestSource"]').forEach(radio => {
-  radio.addEventListener('change', () => {
-    const source = document.querySelector('input[name="pinterestSource"]:checked').value;
-    document.getElementById('boardUrlSection').style.display = source === 'board' ? 'block' : 'none';
-    document.getElementById('userBoardSection').style.display  = source === 'user'  ? 'block' : 'none';
-  });
-});
+
 
 
 document.getElementById('customClassToggle').addEventListener('change', (e) => {
@@ -1305,9 +1295,8 @@ if (presetSelectEl) {
   const select = document.getElementById('userBoards'); select.innerHTML = '';
   const boards = Object.keys(SAMPLE_BOARDS).map((name, i) => ({ id:`sample-${i}`, name }));
   boards.forEach(b => { const opt = document.createElement('option'); opt.value = b.id; opt.textContent = b.name; select.appendChild(opt); });
-  document.querySelector('input[name="pinterestSource"][value="user"]').checked = true;
-  document.getElementById('boardUrlSection').style.display = 'none';
-  document.getElementById('userBoardSection').style.display = 'block';
+const userSec = document.getElementById('userBoardSection');
+if (userSec) userSec.style.display = 'block';
 });
 
 // Initial layout state + build sample board list
