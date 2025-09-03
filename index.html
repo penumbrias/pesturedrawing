@@ -1406,14 +1406,7 @@ if (presetSelectEl) {
   });
 }
 
-// Test button to simulate Pinterest outage and verify fallback
- document.getElementById('testFallbackBtn').addEventListener('click', async () => {
-  const select = document.getElementById('userBoards'); select.innerHTML = '';
-  const boards = Object.keys(SAMPLE_BOARDS).map((name, i) => ({ id:`sample-${i}`, name }));
-  boards.forEach(b => { const opt = document.createElement('option'); opt.value = b.id; opt.textContent = b.name; select.appendChild(opt); });
-const userSec = document.getElementById('userBoardSection');
-if (userSec) userSec.style.display = 'block';
-});
+
 
 // Initial layout state + build sample board list
 // initialize once on load (drag, auth, initial visibility, and sample boards)
