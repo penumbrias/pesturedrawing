@@ -963,8 +963,9 @@ if (source === 'user') {
 
 async function loadUserBoards() {
   const btn = document.getElementById('loadBoardsBtn');
-  const hint = document.getElementById('loadBoardsHint');
-  const select = document.getElementById('userBoards');
+const hintEl = document.getElementById('loadBoardsHint');
+const setHint = (t) => { if (hintEl) hintEl.textContent = t; };
+const select = document.getElementById('userBoards');
 
   // clear list
   select.innerHTML = '';
@@ -973,14 +974,13 @@ async function loadUserBoards() {
   const authed = await checkAuth();
   if (!authed) {
     btn.disabled = true;
-    hint.textContent = 'Connect to Pinterest first';
-    alert('Please connect to Pinterest first.');
-    return;
+setHint('Connect to Pinterest first');
+alert('Please connect to Pinterest first.');
   }
 
-  btn.disabled = true; 
-  btn.textContent = 'Loading…';
-  hint.textContent = 'Fetching your boards…';
+ btn.disabled = true;
+btn.textContent = 'Loading…';
+setHint('Fetching your boards…');
 
   const { ok, boards } = await fetchUserBoards();
   boards.forEach(b => {
@@ -990,9 +990,9 @@ async function loadUserBoards() {
     select.appendChild(opt);
   });
 
-  btn.disabled = false;
-  btn.textContent = ok ? 'Reload my boards' : 'Loaded samples';
-  hint.textContent = ok ? 'Select one or more boards below' : 'Could not reach Pinterest — showing samples';
+btn.disabled = false;
+btn.textContent = ok ? 'Reload my boards' : 'Loaded samples';
+setHint(ok ? 'Select one or more boards below' : 'Could not reach Pinterest — showing samples');
 }
 
 
