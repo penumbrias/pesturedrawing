@@ -57,6 +57,7 @@
 <body>
   <!-- Setup Panel -->
   <div class="setup" id="setup">
+    <h1 style="Margin:0 0 1rem 0">Pesture Drawing</h1>
     <h2 style="margin:0 0 1rem 0">Start Drawing Session</h2>
     <p class="hint" style="margin-top:.25rem">Choose your image source. If Pinterest isn't available, the app will automatically fall back to sample boards.</p>
 
@@ -64,7 +65,7 @@
      <div class="col-12 card">
   <h3>Image Source</h3>
 
-  <label><input type="radio" name="pinterestSource" value="board" checked> Paste Board URL(s)</label>
+
   <label><input type="radio" name="pinterestSource" value="user"> Use my Pinterest boards</label>
 
   <div class="row" id="pinAuthRow" style="margin-top:.5rem; align-items:center;">
@@ -1161,6 +1162,37 @@ function addBreakRow(min, sec) {
   container.appendChild(row);
 }
 
+function resetClassToDefault() {
+  // show Class UI
+  document.querySelector('input[name="mode"][value="class"]').checked = true;
+  document.getElementById('classSettings').style.display = 'block';
+  document.getElementById('limitSection').style.display = 'none';
+  document.getElementById('standardOptions').style.display = 'none';
+
+  // turn on custom controls
+  const toggle = document.getElementById('customClassToggle');
+  toggle.checked = true;
+  document.getElementById('customControls').style.display = 'block';
+
+  // clear & add the single default row: 5 images × 10s
+  const container = document.getElementById('classPhases');
+  container.innerHTML = '';
+  const row = document.createElement('div');
+  row.className = 'class-row class-phase';
+  row.setAttribute('draggable', 'true');
+  row.style.cssText = 'display:flex;align-items:center;gap:.5rem;margin:.25rem 0;';
+  row.innerHTML = `
+    <span class="drag-handle" title="Drag to reorder" style="cursor:grab; user-select:none;">⋮⋮</span>
+    <input type="number" class="phase-count" value="5" style="width:3rem;" /> images for
+    <input type="number" class="phase-minutes" value="0" style="width:3rem;" /> min
+    <input type="number" class="phase-seconds" value="10" style="width:3rem;" /> sec
+    <button class="btn" type="button" onclick="this.parentElement.remove()">Remove</button>
+  `;
+  container.appendChild(row);
+  enableClassRowDrag(container);
+}
+
+
 function populateClassPreset(key) {
   const data = CLASS_PRESETS[key];
   if (!data) return;
@@ -1254,6 +1286,19 @@ document.querySelectorAll('input[name="limit"]').forEach(radio => {
     document.getElementById('limitCountOptions').style.display = selected === 'count' ? 'block' : 'none';
   });
 });
+
+// Preset dropdown: "" = reset to default; otherwise load preset
+const presetSelectEl = document.getElementById('classPreset');
+if (presetSelectEl) {
+  presetSelectEl.addEventListener('change', (e) => {
+    const val = e.target.value;
+    if (!val) {
+      resetClassToDefault();
+    } else {
+      populateClassPreset(val);
+    }
+  });
+}
 
 // Test button to simulate Pinterest outage and verify fallback
  document.getElementById('testFallbackBtn').addEventListener('click', async () => {
