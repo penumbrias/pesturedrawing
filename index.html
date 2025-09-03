@@ -209,6 +209,7 @@
       <button class="btn" id="pauseBtn">⏸️</button>
       <button class="btn" id="nextBtn">⏭️</button>
       <button class="btn" id="endBtn">⏹️</button>
+               <button class="btn" id="refreshBtn" title="Refresh image">🔄</button>
     </div>
     <div style="position:absolute; bottom:1rem; left:1rem; display:flex; gap:.5rem;">
       <button class="btn" id="toggleImgTimerBtn">Toggle Image Timer</button>
@@ -868,6 +869,39 @@ function prevImage() {
 
   showImage();
 }
+
+function refreshImage() {
+  if (inBreak) return; // no-op during breaks
+
+  // Determine the full duration for this slot
+  const duration = (sessionMode === 'class')
+    ? (classImageSchedule[currentIndex]?.duration || imageDuration)
+    : imageDuration;
+
+  // Reset the image countdown (and keep session timer consistent if shown)
+  const oldRemaining = remaining;
+  remaining = duration;
+  bellFiredThisImage.clear();
+  updateTimerDisplay();
+  if (sessionRemaining !== null) {
+    sessionRemaining += (remaining - oldRemaining); // keep overall session length consistent
+    updateSessionTimer();
+  }
+
+  // Pick a different random image without advancing class/image counters
+  if (imageList.length > 1) {
+    let newIdx;
+    do {
+      newIdx = Math.floor(Math.random() * imageList.length);
+    } while (newIdx === imageDisplayIndex);
+    imageDisplayIndex = newIdx;
+  }
+
+  // Swap the image
+  const img = document.getElementById("currentImage");
+  img.src = safeURL(imageList[(imageDisplayIndex + imageList.length) % imageList.length]);
+}
+
 function togglePause() { isPaused = !isPaused; document.getElementById("pauseBtn").innerText = isPaused ? "▶️" : "⏸️"; }
 function endSession() { clearInterval(sessionTimer); document.getElementById("viewer").style.display = "none"; document.getElementById("breakScreen").style.display = "none"; document.getElementById("finishedScreen").style.display = "flex"; }
 
@@ -1009,6 +1043,7 @@ document.getElementById('startBtn').addEventListener('click', startSession);
 document.getElementById('prevBtn').addEventListener('click', prevImage);
 document.getElementById('pauseBtn').addEventListener('click', togglePause);
 document.getElementById('nextBtn').addEventListener('click', nextImage);
+document.getElementById('refreshBtn').addEventListener('click', refreshImage);
 document.getElementById('endBtn').addEventListener('click', endSession);
 document.getElementById('toggleImgTimerBtn').addEventListener('click', toggleImageTimer);
 document.getElementById('toggleSessTimerBtn').addEventListener('click', toggleSessionTimer);
