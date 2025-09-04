@@ -88,6 +88,10 @@
 
     .breakScreen { background:#0d0d0f; color:white; text-align:center; }
     .breakScreen .box { background:#14151b; border:1px solid #222430; border-radius: 16px; padding:2rem 2.5rem; }
+
+/* Toggle containers */
+[data-source-section][hidden] { display: none; }
+
   </style>
   <audio id="bellSound" src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" preload="auto"></audio>
 </head>
@@ -102,7 +106,14 @@
      <div class="col-12 card">
   <h3>Image Source</h3>
 
+<!-- Source mode toggle -->
+<div class="source-mode-toggle" id="sourceModeToggle" role="group" aria-label="Image source mode">
+  <label><input type="radio" name="sourceMode" value="pinterest" checked> Pinterest</label>
+  <label><input type="radio" name="sourceMode" value="sample"> Quick sample boards</label>
+</div>
 
+<!-- INSERT THIS LINE -->
+<div id="pinterestSource" data-source-section="pinterest">
 <div class="hint" style="margin-bottom:.25rem">Using your Pinterest boards</div>
 
 <div class="row" id="pinAuthRow" style="margin-top:.5rem; align-items:center;">
@@ -124,8 +135,7 @@
     <select id="userBoards" multiple style="min-height:140px;"></select>
     <div class="hint" style="margin-top:.25rem">Tip: Ctrl/Cmd-click to select multiple.</div>
   </div>
-</div>
-
+</div><!-- /#pinterestSource -->
      
 
 <div class="col-12 card">
@@ -209,7 +219,8 @@
         </div>
       </div>
 
-<div class="col-12 card">
+
+<div class="col-12 card" id="quickSampleBoards" data-source-section="sample" hidden>
   <h3>Quick Sample Boards</h3>
   <label>Sample Boards - these boards have 15 only images each</label>
 
@@ -276,6 +287,24 @@
  *  Pinterest + Fallback Core *
  ******************************/
 const BACKEND_BASE = window.PD_BACKEND || "https://pesture-oauth-backend.vercel.app";
+
+// --- Image source mode toggle ---
+let SOURCE_MODE = localStorage.getItem('sourceMode') || 'pinterest';
+
+function applySourceMode(mode) {
+  SOURCE_MODE = mode;
+  localStorage.setItem('sourceMode', mode);
+  document.querySelectorAll('[data-source-section]').forEach(el => {
+    el.hidden = el.dataset.sourceSection !== mode;
+  });
+}
+
+// Wire the radios and apply initial state
+document.querySelectorAll('input[name="sourceMode"]').forEach(r => {
+  r.checked = (r.value === SOURCE_MODE);
+  r.addEventListener('change', e => applySourceMode(e.target.value));
+});
+applySourceMode(SOURCE_MODE);
 
 
 // Sample images per board (always available)
@@ -747,6 +776,22 @@ all.push(...urls);
   return shuffleArray(all.length ? all : Object.values(SAMPLE_BOARDS).flat());
 }
 
+function getActiveBoards() {
+  if (SOURCE_MODE === 'sample') {
+    // Checkboxes in #sampleBoardList → [{id, name}, ...]
+    return Array.from(document.querySelectorAll('#sampleBoardList input[type="checkbox"]:checked'))
+      .map(cb => ({
+        id: `sample-${cb.value.replace(/[^a-z0-9]+/gi, '_')}`,
+        name: cb.value
+      }));
+  }
+
+  // Pinterest mode: multi-select <select id="userBoards">
+  const select = document.getElementById('userBoards');
+  return Array.from(select?.selectedOptions || []).map(o => ({ id: o.value, name: o.textContent }));
+}
+
+
 /********************
  *  Session Engine  *
  ********************/
@@ -953,8 +998,7 @@ if (!hist || hist.length === 0) {
 img.src = safeURL(imageList[imageDisplayIndex]);
 updateTimerDisplay();
 runTimer();
-updateTimerDisplay();
-runTimer();
+
 
 }
 
@@ -1051,8 +1095,7 @@ function parseBellTimes() { return document.getElementById("bellTimes").value.sp
 
 async function startSession() {
   // Read session options
-  const source = 'user'; // only Pinterest boards path is used
-  sessionMode = document.querySelector('input[name="mode"]:checked').value;
+    sessionMode = document.querySelector('input[name="mode"]:checked').value;
   limitMode = document.querySelector('input[name="limit"]:checked').value;
   if (limitMode === 'time') { limitValue = parseInt(document.getElementById('limitValue').value); }
   else if (limitMode === 'count') { limitValue = parseInt(document.getElementById('limitCountValue').value); }
@@ -1092,25 +1135,29 @@ async function startSession() {
     limitValue = classImageSchedule.length;
   }
 
-  // Build the image list (Pinterest)
-  if (source === 'user') {
-    const select = document.getElementById('userBoards');
-    const selected = Array.from(select.selectedOptions).map(o => ({ id:o.value, name:o.textContent }));
-    if (!selected.length) { alert('Please choose at least one board.'); return; }
+  // Build the image list based on current source mode
+let selected = getActiveBoards();
 
-    setLoading(true, 'Loading boards and pins from Pinterest…');
-    try {
-      imageList = await fetchPinsForBoards(selected);
-    } catch (e) {
-      console.warn('Failed to fetch pins', e);
-      imageList = [];
-    }
-  }
+if (SOURCE_MODE === 'pinterest' && !selected.length) {
+  alert('Please choose at least one board.');
+  return;
+}
+// In sample mode, default to "all samples" if nothing checked
+if (SOURCE_MODE === 'sample' && !selected.length) {
+  selected = Object.keys(SAMPLE_BOARDS).map((name, i) => ({ id: `sample-${i}`, name }));
+}
 
-  // Last-resort fallback to ALL samples (should rarely hit)
-  if (!imageList.length) {
-    imageList = shuffleArray(Object.values(SAMPLE_BOARDS).flat());
-  }
+setLoading(true, SOURCE_MODE === 'pinterest'
+  ? 'Loading boards and pins from Pinterest…'
+  : 'Loading sample boards…');
+
+try {
+  imageList = await fetchPinsForBoards(selected);
+} catch (e) {
+  console.warn('Failed to fetch pins', e);
+  imageList = [];
+}
+
 
   // Prepare session timer totals
   if (limitMode === 'time') { sessionRemaining = limitValue * 60; }
@@ -1127,8 +1174,7 @@ slotHistory[currentIndex] = [imageDisplayIndex];
 const firstSrc = safeURL(imageList[imageDisplayIndex]);
 setLoading(true, 'Loading first image…');
 await preloadImage(firstSrc);
-  setLoading(true, 'Loading first image…');
-  await preloadImage(firstSrc); // returns quickly if cached or after a short timeout
+
 
   // Enter viewer and start
   document.getElementById('setup').style.display = 'none';
@@ -1236,7 +1282,7 @@ document.getElementById('insertBreakBtn').addEventListener('click', () => {
     <strong>Break</strong> for
     <input type="number" class="break-minutes" value="2" style="width:3rem;" /> min
     <input type="number" class="break-seconds" value="0" style="width:3rem;" /> sec
-    <button class="btn" type="button" onclick="this.parentElement.remove()">Remove</button>
+    <button class="btn" type="button" onclick="this.parentElement.remove()">-</button>
   `;
   container.appendChild(row);
   enableClassRowDrag(container);
