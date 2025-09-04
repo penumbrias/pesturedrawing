@@ -112,7 +112,21 @@
   <label><input type="radio" name="sourceMode" value="sample"> Quick sample boards</label>
 </div>
 
-<!-- INSERT THIS LINE -->
+<div id="quickSampleBoards" data-source-section="sample" hidden>
+  <h3>Quick Sample Boards</h3>
+  <label>Sample Boards - these boards have only 15 images each</label>
+
+  <div id="sampleBoardList"
+       style="max-height:220px; overflow:auto; border:1px solid #222430; border-radius:10px; padding:.35rem; background:#101217;">
+  </div>
+
+  <div class="row" style="margin-top:.35rem; gap:.5rem;">
+    <button class="btn" id="sbSelectAll" type="button">Select all</button>
+    <button class="btn" id="sbClear" type="button">Clear</button>
+  </div>
+</div>
+
+
 <div id="pinterestSource" data-source-section="pinterest">
 <div class="hint" style="margin-bottom:.25rem">Using your Pinterest boards</div>
 
@@ -136,25 +150,9 @@
     <div class="hint" style="margin-top:.25rem">Tip: Ctrl/Cmd-click to select multiple.</div>
   </div>
 </div><!-- /#pinterestSource -->
+</div><!-- /.col-12.card (Image Source) -->
 
-<div class="col-12 card" id="quickSampleBoards" data-source-section="sample" hidden>
-  <h3>Quick Sample Boards</h3>
-  <label>Sample Boards - these boards have 15 only images each</label>
-
-  <div id="sampleBoardList"
-       style="max-height:220px; overflow:auto; border:1px solid #222430; border-radius:10px; padding:.35rem; background:#101217;">
-    <!-- JS will populate checkboxes here -->
-  </div>
-
-  <div class="row" style="margin-top:.35rem; gap:.5rem;">
-    <button class="btn" id="sbSelectAll" type="button">Select all</button>
-    <button class="btn" id="sbClear" type="button">Clear</button>
-  </div>
-
-  <div class="hint" style="margin-top:.25rem">
-    Tip: Click to select one or more boards. Use the buttons above for quick multi-select.
-  </div>
-</div>     
+   
 
 <div class="col-12 card">
   <h3>Session Type</h3>
@@ -290,7 +288,8 @@
 const BACKEND_BASE = window.PD_BACKEND || "https://pesture-oauth-backend.vercel.app";
 
 // --- Image source mode toggle ---
-let SOURCE_MODE = localStorage.getItem('sourceMode') || 'pinterest';
+let SOURCE_MODE = localStorage.getItem('sourceMode') || 'sample';
+
 
 function applySourceMode(mode) {
   SOURCE_MODE = mode;
@@ -1158,6 +1157,11 @@ try {
   console.warn('Failed to fetch pins', e);
   imageList = [];
 }
+// Fallback: if still empty, load all sample images so we always have something to show
+if (!Array.isArray(imageList) || imageList.length === 0) {
+  imageList = shuffleArray(Object.values(SAMPLE_BOARDS).flat());
+}
+
 
 
   // Prepare session timer totals
@@ -1177,11 +1181,12 @@ setLoading(true, 'Loading first image…');
 await preloadImage(firstSrc);
 
 
-  // Enter viewer and start
-  document.getElementById('setup').style.display = 'none';
-  document.getElementById('viewer').style.display = 'flex';
-  showImage();        // will reuse imageDisplayIndex, so firstSrc is used immediately (from cache)
-  setLoading(false);  // hide overlay now that we’re showing the image
+// Enter viewer and start (paint first, then hide setup)
+document.getElementById('viewer').style.display = 'flex';
+showImage();
+document.getElementById('setup').style.display = 'none';
+setLoading(false);
+
 }
 
 
