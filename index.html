@@ -114,7 +114,7 @@
 
 <div id="quickSampleBoards" data-source-section="sample" hidden>
   <h3>Quick Sample Boards</h3>
-  <label>Sample Boards - these boards have only 15 images each</label>
+  <label>these boards have only 15 images each</label>
 
   <div id="sampleBoardList"
        style="max-height:220px; overflow:auto; border:1px solid #222430; border-radius:10px; padding:.35rem; background:#101217;">
@@ -221,7 +221,7 @@
           </div>
         </div>
         <label style="margin-top:.5rem;">Bell Times (seconds, comma-separated)</label>
-        <input type="text" id="bellTimes" value="60,10,5" />
+        <input type="text" id="bellTimes" value="60,10,5,0" />
         <div class="row" style="margin-top:.5rem; align-items:center;">
           <label style="flex:0 0 auto;"><input type="checkbox" id="breaks" checked> Enable breaks</label>
           <div>
@@ -288,7 +288,7 @@
 const BACKEND_BASE = window.PD_BACKEND || "https://pesture-oauth-backend.vercel.app";
 
 // --- Image source mode toggle ---
-let SOURCE_MODE = localStorage.getItem('sourceMode') || 'sample';
+let SOURCE_MODE = localStorage.getItem('sourceMode') || 'pinterest';
 
 
 function applySourceMode(mode) {
@@ -1102,6 +1102,10 @@ async function startSession() {
   strictTime = document.getElementById('strictTime').checked;
   bellTimes = parseBellTimes();
   breakEnabled = document.getElementById('breaks').checked;
+if (sessionMode === 'class') {
+  breakEnabled = false;
+}
+
   breakAfter = parseInt(document.getElementById('breakAfter').value);
   breakDuration = parseInt(document.getElementById('breakDuration').value);
 
@@ -1494,11 +1498,19 @@ function enableClassRowDrag(container = document.getElementById('classPhases')) 
 document.querySelectorAll('input[name="mode"]').forEach(radio => {
   radio.addEventListener('change', () => {
     const isClass = document.querySelector('input[name="mode"]:checked').value === 'class';
-    document.getElementById('classSettings').style.display = isClass ? 'block' : 'none';
-    document.getElementById('limitSection').style.display = isClass ? 'none' : 'block';
-    document.getElementById('standardOptions').style.display = isClass ? 'none' : 'block';
+
+    // Existing visibility logic
+    document.getElementById('classSettings').style.display  = isClass ? 'block' : 'none';
+    document.getElementById('limitSection').style.display   = isClass ? 'none'  : 'block';
+    document.getElementById('standardOptions').style.display= isClass ? 'none'  : 'block';
     const presetSel = document.getElementById('classPreset');
     if (presetSel) presetSel.style.display = isClass ? 'inline-block' : 'none';
+
+    // NEW: turn off the standard "Enable breaks" checkbox when entering Class
+    const breaksEl = document.getElementById('breaks');
+    if (isClass && breaksEl) {
+      breaksEl.checked = false;
+    }
   });
 });
 
@@ -1548,12 +1560,18 @@ window.addEventListener('DOMContentLoaded', async () => {
   checkAuth();
 
   // 2) Initial section visibility
-  const isClass = document.querySelector('input[name="mode"]:checked').value === 'class';
-  document.getElementById('classSettings').style.display = isClass ? 'block' : 'none';
-  document.getElementById('limitSection').style.display   = isClass ? 'none'  : 'block';
-  document.getElementById('standardOptions').style.display= isClass ? 'none'  : 'block';
-  const isTime = document.querySelector('input[name="limit"]:checked').value === 'time';
-  document.getElementById('limitTimeOptions').style.display = isTime ? 'block' : 'none';
+const isClass = document.querySelector('input[name="mode"]:checked').value === 'class';
+document.getElementById('classSettings').style.display  = isClass ? 'block' : 'none';
+document.getElementById('limitSection').style.display   = isClass ? 'none'  : 'block';
+document.getElementById('standardOptions').style.display= isClass ? 'none'  : 'block';
+const isTime = document.querySelector('input[name="limit"]:checked').value === 'time';
+document.getElementById('limitTimeOptions').style.display = isTime ? 'block' : 'none';
+
+// NEW: ensure "Enable breaks" is off if we load straight into Class
+if (isClass) {
+  const breaksEl = document.getElementById('breaks');
+  if (breaksEl) breaksEl.checked = false;
+}
 
   // 3) Preset dropdown visibility on load
   const presetSel = document.getElementById('classPreset');
