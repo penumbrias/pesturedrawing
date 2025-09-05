@@ -220,8 +220,7 @@
             <input type="number" id="durationSec" value="30" />
           </div>
         </div>
-        <label style="margin-top:.5rem;">Bell Times (seconds, comma-separated)</label>
-        <input type="text" id="bellTimes" value="60,10,5,0" />
+        
         <div class="row" style="margin-top:.5rem; align-items:center;">
           <label style="flex:0 0 auto;"><input type="checkbox" id="breaks" checked> Enable breaks</label>
           <div>
@@ -235,6 +234,29 @@
         </div>
       </div>
 
+<div class="col-12 card" id="alertOptions">
+  <h3>Alerts</h3>
+
+  <label>Bell Times (seconds, comma-separated)</label>
+  <input type="text" id="bellTimes" value="60,10,5,0" />
+
+  <div class="row" style="margin-top:.5rem; align-items:center;">
+    <label style="flex:0 0 auto;">Bell mode</label>
+    <label><input type="radio" name="bellMode" value="voice"> Voiced bell</label>
+    <label><input type="radio" name="bellMode" value="tone" checked> Bell sound only</label>
+    <label><input type="radio" name="bellMode" value="both"> Combined voice and bell</label>
+  </div>
+
+  <div class="row" style="margin-top:.5rem; gap:.5rem;">
+    <button class="btn" type="button" id="testBellBtn">Test bell</button>
+    <input type="number" id="testBellValue" value="60" min="0" style="max-width:6rem;" />
+    <span class="hint">Enter seconds and click “Test bell”.</span>
+  </div>
+
+  <p class="hint" style="margin-top:.5rem;">
+    Voice uses your browser’s speech engine. If the site is muted or a voice isn’t available, it will fall back to the tone.
+  </p>
+</div>
 
 
 
@@ -801,6 +823,113 @@ let limitMode = "count", limitValue = 10, strictTime = false;
 let inBreak = false, breakTimeRemaining = 0, breaksTaken = 0;
 let breakEnabled = false, breakAfter = 20, breakDuration = 5;
 let bellTimes = [], bellFiredThisImage = new Set(), bellFiredThisBreak = new Set();
+
+
+// --- Alert / Audio helpers ---
+let bellMode = localStorage.getItem('bellMode') || 'tone';
+let audioCtx = null;
+
+function ensureAudio() {
+  try {
+    if (!audioCtx) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      audioCtx = AC ? new AC() : null;
+    }
+    if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+  } catch (e) {
+    console.warn('AudioContext not available', e);
+  }
+}
+
+function playShortBeep(freq = 220, duration = 0.22, vol = 0.06) {
+  // Simple short beep (for ≥ 60s alerts or combined mode)
+  ensureAudio();
+  if (!audioCtx) return fallbackBeep();
+  const ctx = audioCtx;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(freq, ctx.currentTime);
+  gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(vol, ctx.currentTime + 0.02);
+  gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + duration);
+  osc.connect(gain).connect(ctx.destination);
+  osc.start();
+  osc.stop(ctx.currentTime + duration + 0.03);
+}
+
+function playRisingTone(duration = 0.55, startHz = 185, endHz = 330, vol = 0.055) {
+  // Gentle upward sweep (~G♭3 185Hz to ~E4 330Hz), not shrill
+  ensureAudio();
+  if (!audioCtx) return fallbackBeep();
+  const ctx = audioCtx;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(startHz, ctx.currentTime);
+  // exponential ramp avoids clicks; clamp end to >0
+  osc.frequency.exponentialRampToValueAtTime(Math.max(1, endHz), ctx.currentTime + duration);
+  gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(vol, ctx.currentTime + 0.03);
+  gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + duration);
+  osc.connect(gain).connect(ctx.destination);
+  osc.start();
+  osc.stop(ctx.currentTime + duration + 0.05);
+}
+
+function fallbackBeep() {
+  const el = document.getElementById('bellSound');
+  if (!el) return;
+  try { el.currentTime = 0; el.play(); } catch (_) {}
+}
+
+// NOTE: this version floors minutes so we never round up (“1:30” → “1 minute”).
+function fmtRemaining(sec) {
+  if (sec <= 0) return 'Time!';
+  if (sec >= 60) {
+    const m = Math.floor(sec / 60);
+    const rem = Math.floor(sec % 60);
+    if (rem === 0) return `${m} ${m === 1 ? 'minute' : 'minutes'} remaining`;
+    return `${m} ${m === 1 ? 'minute' : 'minutes'} ${rem} ${rem === 1 ? 'second' : 'seconds'} remaining`;
+  }
+  const s = Math.max(0, Math.floor(sec));
+  return `${s} ${s === 1 ? 'second' : 'seconds'} remaining`;
+}
+
+/** Triggers the configured alert for the given remaining seconds. */
+function triggerBell(secondsRemaining) {
+  const mode = bellMode || 'tone';
+  const doVoice = (mode === 'voice' || mode === 'both');
+  const doTone  = (mode === 'tone'  || mode === 'both');
+
+  if (secondsRemaining >= 60) {
+    if (doVoice) {
+      try {
+        if ('speechSynthesis' in window) {
+          window.speechSynthesis.cancel();
+          const utt = new SpeechSynthesisUtterance(fmtRemaining(secondsRemaining));
+          utt.rate = 1.0; utt.pitch = 1.0; utt.volume = 1.0;
+          window.speechSynthesis.speak(utt);
+        }
+      } catch (e) { /* ignore */ }
+    }
+    if (doTone)  playShortBeep(220, 0.22, 0.06);
+  } else {
+    const dur = (secondsRemaining === 0) ? 0.75 : 0.55;
+    if (doVoice) {
+      try {
+        if ('speechSynthesis' in window) {
+          window.speechSynthesis.cancel();
+          const utt = new SpeechSynthesisUtterance(fmtRemaining(secondsRemaining));
+          utt.rate = 1.0; utt.pitch = 1.0; utt.volume = 1.0;
+          window.speechSynthesis.speak(utt);
+        }
+      } catch (e) { /* ignore */ }
+    }
+    if (doTone)  playRisingTone(dur, 185, 330, 0.055);
+  }
+}
+
 let sessionMode = "standard";
 let classImageSchedule = [];
 let imageDisplayIndex = 0; // images shown
@@ -941,13 +1070,19 @@ function runTimer() {
 
     if (inBreak) {
       breakTimeRemaining--; updateBreakTimer();
-      if (bellTimes.includes(breakTimeRemaining) && !bellFiredThisBreak.has(breakTimeRemaining)) { document.getElementById("bellSound").play(); bellFiredThisBreak.add(breakTimeRemaining); }
+      if (bellTimes.includes(breakTimeRemaining) && !bellFiredThisBreak.has(breakTimeRemaining)) {
+  triggerBell(breakTimeRemaining);
+  bellFiredThisBreak.add(breakTimeRemaining);
+}
       if (breakTimeRemaining <= 0) endBreak();
       return;
     }
 
     remaining--; updateTimerDisplay();
-    if (bellTimes.includes(remaining) && !bellFiredThisImage.has(remaining)) { document.getElementById("bellSound").play(); bellFiredThisImage.add(remaining); }
+    if (bellTimes.includes(remaining) && !bellFiredThisImage.has(remaining)) {
+  triggerBell(remaining);
+  bellFiredThisImage.add(remaining);
+}
     if (remaining <= 0) nextImage();
   }, 1000);
 }
@@ -1094,13 +1229,20 @@ function endSession() { clearInterval(sessionTimer); document.getElementById("vi
 function parseBellTimes() { return document.getElementById("bellTimes").value.split(",").map(n=>parseInt(n.trim())).filter(n=>!isNaN(n)); }
 
 async function startSession() {
+  // Prime audio while we’re still in the click handler
+  ensureAudio();
   // Read session options
     sessionMode = document.querySelector('input[name="mode"]:checked').value;
+ // read bell settings
+  bellTimes = parseBellTimes();
+  const bellModeEl = document.querySelector('input[name="bellMode"]:checked');
+  bellMode = bellModeEl ? bellModeEl.value : 'tone';
+  localStorage.setItem('bellMode', bellMode);
+
   limitMode = document.querySelector('input[name="limit"]:checked').value;
   if (limitMode === 'time') { limitValue = parseInt(document.getElementById('limitValue').value); }
   else if (limitMode === 'count') { limitValue = parseInt(document.getElementById('limitCountValue').value); }
   strictTime = document.getElementById('strictTime').checked;
-  bellTimes = parseBellTimes();
   breakEnabled = document.getElementById('breaks').checked;
 if (sessionMode === 'class') {
   breakEnabled = false;
@@ -1566,6 +1708,26 @@ document.getElementById('limitSection').style.display   = isClass ? 'none'  : 'b
 document.getElementById('standardOptions').style.display= isClass ? 'none'  : 'block';
 const isTime = document.querySelector('input[name="limit"]:checked').value === 'time';
 document.getElementById('limitTimeOptions').style.display = isTime ? 'block' : 'none';
+
+// Bell mode initial state + persistence
+document.querySelectorAll('input[name="bellMode"]').forEach(r => {
+  r.checked = (r.value === bellMode);
+  r.addEventListener('change', (e) => {
+    bellMode = e.target.value;
+    localStorage.setItem('bellMode', bellMode);
+  });
+});
+
+// Optional: test bell button
+const testBtn = document.getElementById('testBellBtn');
+if (testBtn) {
+  testBtn.addEventListener('click', () => {
+    const v = parseInt(document.getElementById('testBellValue').value || '60', 10);
+    ensureAudio();           // activate audio after user gesture
+    triggerBell(Math.max(0, v));
+  });
+}
+
 
 // NEW: ensure "Enable breaks" is off if we load straight into Class
 if (isClass) {
