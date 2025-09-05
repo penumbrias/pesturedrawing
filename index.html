@@ -235,26 +235,28 @@
       </div>
 
 <div class="col-12 card" id="alertOptions">
-  <h3>Alerts</h3>
+  <h3>Countdown bell</h3>
 
   <label>Bell Times (seconds, comma-separated)</label>
   <input type="text" id="bellTimes" value="60,10,5,0" />
 
   <div class="row" style="margin-top:.5rem; align-items:center;">
-    <label style="flex:0 0 auto;">Bell mode</label>
-    <label><input type="radio" name="bellMode" value="voice"> Voiced bell</label>
-    <label><input type="radio" name="bellMode" value="tone" checked> Bell sound only</label>
-    <label><input type="radio" name="bellMode" value="both"> Combined voice and bell</label>
+    <label style="flex:0 0 auto;">Bell mode:</label>
+    <label><input type="radio" name="bellMode" value="voice"> Voiced</label>
+    <label><input type="radio" name="bellMode" value="tone" checked> Bell only</label>
+    <label><input type="radio" name="bellMode" value="both"> voice and bell</label>
   </div>
 
   <div class="row" style="margin-top:.5rem; gap:.5rem;">
     <button class="btn" type="button" id="testBellBtn">Test bell</button>
     <input type="number" id="testBellValue" value="60" min="0" style="max-width:6rem;" />
-    <span class="hint">Enter seconds and click “Test bell”.</span>
+    <span class="hint">(seconds)</span>
   </div>
 
   <p class="hint" style="margin-top:.5rem;">
-    Voice uses your browser’s speech engine. If the site is muted or a voice isn’t available, it will fall back to the tone.  "combined voice and bell" mode will use the voice if the time remaining is >60 seconds and a bell when the time remaining is <60 seconds.
+    Voice uses your browser’s speech engine. If the site is muted or a voice isn’t available, it will fall back to the tone.  
+"Voice and bell" mode will use the voice if the time remaining is >60 seconds and a bell when the time remaining is <60 seconds.
+If you do not want a bell tone, clear the "Bell Times" section.
   </p>
 </div>
 
