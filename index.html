@@ -131,7 +131,7 @@ Have fun!</p>
 
 
 <div id="pinterestSource" data-source-section="pinterest">
-<div class="hint" style="margin-bottom:.25rem">Using your Pinterest boards</div>
+
 
 <div class="row" id="pinAuthRow" style="margin-top:.5rem; align-items:center;">
     <div id="pinAuthStatus" class="hint" style="flex:1;">Not connected to Pinterest</div>
@@ -245,7 +245,7 @@ Have fun!</p>
 
   <div class="row" style="margin-top:.5rem; align-items:center;">
     <label style="flex:0 0 auto;">Bell mode:</label>
-    <label><input type="radio" name="bellMode" value="voice"> Voiced</label>
+    <label><input type="radio" name="bellMode" value="voice"> Voice</label>
     <label><input type="radio" name="bellMode" value="tone" checked> Bell</label>
     <label><input type="radio" name="bellMode" value="both"> Voice and bell</label>
   </div>
@@ -257,9 +257,9 @@ Have fun!</p>
   </div>
 
   <p class="hint" style="margin-top:.5rem;">
-    Voice uses your browser’s speech engine. If the site is muted or a voice isn’t available, it will fall back to the tone.<br>
+    Voice uses your browser’s speech engine. If the site is muted or a voice isn’t available, it will fall back to the bell.<br>
 "Voice and bell" mode will use the voice if the time remaining is greater than 60 seconds and a bell when the time remaining is equal to or less than 60 seconds.<br>
-If you do not want a bell tone, clear the "Bell Times" section.
+If you do not want a countdown bell, clear the "Bell Times" section.
   </p>
 </div>
 
@@ -894,14 +894,14 @@ function playShortBeep(freq = 220, duration = 0.22, vol = 0.06) {
   osc.type = 'sine';
   osc.frequency.setValueAtTime(freq, ctx.currentTime);
   gain.gain.setValueAtTime(0.0001, ctx.currentTime);
-  gain.gain.exponentialRampToValueAtTime(vol, ctx.currentTime + 0.02);
-  gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + duration);
+  gain.gain.exponentialRampToValueAtTime(vol, ctx.currentTime + 0.08);
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
   osc.connect(gain).connect(ctx.destination);
   osc.start();
   osc.stop(ctx.currentTime + duration + 0.03);
 }
 
-function playRisingTone(duration = 0.55, startHz = 185, endHz = 330, vol = 0.055) {
+function playRisingTone(duration = 0.55, startHz = 85, endHz = 400, vol = 0.055) {
   // Gentle upward sweep (~G♭3 185Hz to ~E4 330Hz), not shrill
   ensureAudio();
   if (!audioCtx) return fallbackBeep();
