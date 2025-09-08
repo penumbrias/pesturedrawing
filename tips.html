@@ -66,6 +66,46 @@ body.in-session::before { opacity: 0; pointer-events: none; }
     .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:.95em; }
     ul { margin:.5rem 0 .75rem 1.25rem; }
     code { background:#101217; border:1px solid #222430; border-radius:6px; padding:.12rem .3rem; }
+
+/* === Overrides: translucency + floating buttons + z-index fixes === */
+
+/* 10% more translucent panels (and ensure these win in the cascade) */
+body:not(.in-session) .setup,
+body:not(.in-session) .card,
+body:not(.in-session) .site-nav a {
+  background: rgba(24,26,32,.68) !important;       /* was ~.78 */
+  border-color: rgba(32,34,43,.55) !important;
+  backdrop-filter: blur(6px) saturate(1.06);
+  -webkit-backdrop-filter: blur(6px) saturate(1.06);
+}
+
+/* Keep the Tips/Guidance button above the setup panel on small screens */
+.site-nav { z-index: 11001; }
+
+/* Floating Start button – visible when not in session */
+body:not(.in-session) #startBtn {
+  position: fixed !important;
+  right: .85rem;
+  bottom: calc(.85rem + env(safe-area-inset-bottom));
+  z-index: 11000;
+  border-radius: 999px;
+  padding: .9rem 1.1rem;
+  font-weight: 700;
+  box-shadow: 0 12px 32px rgba(0,0,0,.35), 0 0 0 1px #2b3750;
+}
+
+/* Wider touch target on small screens */
+@media (max-width: 560px) {
+  body:not(.in-session) #startBtn {
+    left: .85rem;
+    right: .85rem;
+    text-align: center;
+  }
+}
+
+/* Hide the CTA once the drawing session starts */
+body.in-session #startBtn { display: none !important; }
+
   </style>
 </head>
 <body>
