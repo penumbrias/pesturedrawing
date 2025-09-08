@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+  <title>Pesture Drawing — Tips & Guidance</title>
+  <style>
+    :root {
+      --bg: #0b0b0c; --panel:#111216; --card:#181a20; --text:#e7e7ea; --muted:#a1a1ac; --accent:#7aa2ff;
+    }
+    * { box-sizing:border-box; }
+    body { margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica Neue, Arial;
+           background:var(--bg); color:var(--text); }
+    a { color: var(--accent); }
+    .wrap { max-width: 880px; margin: 2rem auto 4rem; padding: 0 1rem; }
+    .topbar { display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; }
+    .title { font-size: 1.75rem; margin: 0; }
+    .btn { display:inline-flex; align-items:center; gap:.4rem; padding:.55rem .85rem; border-radius:10px;
+           background:#1e293b; border:1px solid #2b3750; color:var(--text); font-weight:600; text-decoration:none; }
+    .btn:hover { filter:brightness(1.08); }
+    .card { background:var(--card); border:1px solid #20222b; border-radius:12px; padding:1rem; margin:.9rem 0; }
+    .card h2 { margin:.1rem 0 .5rem; font-size:1.15rem; color:var(--muted); letter-spacing:.02em; text-transform:uppercase; }
+    .toc a { display:block; padding:.35rem 0; text-decoration:none; }
+    .small { color:var(--muted); font-size:.95rem; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:.95em; }
+    ul { margin:.5rem 0 .75rem 1.25rem; }
+    code { background:#101217; border:1px solid #222430; border-radius:6px; padding:.12rem .3rem; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar">
+      <h1 class="title">💡 Tips & Guidance</h1>
+      <a class="btn" href="./index.html">← Back to app</a>
+    </div>
+
+    <div class="card toc">
+      <h2>On this page</h2>
+      <a href="#getting-started">Getting started</a>
+      <a href="#pinterest-setup">Pinterest setup</a>
+      <a href="#session-timing">Session timing</a>
+      <a href="#class-mode">Class mode</a>
+      <a href="#breaks-bells">Breaks & bells</a>
+      <a href="#image-fit">Image fit</a>
+      <a href="#troubleshooting">Troubleshooting</a>
+    </div>
+
+    <div id="getting-started" class="card">
+      <h2>Getting started</h2>
+      <p>Select <strong>Pinterest</strong> or <strong>Quick sample boards</strong>, set your timing, then press <em>Start Drawing</em>. Use the on‑screen controls (Prev / Pause / Next / End).</p>
+      <p class="small">Tip: You can select multiple boards with <span class="mono">Ctrl/Cmd‑click</span>.</p>
+    </div>
+
+    <div id="pinterest-setup" class="card">
+      <h2>Pinterest setup</h2>
+      <ul>
+        <li>Click <em>Connect to Pinterest</em>, grant access, then <em>Load my boards</em>.</li>
+        <li>To switch accounts, use <em>Log out</em> → connect again.</li>
+      </ul>
+    </div>
+
+    <div id="session-timing" class="card">
+      <h2>Session timing</h2>
+      <ul>
+        <li><strong>Standard</strong>: one duration for all images (e.g., 30s each).</li>
+        <li><strong>Session limit</strong>: stop after N images, at a time limit, or run endless.</li>
+      </ul>
+    </div>
+
+    <div id="class-mode" class="card">
+      <h2>Class mode</h2>
+      <ul>
+        <li>Use presets (15m, 30m, 60m…) or build custom phases and breaks.</li>
+        <li>Drag rows by the <span class="mono">⋮⋮</span> handle to reorder.</li>
+      </ul>
+    </div>
+
+    <div id="breaks-bells" class="card">
+      <h2>Breaks &amp; bells</h2>
+      <ul>
+        <li>Set bell times (seconds) like <span class="mono">600,300,120,60,30,10,0</span>.</li>
+        <li>Choose <em>Voice</em>, <em>Bell</em>, or <em>Voice and bell</em>.</li>
+      </ul>
+    </div>
+
+    <div id="image-fit" class="card">
+      <h2>Image fit</h2>
+      <p>Use <em>Fit to Screen</em> in the viewer to fill the viewport without cropping.</p>
+    </div>
+
+    <div id="troubleshooting" class="card">
+      <h2>Troubleshooting</h2>
+      <ul>
+        <li>If images load slowly, try fewer boards or shorter durations.</li>
+        <li>If audio is muted, your browser may block autoplay—start the session and click <em>Test bell</em>.</li>
+        <li>If Pinterest boards don’t appear, click <em>Log out</em> and connect again.</li>
+      </ul>
+      <p class="small">You can edit this page freely—add screenshots, animated GIFs, or links.</p>
+    </div>
+  </div>
+</body>
+</html>
