@@ -195,15 +195,16 @@ body.in-session::before { opacity: 0; pointer-events: none; }
 
 /* === Overrides: translucency + floating buttons + z-index fixes === */
 
-/* 10% more translucent panels (and ensure these win in the cascade) */
+/* 10% more translucent panels – dark glass */
 body:not(.in-session) .setup,
 body:not(.in-session) .card,
 body:not(.in-session) .site-nav a {
-  background: rgba(186, 186, 172, 0.57) !important;       /* was ~.78 */
-  border-color: rgba(101, 110, 129, 0.37) !important;
+  background: rgba(24,26,32,.40) !important;       /* subtle, neutral dark */
+  border-color: rgba(32,34,43,.20) !important;
   backdrop-filter: blur(6px) saturate(1.06);
   -webkit-backdrop-filter: blur(6px) saturate(1.06);
 }
+
 
 /* Keep the Tips/Guidance button above the setup panel on small screens */
 .site-nav { z-index: 11001; }
