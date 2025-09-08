@@ -1839,16 +1839,19 @@ function addBreakRow(min, sec) {
 }
 
 function resetClassToDefault() {
+  // Show Class UI (but do NOT enable customizing)
   document.querySelector('input[name="mode"][value="class"]').checked = true;
   document.getElementById('classSettings').style.display = 'block';
   document.getElementById('limitSection').style.display = 'none';
   document.getElementById('standardOptions').style.display = 'none';
 
+  // Keep "Customize Class" OFF by default
   const toggle = document.getElementById('customClassToggle');
-  toggle.checked = true;
-  document.getElementById('customControls').style.display = 'block';
-  document.getElementById('classSettings').classList.add('customizing');
+  toggle.checked = false;
+  document.getElementById('customControls').style.display = 'none';
+  document.getElementById('classSettings').classList.remove('customizing'); // hides move/remove buttons
 
+  // Default example: 5 images × 10s
   const container = document.getElementById('classPhases');
   container.innerHTML = '';
   const row = document.createElement('div');
@@ -1866,49 +1869,42 @@ function resetClassToDefault() {
   `;
   container.appendChild(row);
 
-  wireClassRowControls(container); // keep the mobile move/remove behavior
-  recalcClassTotal();              // update the summary
+  // Ensure click/input handlers are wired & total is correct
+  wireClassRowControls(container);
+  recalcClassTotal();
 }
-
-
 
 function populateClassPreset(key) {
   const data = CLASS_PRESETS[key];
   if (!data) return;
 
-  // force Class mode visible
+  // Make Class mode visible (but do NOT enable customizing)
   document.querySelector('input[name="mode"][value="class"]').checked = true;
   document.getElementById('classSettings').style.display = 'block';
   document.getElementById('limitSection').style.display = 'none';
   document.getElementById('standardOptions').style.display = 'none';
 
-  // make sure custom controls are on (so Add Phase / Insert Break are visible)
+  // Keep "Customize Class" OFF unless user flips it
   const toggle = document.getElementById('customClassToggle');
-  toggle.checked = true;
-document.getElementById('classSettings').classList.add('customizing');
-recalcClassTotal();
+  toggle.checked = false;
+  document.getElementById('customControls').style.display = 'none';
+  document.getElementById('classSettings').classList.remove('customizing'); // hides move/remove buttons
 
-  document.getElementById('customControls').style.display = 'block';
-
-  // clear and rebuild rows
+  // Build rows for the preset
   const container = document.getElementById('classPhases');
   container.innerHTML = '';
-
   for (const item of data) {
+    const m = Math.floor(item.sec / 60), s = item.sec % 60;
     if (item.type === 'break') {
-      const m = Math.floor(item.sec / 60), s = item.sec % 60;
       addBreakRow(m, s);
     } else {
-      const m = Math.floor(item.sec / 60), s = item.sec % 60;
       addPhaseRow(item.n, m, s);
     }
   }
 
-  // re-enable dragging on fresh rows
+  // Make sure handlers are attached and total updates
   wireClassRowControls(container);
-document.getElementById('classSettings').classList.add('customizing');
-recalcClassTotal();
-
+  recalcClassTotal();
 }
 
 
