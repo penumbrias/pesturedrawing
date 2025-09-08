@@ -1128,32 +1128,33 @@ async function checkAuth() {
   const connectEl = document.getElementById('pinConnectBtn');
   const logoutEl  = document.getElementById('pinLogoutBtn');
   const loadBtn   = document.getElementById('loadBoardsBtn');
-  const userRadio = document.querySelector('input[name="pinterestSource"][value="user"]');
 
   try {
-    const res  = await fetch(`${BACKEND_BASE}/api/auth/status`, { credentials: 'include' });
-    const data = await res.json();
-    const authed = !!data?.authorized;
+    const res  = await fetch(`${BACKEND_BASE}/api/auth/status`, {
+      credentials: 'include',
+      cache: 'no-store'
+    });
+    const data = await res.json().catch(() => ({}));
+    const authed = !!(data && (data.authorized || data.logged_in || data.ok));
 
     statusEl.textContent = authed
       ? `Connected to Pinterest${data.user ? ` as ${data.user}` : ''}`
       : 'Not connected to Pinterest';
 
-    connectEl.style.display = authed ? 'none'        : 'inline-block';
-    logoutEl.style.display  = authed ? 'inline-block': 'none';
-loadBtn.disabled        = !authed;
-if (userRadio) userRadio.disabled = !authed;
+    connectEl.style.display = authed ? 'none' : 'inline-block';
+    logoutEl.style.display  = authed ? 'inline-block' : 'none';
+    loadBtn.disabled        = !authed;
 
     return authed;
   } catch {
     statusEl.textContent    = 'Not connected to Pinterest';
     connectEl.style.display = 'inline-block';
     logoutEl.style.display  = 'none';
-loadBtn.disabled        = true;
-if (userRadio) userRadio.disabled = true;
+    loadBtn.disabled        = true;
     return false;
   }
 }
+
 
 
 function connectPinterest() {
@@ -1163,8 +1164,42 @@ function connectPinterest() {
 }
 
 async function logoutPinterest() {
-  await fetch(`${BACKEND_BASE}/api/auth/logout`, { credentials: 'include' });
-  checkAuth();
+  const statusEl  = document.getElementById('pinAuthStatus');
+  const connectEl = document.getElementById('pinConnectBtn');
+  const logoutEl  = document.getElementById('pinLogoutBtn');
+  const loadBtn   = document.getElementById('loadBoardsBtn');
+  const select    = document.getElementById('userBoards');
+
+  try {
+    // Prefer POST; some backends require it to clear server session/cookie
+    let res = await fetch(`${BACKEND_BASE}/api/auth/logout`, {
+      method: 'POST',
+      credentials: 'include',
+      cache: 'no-store',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}'
+    });
+
+    // Fallback to GET if POST isn’t supported
+    if (!res.ok) {
+      await fetch(`${BACKEND_BASE}/api/auth/logout`, {
+        credentials: 'include',
+        cache: 'no-store'
+      }).catch(() => {});
+    }
+  } catch (_) {
+    // ignore network errors; we’ll still flip UI
+  }
+
+  // Hard reset UI regardless of server response (prevents stale cached status)
+  if (statusEl) statusEl.textContent = 'Not connected to Pinterest';
+  if (connectEl) connectEl.style.display = 'inline-block';
+  if (logoutEl) logoutEl.style.display   = 'none';
+  if (loadBtn)  loadBtn.disabled         = true;
+  if (select)   select.innerHTML         = '';
+
+  // Re-check status with no-store to sync if backend cleared cookies
+  await checkAuth();
 }
 
 
