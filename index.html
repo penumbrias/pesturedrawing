@@ -220,25 +220,25 @@ Have fun!</p>
     </div>
 
     <div id="classPhases" style="margin-top:.5rem;">
-      <!-- default example phase row -->
-      <div class="class-row class-phase" style="display:flex;align-items:center;gap:.5rem;margin:.25rem 0;">
-  <div class="move-btns">
-    <button class="btn mini move-up" type="button" aria-label="Move up">↑</button>
-    <button class="btn mini move-down" type="button" aria-label="Move down">↓</button>
+  <!-- default example phase row -->
+  <div class="class-row class-phase" style="display:flex;align-items:center;gap:.5rem;margin:.25rem 0;">
+    <div class="move-btns">
+      <button class="btn mini move-up" type="button" aria-label="Move up">↑</button>
+      <button class="btn mini move-down" type="button" aria-label="Move down">↓</button>
+    </div>
+    <input type="number" class="phase-count" value="5" style="width:3rem;" /> images for
+    <input type="number" class="phase-minutes" value="0" style="width:3rem;" /> min
+    <input type="number" class="phase-seconds" value="10" style="width:3rem;" /> sec
+    <button class="btn mini remove-row" type="button" aria-label="Remove">✕</button>
   </div>
+</div>
+<!-- Session length summary (display-only) -->
 <div class="row" id="classTotalRow" style="margin-top:.75rem; align-items:center;">
   <label style="flex:0 0 auto;">Session length:</label>
   <input type="text" id="classTotal" value="00:00" readonly
          style="max-width:9rem; background:#101217; border:1px solid #222430; color:var(--text); border-radius:10px; padding:.45rem .6rem;">
 </div>
 
-  <input type="number" class="phase-count" value="5" style="width:3rem;" /> images for
-  <input type="number" class="phase-minutes" value="0" style="width:3rem;" /> min
-  <input type="number" class="phase-seconds" value="10" style="width:3rem;" /> sec
-  <button class="btn mini remove-row" type="button" aria-label="Remove">✕</button>
-</div>
-
-    </div>
   </div>
 </div>
 
@@ -1808,38 +1808,37 @@ function addBreakRow(min, sec) {
 }
 
 function resetClassToDefault() {
-  // show Class UI
   document.querySelector('input[name="mode"][value="class"]').checked = true;
   document.getElementById('classSettings').style.display = 'block';
   document.getElementById('limitSection').style.display = 'none';
   document.getElementById('standardOptions').style.display = 'none';
 
-  // turn on custom controls
   const toggle = document.getElementById('customClassToggle');
   toggle.checked = true;
   document.getElementById('customControls').style.display = 'block';
+  document.getElementById('classSettings').classList.add('customizing');
 
-  // clear & add the single default row: 5 images × 10s
   const container = document.getElementById('classPhases');
   container.innerHTML = '';
   const row = document.createElement('div');
   row.className = 'class-row class-phase';
-  row.setAttribute('draggable', 'true');
   row.style.cssText = 'display:flex;align-items:center;gap:.5rem;margin:.25rem 0;';
   row.innerHTML = `
-  <div class="move-btns">
-    <button class="btn mini move-up" type="button" aria-label="Move up">↑</button>
-    <button class="btn mini move-down" type="button" aria-label="Move down">↓</button>
-  </div>
-  <input type="number" class="phase-count" value="5" style="width:3rem;" /> images for
-  <input type="number" class="phase-minutes" value="0" style="width:3rem;" /> min
-  <input type="number" class="phase-seconds" value="10" style="width:3rem;" /> sec
-  <button class="btn mini remove-row" type="button" aria-label="Remove">✕</button>
-`;
-
+    <div class="move-btns">
+      <button class="btn mini move-up" type="button" aria-label="Move up">↑</button>
+      <button class="btn mini move-down" type="button" aria-label="Move down">↓</button>
+    </div>
+    <input type="number" class="phase-count" value="5" style="width:3rem;" /> images for
+    <input type="number" class="phase-minutes" value="0" style="width:3rem;" /> min
+    <input type="number" class="phase-seconds" value="10" style="width:3rem;" /> sec
+    <button class="btn mini remove-row" type="button" aria-label="Remove">✕</button>
+  `;
   container.appendChild(row);
-  enableClassRowDrag(container);
+
+  wireClassRowControls(container); // keep the mobile move/remove behavior
+  recalcClassTotal();              // update the summary
 }
+
 
 
 function populateClassPreset(key) {
@@ -1892,8 +1891,39 @@ function formatDuration(totalSec) {
                : `${m}:${String(s).padStart(2,'0')}`;
 }
 
-// Recalculate the total session length shown in #classTotal
+// Formats seconds as H:MM:SS (or M:SS if < 1h)
+function formatDuration(totalSec) {
+  totalSec = Math.max(0, parseInt(totalSec || 0, 10));
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  return h > 0 ? `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`
+               : `${m}:${String(s).padStart(2,'0')}`;
+}
+
+// Recalculate the total session length and make sure the UI exists
 function recalcClassTotal() {
+  const settings = document.getElementById('classSettings');
+  if (!settings) return;
+
+  // 1) Ensure the UI exists at the bottom of the Class section
+  let totalRow = document.getElementById('classTotalRow');
+  if (!totalRow) {
+    totalRow = document.createElement('div');
+    totalRow.className = 'row';
+    totalRow.id = 'classTotalRow';
+    totalRow.style.marginTop = '.75rem';
+    totalRow.style.alignItems = 'center';
+    totalRow.innerHTML = `
+      <label style="flex:0 0 auto;">Session length:</label>
+      <input type="text" id="classTotal" value="00:00" readonly
+             style="max-width:9rem; background:#101217; border:1px solid #222430; color:var(--text); border-radius:10px; padding:.45rem .6rem;">
+    `;
+    // append after all rows in the Class section
+    settings.appendChild(totalRow);
+  }
+
+  // 2) Compute the total duration from the class rows
   let total = 0;
   document.querySelectorAll('#classPhases .class-row').forEach(row => {
     if (row.classList.contains('break-row')) {
@@ -1907,6 +1937,8 @@ function recalcClassTotal() {
       total += n * (m * 60 + s);
     }
   });
+
+  // 3) Update the read-only field
   const out = document.getElementById('classTotal');
   if (out) out.value = formatDuration(total);
 }
@@ -1951,18 +1983,16 @@ document.querySelectorAll('input[name="mode"]').forEach(radio => {
   radio.addEventListener('change', () => {
     const isClass = document.querySelector('input[name="mode"]:checked').value === 'class';
 
-    // Existing visibility logic
     document.getElementById('classSettings').style.display  = isClass ? 'block' : 'none';
     document.getElementById('limitSection').style.display   = isClass ? 'none'  : 'block';
     document.getElementById('standardOptions').style.display= isClass ? 'none'  : 'block';
     const presetSel = document.getElementById('classPreset');
     if (presetSel) presetSel.style.display = isClass ? 'inline-block' : 'none';
 
-    // NEW: turn off the standard "Enable breaks" checkbox when entering Class
     const breaksEl = document.getElementById('breaks');
-    if (isClass && breaksEl) {
-      breaksEl.checked = false;
-    }
+    if (isClass && breaksEl) breaksEl.checked = false;
+
+    if (isClass) recalcClassTotal(); // <-- ensure the summary is visible & up to date
   });
 });
 
