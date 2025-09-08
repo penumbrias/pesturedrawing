@@ -199,8 +199,8 @@ body.in-session::before { opacity: 0; pointer-events: none; }
 body:not(.in-session) .setup,
 body:not(.in-session) .card,
 body:not(.in-session) .site-nav a {
-  background: rgba(24,26,32,.68) !important;       /* was ~.78 */
-  border-color: rgba(32,34,43,.55) !important;
+  background: rgba(186, 186, 172, 0.57) !important;       /* was ~.78 */
+  border-color: rgba(126, 130, 117, 0.26) !important;
   backdrop-filter: blur(6px) saturate(1.06);
   -webkit-backdrop-filter: blur(6px) saturate(1.06);
 }
@@ -2258,6 +2258,17 @@ if (isClass) {
   }
 
   window.addEventListener('DOMContentLoaded', setRandomBackground);
+</script>
+<script>
+  // Hoist the Start button so position:fixed is relative to the viewport,
+  // not the blurred .setup panel.
+  window.addEventListener('DOMContentLoaded', () => {
+    const btn = document.getElementById('startBtn');
+    if (!btn) return;
+    const row = btn.closest('.col-12');   // the flex row it lived in
+    document.body.appendChild(btn);       // move the button under <body>
+    if (row && row.childElementCount === 0) row.remove(); // clean up empty row
+  });
 </script>
 
 
