@@ -6,6 +6,45 @@
   <title>Pesture Drawing</title>
   <style>
 
+/* ----- Background art layer (hidden during sessions) ----- */
+:root { --bg-image: none; }
+
+body::before{
+  content:"";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  /* gradient on top of the image for contrast */
+  background-image:
+    linear-gradient(to bottom, rgba(7,8,10,.65), rgba(7,8,10,.65)),
+    var(--bg-image);
+  background-size: cover, cover;
+  background-position: center, center;
+  background-repeat: no-repeat, no-repeat;
+  background-attachment: fixed, fixed;
+  opacity: .95;
+  transition: opacity .25s ease;
+}
+
+/* When a drawing session is active, hide the background art */
+body.in-session::before { opacity: 0; pointer-events: none; }
+
+/* ----- Translucent panels for legibility ----- */
+.setup,
+.card,
+.site-nav a {
+  background: rgba(24,26,32,.78);
+  border-color: rgba(32,34,43,.65);
+  backdrop-filter: blur(4px) saturate(1.06);
+  -webkit-backdrop-filter: blur(4px) saturate(1.06);
+}
+
+/* iOS/low-power devices: avoid jank from fixed backgrounds */
+@media (max-width: 768px){
+  body::before { background-attachment: scroll, scroll; }
+}
+
+
 /* Loading overlay */
 .loading-overlay {
   position: fixed;
@@ -1510,7 +1549,14 @@ function refreshImage() {
 }
 
 function togglePause() { isPaused = !isPaused; document.getElementById("pauseBtn").innerText = isPaused ? "▶️" : "⏸️"; }
-function endSession() { clearInterval(sessionTimer); document.getElementById("viewer").style.display = "none"; document.getElementById("breakScreen").style.display = "none"; document.getElementById("finishedScreen").style.display = "flex"; }
+function endSession() {
+  clearInterval(sessionTimer);
+  document.getElementById("viewer").style.display = "none";
+  document.getElementById("breakScreen").style.display = "none";
+  document.getElementById("finishedScreen").style.display = "flex";
+  document.body.classList.remove('in-session');   // ← add this line
+}
+
 
 /**********************
  *  UI Event Wiring   *
@@ -1622,6 +1668,10 @@ showImage();
 document.getElementById('setup').style.display = 'none';
 setLoading(false);
 
+document.getElementById('viewer').style.display = 'flex';
+document.body.classList.add('in-session');   // ← add this line
+
+
 }
 
 
@@ -1664,7 +1714,12 @@ setHint(ok ? 'Select one or more boards below' : 'Could not reach Pinterest — 
 
 
 // Basic helpers
-function backToSetup(){ document.getElementById('finishedScreen').style.display = 'none'; document.getElementById('setup').style.display = 'block'; }
+function backToSetup(){
+  document.getElementById('finishedScreen').style.display = 'none';
+  document.getElementById('setup').style.display = 'block';
+  document.body.classList.remove('in-session');   // ← add this line
+}
+
 function skipBreak(){ endBreak(); }
 function toggleImageTimer(){ showImageTimer = !showImageTimer; updateTimerDisplay(); }
 function toggleSessionTimer(){ showSessionTimer = !showSessionTimer; updateSessionTimer(); }
@@ -2146,6 +2201,25 @@ if (isClass) {
   <div class="spinner" role="progressbar" aria-label="Loading"></div>
   <div class="text" id="loadingText">Preparing drawing session…</div>
 </div>
+
+<script>
+  // Add your images here (relative paths)
+  const BG_IMAGES = [
+    'img/gesture-1.jpg',
+    'img/gesture-2.jpg'
+  ];
+
+  function setRandomBackground(){
+    if (!BG_IMAGES.length) return;
+    const chosen = BG_IMAGES[Math.floor(Math.random() * BG_IMAGES.length)];
+    // encodeURI keeps slashes, escapes spaces
+    const url = `url("${encodeURI(chosen)}")`;
+    document.documentElement.style.setProperty('--bg-image', url);
+  }
+
+  window.addEventListener('DOMContentLoaded', setRandomBackground);
+</script>
+
 
 </body>
 </html>
