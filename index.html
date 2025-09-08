@@ -114,6 +114,14 @@
 }
 .site-nav a:hover { filter: brightness(1.08); }
 
+/* Class editor: mobile-friendly controls */
+.move-btns { display: none; gap: .35rem; }
+.btn.mini { padding: .35rem .5rem; font-size: .9rem; line-height: 1; }
+.class-row .remove-row { display: none; margin-left: .25rem; }
+#classSettings.customizing .move-btns,
+#classSettings.customizing .remove-row { display: inline-flex; }
+#classTotal { width: 9rem; }
+
 
   </style>
   <audio id="bellSound" src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" preload="auto"></audio>
@@ -213,12 +221,23 @@ Have fun!</p>
 
     <div id="classPhases" style="margin-top:.5rem;">
       <!-- default example phase row -->
-      <div class="class-row class-phase" draggable="true" style="display:flex;align-items:center;gap:.5rem;margin:.25rem 0;">
-        <span class="drag-handle" title="Drag to reorder" style="cursor:grab; user-select:none;">⋮⋮</span>
-        <input type="number" class="phase-count" value="5" style="width:3rem;" /> images for
-        <input type="number" class="phase-minutes" value="0" style="width:3rem;" /> min
-        <input type="number" class="phase-seconds" value="10" style="width:3rem;" /> sec
-      </div>
+      <div class="class-row class-phase" style="display:flex;align-items:center;gap:.5rem;margin:.25rem 0;">
+  <div class="move-btns">
+    <button class="btn mini move-up" type="button" aria-label="Move up">↑</button>
+    <button class="btn mini move-down" type="button" aria-label="Move down">↓</button>
+  </div>
+<div class="row" id="classTotalRow" style="margin-top:.75rem; align-items:center;">
+  <label style="flex:0 0 auto;">Session length:</label>
+  <input type="text" id="classTotal" value="00:00" readonly
+         style="max-width:9rem; background:#101217; border:1px solid #222430; color:var(--text); border-radius:10px; padding:.45rem .6rem;">
+</div>
+
+  <input type="number" class="phase-count" value="5" style="width:3rem;" /> images for
+  <input type="number" class="phase-minutes" value="0" style="width:3rem;" /> min
+  <input type="number" class="phase-seconds" value="10" style="width:3rem;" /> sec
+  <button class="btn mini remove-row" type="button" aria-label="Remove">✕</button>
+</div>
+
     </div>
   </div>
 </div>
@@ -1643,6 +1662,7 @@ document.getElementById('pinLogoutBtn').addEventListener('click', logoutPinteres
 
 document.getElementById('customClassToggle').addEventListener('change', (e) => {
   document.getElementById('customControls').style.display = e.target.checked ? 'block' : 'none';
+  document.getElementById('classSettings').classList.toggle('customizing', e.target.checked);
 });
 
 document.getElementById('addPhaseBtn').addEventListener('click', () => {
@@ -1652,14 +1672,18 @@ document.getElementById('addPhaseBtn').addEventListener('click', () => {
   row.setAttribute('draggable', 'true');
   row.style.cssText = 'display:flex;align-items:center;gap:.5rem;margin:.25rem 0;';
   row.innerHTML = `
-    <span class="drag-handle" title="Drag to reorder" style="cursor:grab; user-select:none;">⋮⋮</span>
-    <input type="number" class="phase-count" value="1" style="width:3rem;" /> images for
-    <input type="number" class="phase-minutes" value="0" style="width:3rem;" /> min
-    <input type="number" class="phase-seconds" value="30" style="width:3rem;" /> sec
-    <button class="btn" type="button" onclick="this.parentElement.remove()">Remove</button>
-  `;
-  container.appendChild(row);
-  enableClassRowDrag(container);
+  <div class="move-btns">
+    <button class="btn mini move-up" type="button" aria-label="Move up">↑</button>
+    <button class="btn mini move-down" type="button" aria-label="Move down">↓</button>
+  </div>
+  <input type="number" class="phase-count" value="1" style="width:3rem;" /> images for
+  <input type="number" class="phase-minutes" value="0" style="width:3rem;" /> min
+  <input type="number" class="phase-seconds" value="30" style="width:3rem;" /> sec
+  <button class="btn mini remove-row" type="button" aria-label="Remove">✕</button>
+`;
+container.appendChild(row);
+recalcClassTotal();
+
 });
 
 document.getElementById('insertBreakBtn').addEventListener('click', () => {
@@ -1669,14 +1693,18 @@ document.getElementById('insertBreakBtn').addEventListener('click', () => {
   row.setAttribute('draggable', 'true');
   row.style.cssText = 'display:flex;align-items:center;gap:.5rem;margin:.25rem 0; background:#12131a; border:1px dashed #2a2d3a; padding:.35rem .5rem; border-radius:8px;';
   row.innerHTML = `
-    <span class="drag-handle" title="Drag to reorder" style="cursor:grab; user-select:none;">⋮⋮</span>
-    <strong>Break</strong> for
-    <input type="number" class="break-minutes" value="2" style="width:3rem;" /> min
-    <input type="number" class="break-seconds" value="0" style="width:3rem;" /> sec
-    <button class="btn" type="button" onclick="this.parentElement.remove()">-</button>
-  `;
-  container.appendChild(row);
-  enableClassRowDrag(container);
+  <div class="move-btns">
+    <button class="btn mini move-up" type="button" aria-label="Move up">↑</button>
+    <button class="btn mini move-down" type="button" aria-label="Move down">↓</button>
+  </div>
+  <strong>Break</strong> for
+  <input type="number" class="break-minutes" value="2" style="width:3rem;" /> min
+  <input type="number" class="break-seconds" value="0" style="width:3rem;" /> sec
+  <button class="btn mini remove-row" type="button" aria-label="Remove">✕</button>
+`;
+container.appendChild(row);
+recalcClassTotal();
+
 });
 
 // ---- Class presets (durations in seconds) ----
@@ -1746,12 +1774,16 @@ function addPhaseRow(count, min, sec) {
   row.setAttribute('draggable', 'true');
   row.style.cssText = 'display:flex;align-items:center;gap:.5rem;margin:.25rem 0;';
   row.innerHTML = `
-    <span class="drag-handle" title="Drag to reorder" style="cursor:grab; user-select:none;">⋮⋮</span>
-    <input type="number" class="phase-count" value="${count}" style="width:3rem;" /> images for
-    <input type="number" class="phase-minutes" value="${min}" style="width:3rem;" /> min
-    <input type="number" class="phase-seconds" value="${sec}" style="width:3rem;" /> sec
-    <button class="btn" type="button" onclick="this.parentElement.remove()">Remove</button>
-  `;
+  <div class="move-btns">
+    <button class="btn mini move-up" type="button" aria-label="Move up">↑</button>
+    <button class="btn mini move-down" type="button" aria-label="Move down">↓</button>
+  </div>
+  <input type="number" class="phase-count" value="${count}" style="width:3rem;" /> images for
+  <input type="number" class="phase-minutes" value="${min}" style="width:3rem;" /> min
+  <input type="number" class="phase-seconds" value="${sec}" style="width:3rem;" /> sec
+  <button class="btn mini remove-row" type="button" aria-label="Remove">✕</button>
+`;
+
   container.appendChild(row);
 }
 
@@ -1761,13 +1793,17 @@ function addBreakRow(min, sec) {
   row.className = 'class-row break-row';
   row.setAttribute('draggable', 'true');
   row.style.cssText = 'display:flex;align-items:center;gap:.5rem;margin:.25rem 0; background:#12131a; border:1px dashed #2a2d3a; padding:.35rem .5rem; border-radius:8px;';
-  row.innerHTML = `
-    <span class="drag-handle" title="Drag to reorder" style="cursor:grab; user-select:none;">⋮⋮</span>
-    <strong>Break</strong> for
-    <input type="number" class="break-minutes" value="${min}" style="width:3rem;" /> min
-    <input type="number" class="break-seconds" value="${sec}" style="width:3rem;" /> sec
-    <button class="btn" type="button" onclick="this.parentElement.remove()">Remove</button>
-  `;
+ row.innerHTML = `
+  <div class="move-btns">
+    <button class="btn mini move-up" type="button" aria-label="Move up">↑</button>
+    <button class="btn mini move-down" type="button" aria-label="Move down">↓</button>
+  </div>
+  <strong>Break</strong> for
+  <input type="number" class="break-minutes" value="${min}" style="width:3rem;" /> min
+  <input type="number" class="break-seconds" value="${sec}" style="width:3rem;" /> sec
+  <button class="btn mini remove-row" type="button" aria-label="Remove">✕</button>
+`;
+
   container.appendChild(row);
 }
 
@@ -1791,12 +1827,16 @@ function resetClassToDefault() {
   row.setAttribute('draggable', 'true');
   row.style.cssText = 'display:flex;align-items:center;gap:.5rem;margin:.25rem 0;';
   row.innerHTML = `
-    <span class="drag-handle" title="Drag to reorder" style="cursor:grab; user-select:none;">⋮⋮</span>
-    <input type="number" class="phase-count" value="5" style="width:3rem;" /> images for
-    <input type="number" class="phase-minutes" value="0" style="width:3rem;" /> min
-    <input type="number" class="phase-seconds" value="10" style="width:3rem;" /> sec
-    <button class="btn" type="button" onclick="this.parentElement.remove()">Remove</button>
-  `;
+  <div class="move-btns">
+    <button class="btn mini move-up" type="button" aria-label="Move up">↑</button>
+    <button class="btn mini move-down" type="button" aria-label="Move down">↓</button>
+  </div>
+  <input type="number" class="phase-count" value="5" style="width:3rem;" /> images for
+  <input type="number" class="phase-minutes" value="0" style="width:3rem;" /> min
+  <input type="number" class="phase-seconds" value="10" style="width:3rem;" /> sec
+  <button class="btn mini remove-row" type="button" aria-label="Remove">✕</button>
+`;
+
   container.appendChild(row);
   enableClassRowDrag(container);
 }
@@ -1815,6 +1855,9 @@ function populateClassPreset(key) {
   // make sure custom controls are on (so Add Phase / Insert Break are visible)
   const toggle = document.getElementById('customClassToggle');
   toggle.checked = true;
+document.getElementById('classSettings').classList.add('customizing');
+recalcClassTotal();
+
   document.getElementById('customControls').style.display = 'block';
 
   // clear and rebuild rows
@@ -1832,44 +1875,72 @@ function populateClassPreset(key) {
   }
 
   // re-enable dragging on fresh rows
-  enableClassRowDrag(container);
+  wireClassRowControls(container);
+document.getElementById('classSettings').classList.add('customizing');
+recalcClassTotal();
+
 }
 
 
-function enableClassRowDrag(container = document.getElementById('classPhases')) {
-  let dragSrc = null;
+// Formats seconds as H:MM:SS (or M:SS if < 1h)
+function formatDuration(totalSec) {
+  totalSec = Math.max(0, parseInt(totalSec || 0, 10));
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  return h > 0 ? `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`
+               : `${m}:${String(s).padStart(2,'0')}`;
+}
 
-  container.querySelectorAll('.class-row').forEach(row => {
-    row.addEventListener('dragstart', (e) => {
-      dragSrc = row;
-      e.dataTransfer.effectAllowed = 'move';
-      // visualize
-      row.style.opacity = '0.5';
-    });
+// Recalculate the total session length shown in #classTotal
+function recalcClassTotal() {
+  let total = 0;
+  document.querySelectorAll('#classPhases .class-row').forEach(row => {
+    if (row.classList.contains('break-row')) {
+      const m = parseInt(row.querySelector('.break-minutes')?.value || '0', 10);
+      const s = parseInt(row.querySelector('.break-seconds')?.value || '0', 10);
+      total += (m * 60 + s);
+    } else {
+      const n = parseInt(row.querySelector('.phase-count')?.value || '1', 10);
+      const m = parseInt(row.querySelector('.phase-minutes')?.value || '0', 10);
+      const s = parseInt(row.querySelector('.phase-seconds')?.value || '0', 10);
+      total += n * (m * 60 + s);
+    }
+  });
+  const out = document.getElementById('classTotal');
+  if (out) out.value = formatDuration(total);
+}
 
-    row.addEventListener('dragend', () => {
-      if (dragSrc) dragSrc.style.opacity = '';
-      dragSrc = null;
-    });
+// Wire Up/Down/Remove buttons (event delegation) + react to input changes
+function wireClassRowControls(container = document.getElementById('classPhases')) {
+  if (!container.dataset.wired) {
+    container.addEventListener('click', (e) => {
+      const row = e.target.closest('.class-row');
+      if (!row) return;
 
-    row.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      e.dataTransfer.dropEffect = 'move';
-    });
-
-    row.addEventListener('drop', (e) => {
-      e.preventDefault();
-      if (!dragSrc || dragSrc === row) return;
-      // Insert before or after based on mouse Y
-      const rect = row.getBoundingClientRect();
-      const before = (e.clientY - rect.top) < rect.height / 2;
-      if (before) {
-        container.insertBefore(dragSrc, row);
-      } else {
-        container.insertBefore(dragSrc, row.nextSibling);
+      if (e.target.closest('.move-up')) {
+        const prev = row.previousElementSibling;
+        if (prev) row.parentElement.insertBefore(row, prev);
+        recalcClassTotal();
+      } else if (e.target.closest('.move-down')) {
+        const next = row.nextElementSibling;
+        if (next) row.parentElement.insertBefore(next, row);
+        recalcClassTotal();
+      } else if (e.target.closest('.remove-row')) {
+        row.remove();
+        recalcClassTotal();
       }
     });
-  });
+
+    container.addEventListener('input', (e) => {
+      if (e.target.matches('.phase-count, .phase-minutes, .phase-seconds, .break-minutes, .break-seconds')) {
+        recalcClassTotal();
+      }
+    });
+
+    container.dataset.wired = '1';
+  }
+  recalcClassTotal();
 }
 
 
@@ -1936,9 +2007,15 @@ window.addEventListener('DOMContentLoaded', async () => {
   }
 
   // 1) Drag on default row + auth banner
-  const container = document.getElementById('classPhases');
-  if (container) enableClassRowDrag(container);
-  checkAuth();
+ const container = document.getElementById('classPhases');
+if (container) wireClassRowControls(container);
+document.getElementById('classSettings').classList.toggle(
+  'customizing',
+  document.getElementById('customClassToggle').checked
+);
+recalcClassTotal();
+checkAuth();
+
 
   // 2) Initial section visibility
 const isClass = document.querySelector('input[name="mode"]:checked').value === 'class';
