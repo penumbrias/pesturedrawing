@@ -1158,10 +1158,41 @@ async function checkAuth() {
 
 
 function connectPinterest() {
-  // Let the backend initiate the OAuth redirect; it will bounce back to us
   const next = encodeURIComponent(window.location.href);
-  window.location.href = `${BACKEND_BASE}/api/auth/login?next=${next}`;
+
+  (async () => {
+    // Try /api/* first, then /* (covers hosting differences)
+    const bases = ['/api/auth', '/auth'];
+    let chosen = bases[0];
+    let debugInfo = null;
+
+    for (const base of bases) {
+      try {
+        const r = await fetch(`${BACKEND_BASE}${base}/debug`, {
+          cache: 'no-store',
+          credentials: 'include'
+        });
+        if (r.ok) {
+          chosen = base;
+          debugInfo = await r.json().catch(() => null);
+          break;
+        }
+      } catch { /* keep trying */ }
+    }
+
+    // Surface a clear message if backend is misconfigured, instead of landing on a Pinterest 404
+    if (debugInfo && debugInfo.client_id_present === false) {
+      alert(
+        'Pinterest OAuth isn’t configured on the backend (missing PINTEREST_CLIENT_ID and/or PINTEREST_REDIRECT_URI).'
+        + '\nOpen the backend /auth/debug to verify.'
+      );
+      return;
+    }
+
+    window.location.href = `${BACKEND_BASE}${chosen}/login?next=${next}`;
+  })();
 }
+
 
 async function logoutPinterest() {
   const statusEl  = document.getElementById('pinAuthStatus');
