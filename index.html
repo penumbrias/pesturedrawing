@@ -92,10 +92,38 @@
 /* Toggle containers */
 [data-source-section][hidden] { display: none; }
 
+/* Top-right site nav */
+.site-nav {
+  position: fixed;
+  top: .75rem;
+  right: .75rem;
+  display: flex;
+  gap: .5rem;
+}
+.site-nav a {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  padding: .45rem .7rem;
+  border-radius: 10px;
+  background: #1e293b;
+  border: 1px solid #2b3750;
+  color: var(--text);
+  font-weight: 600;
+  text-decoration: none;
+}
+.site-nav a:hover { filter: brightness(1.08); }
+
+
   </style>
   <audio id="bellSound" src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" preload="auto"></audio>
 </head>
 <body>
+<!-- Top navigation -->
+<nav class="site-nav" aria-label="Primary">
+  <a href="./tips.html" id="tipsLink">💡 Tips / Guidance</a>
+</nav>
+
   <!-- Setup Panel -->
   <div class="setup" id="setup">
     <h1 style="Margin:0 0 1rem 0">Pesture Drawing</h1>
