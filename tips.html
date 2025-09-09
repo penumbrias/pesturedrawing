@@ -178,7 +178,9 @@ body.in-session #startBtn { display: none !important; }
   <p>
     The bell calls out time remaining at the marks you set (seconds). The default is
     <code>600,300,120,60,30,10,0</code> &mdash; that’s 10m, 5m, 2m, 1m, 30s, 10s, and the end.
-    Pick the voice/bell mode you prefer.
+    Pick the voice/bell mode you prefer.<br>
+Voice uses your browser’s speech engine. If the site is muted or a voice isn’t available, it will fall back to the bell.<br>
+"Voice and bell" mode will use the voice if the time remaining is greater than 60 seconds and a bell when the time remaining is equal to or less than 60 seconds.
   </p>
 </div>
 
