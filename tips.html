@@ -114,14 +114,7 @@ body::before{
 body.in-session::before { opacity: 0; pointer-events: none; }
 
 /* ----- Translucent panels for legibility ----- */
-.setup,
-.card,
-.site-nav a {
-  background: rgba(24,26,32,.78);
-  border-color: rgba(32,34,43,.65);
-  backdrop-filter: blur(4px) saturate(1.06);
-  -webkit-backdrop-filter: blur(4px) saturate(1.06);
-}
+
 
 /* iOS/low-power devices: avoid jank from fixed backgrounds */
 @media (max-width: 768px){
@@ -152,6 +145,79 @@ body.in-session::before { opacity: 0; pointer-events: none; }
     code { background:#101217; border:1px solid #222430; border-radius:6px; padding:.12rem .3rem; }
 
 
+/* === FINAL THEME OVERRIDES (paste this at the very end of <style>) === */
+:root{
+  /* warm dark greys + wine accent */
+  --bg: #0f0e0d;
+  --text: #eceae6;
+  --muted: #b9b3aa;
+
+  --accent: #a53b4d;         /* maroon/wine */
+  --accent-ink: #140e12;     /* text on primary */
+  --ring: rgba(165,59,77,.35);
+
+  /* translucent surfaces */
+  --panel: rgba(22,22,24,.34);   /* outer wrapper */
+  --card:  rgba(24,25,27,.42);   /* inner cards */
+  --ui:    #262524;              /* neutral chip/button */
+  --ui-border: rgba(255,255,255,.11);
+}
+
+/* Background art: very light tint, no extra dim or blue */
+body::before{
+  background-image:
+    linear-gradient(to bottom, rgba(12,12,13,.10), rgba(12,12,13,.10)),
+    var(--bg-image) !important;
+  opacity: 1 !important;
+  filter: none !important;
+}
+/* Still hide the art while a session runs */
+body.in-session::before { opacity: 0 !important; pointer-events: none !important; }
+
+/* Panels/chips: translucent glass, not blue, not opaque */
+.setup{
+  background: var(--panel) !important;
+  border: 1px solid var(--ui-border) !important;
+  backdrop-filter: blur(2px) saturate(1.02) !important;
+  -webkit-backdrop-filter: blur(2px) saturate(1.02) !important;
+}
+.card,
+.site-nav a{
+  background: var(--card) !important;
+  border: 1px solid var(--ui-border) !important;
+  backdrop-filter: blur(2px) saturate(1.02) !important;
+  -webkit-backdrop-filter: blur(2px) saturate(1.02) !important;
+}
+/* a touch lighter while on the setup screen */
+body.at-setup .card{ background: rgba(24,25,27,.36) !important; }
+
+/* Neutral UI + wine accent */
+a{ color: var(--accent) !important; }
+.btn{
+  background: var(--ui) !important;
+  border: 1px solid var(--ui-border) !important;
+  color: var(--text) !important;
+}
+.btn.primary{
+  background: var(--accent) !important;
+  border-color: rgba(165,59,77,.45) !important;
+  color: var(--accent-ink) !important;
+}
+/* warm ring on the floating CTA */
+#startBtn{
+  box-shadow:
+    0 12px 32px rgba(0,0,0,.35),
+    0 0 0 1px var(--ui-border),
+    0 0 0 6px var(--ring) !important;
+}
+
+/* Inputs in phase/break rows match the neutral theme */
+.class-row .field input[type="number"],
+.break-row .field input[type="number"]{
+  background: #151515 !important;
+  border: 1px solid var(--ui-border) !important;
+  color: var(--text) !important;
+}
 
 
   </style>
