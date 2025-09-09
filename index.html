@@ -1947,24 +1947,8 @@ recalcClassTotal();
 });
 
 document.getElementById('insertBreakBtn').addEventListener('click', () => {
-  const container = document.getElementById('classPhases');
-  const row = document.createElement('div');
-  row.className = 'class-row break-row';
-  row.setAttribute('draggable', 'true');
-  row.style.cssText = 'display:flex;align-items:center;gap:.5rem;margin:.25rem 0; background:#12131a; border:1px dashed #2a2d3a; padding:.35rem .5rem; border-radius:8px;';
-  row.innerHTML = `
-  <div class="move-btns">
-    <button class="btn mini move-up" type="button" aria-label="Move up">↑</button>
-    <button class="btn mini move-down" type="button" aria-label="Move down">↓</button>
-  </div>
-  <strong>Break</strong> for
-  <input type="number" class="break-minutes" value="2" style="width:3rem;" /> min
-  <input type="number" class="break-seconds" value="0" style="width:3rem;" /> sec
-  <button class="btn mini remove-row" type="button" aria-label="Remove">✕</button>
-`;
-container.appendChild(row);
-recalcClassTotal();
-
+  addBreakRow(2, 0);     // minutes, seconds
+  recalcClassTotal();
 });
 
 // ---- Class presets (durations in seconds) ----
@@ -2089,6 +2073,7 @@ function addBreakRow(min, sec) {
   `;
   container.appendChild(row);
 }
+
 
 function resetClassToDefault() {
   // Show Class UI (but do NOT enable customizing)
