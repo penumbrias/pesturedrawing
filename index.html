@@ -393,6 +393,20 @@ a{ color: var(--accent) !important; }
   color: var(--text) !important;
 }
 
+/* === Fix: Tips/Guidance chip should float above panels === */
+.site-nav{ z-index: 9500; }                    /* above .setup and #startBtn (9000) but below loader (10000) */
+body:not(.at-setup) .site-nav{ display:none; } /* hide on session + finished screens */
+
+/* === Hide CTA during sessions === */
+body.in-session #startBtn{ display:none !important; }
+
+/* === Deeper maroon accent === */
+:root{
+  --accent: #8b1e3f;              /* deep maroon */
+  --accent-ink: #fff6f4;          /* readable text on dark maroon */
+  --ring: rgba(139,30,63,.35);    /* focus ring that matches the new accent */
+}
+
 
   </style>
   <audio id="bellSound" src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" preload="auto"></audio>

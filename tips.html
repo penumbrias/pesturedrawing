@@ -219,6 +219,24 @@ a{ color: var(--accent) !important; }
   color: var(--text) !important;
 }
 
+/* === Tips page legibility: make cards less translucent === */
+:root{
+  --card: rgba(24,25,27,.64); /* was ~.42 — this is a bit more solid but still “glass” */
+}
+/* slightly firmer edge and blur for legibility */
+.card{
+  border-color: rgba(255,255,255,.12) !important;
+  backdrop-filter: blur(3px) saturate(1.04) !important;
+  -webkit-backdrop-filter: blur(3px) saturate(1.04) !important;
+}
+
+/* === Deeper maroon accent === */
+:root{
+  --accent: #8b1e3f;              /* deep maroon */
+  --accent-ink: #fff6f4;          /* readable text on dark maroon */
+  --ring: rgba(139,30,63,.35);    /* focus ring that matches the new accent */
+}
+
 
   </style>
 </head>
