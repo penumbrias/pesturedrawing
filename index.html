@@ -1925,25 +1925,10 @@ document.getElementById('customClassToggle').addEventListener('change', (e) => {
   document.getElementById('classSettings').classList.toggle('customizing', e.target.checked);
 });
 
+// Add Phase → use the same builder as the default/preset rows
 document.getElementById('addPhaseBtn').addEventListener('click', () => {
-  const container = document.getElementById('classPhases');
-  const row = document.createElement('div');
-  row.className = 'class-row class-phase';
-  row.setAttribute('draggable', 'true');
-  row.style.cssText = 'display:flex;align-items:center;gap:.5rem;margin:.25rem 0;';
-  row.innerHTML = `
-  <div class="move-btns">
-    <button class="btn mini move-up" type="button" aria-label="Move up">↑</button>
-    <button class="btn mini move-down" type="button" aria-label="Move down">↓</button>
-  </div>
-  <input type="number" class="phase-count" value="1" style="width:3rem;" /> images for
-  <input type="number" class="phase-minutes" value="0" style="width:3rem;" /> min
-  <input type="number" class="phase-seconds" value="30" style="width:3rem;" /> sec
-  <button class="btn mini remove-row" type="button" aria-label="Remove">✕</button>
-`;
-container.appendChild(row);
-recalcClassTotal();
-
+  addPhaseRow(1, 0, 30);
+  recalcClassTotal();
 });
 
 document.getElementById('insertBreakBtn').addEventListener('click', () => {
