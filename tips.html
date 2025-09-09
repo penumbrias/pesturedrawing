@@ -106,12 +106,121 @@ body:not(.in-session) #startBtn {
 /* Hide the CTA once the drawing session starts */
 body.in-session #startBtn { display: none !important; }
 
+/* === Warm dark grey theme + lighter overlays (drop-in override) === */
+
+/* Palette: neutral/warm greys with a subtle amber accent */
+:root {
+  --bg: #0f0e0d;                    /* page bg behind the photo */
+  --panel: rgba(22,22,24,.55);       /* glass on top of bg */
+  --card:  rgba(24,25,27,.62);
+  --text:  #eceae6;
+  --muted: #b8b2a8;                  /* warm grey for hints/labels */
+  --accent:#e2b86d;                  /* soft amber accent */
+  --ui:       #262524;               /* neutral button/nav bg */
+  --ui-border:#3b3833;               /* neutral border */
+  --ring:     rgba(226,184,109,.35); /* focus/hover “ring” */
+}
+
+/* Make the background image much clearer (lighter tint, no extra dim) */
+body::before{
+  background-image:
+    linear-gradient(to bottom, rgba(12,12,13,.20), rgba(12,12,13,.20)),
+    var(--bg-image);                 /* keep your chosen photo */
+  opacity: 1;                        /* show image as-is */
+  filter: none;                      /* no additional blur */
+}
+
+/* Panels: reduce blur and remove the cold blue tint */
+.setup,
+.card,
+.site-nav a {
+  background: var(--panel);
+  border-color: var(--ui-border);
+  backdrop-filter: blur(2px) saturate(1.02);
+  -webkit-backdrop-filter: blur(2px) saturate(1.02);
+}
+
+/* When not in session, keep the same (neutral) translucency */
+body:not(.in-session) .setup,
+body:not(.in-session) .card,
+body:not(.in-session) .site-nav a {
+  background: var(--panel) !important;
+  border-color: var(--ui-border) !important;
+}
+
+/* Links/buttons: move off blue, go neutral/amber */
+a { color: var(--accent); }
+
+/* All buttons neutral, with an amber CTA */
+.btn {
+  background: var(--ui);
+  border: 1px solid var(--ui-border);
+  color: var(--text);
+}
+.btn.primary {
+  background: var(--accent);
+  border-color: rgba(226,184,109,.45);
+  color: #1b1a18;
+}
+.btn:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* Tips/Guidance chip uses the neutral UI too */
+.site-nav a {
+  background: var(--ui);
+  border: 1px solid var(--ui-border);
+}
+
+/* Floating Start button ring (subtle, warm) */
+#startBtn {
+  box-shadow:
+    0 12px 32px rgba(0,0,0,.35),
+    0 0 0 1px var(--ui-border),
+    0 0 0 6px var(--ring);
+}
+
+/* Class editor: keep the larger inputs you liked, but use neutral fields */
+.class-row .field input[type="number"] {
+  background: #151515;
+  border: 1px solid var(--ui-border);
+  color: var(--text);
+}
+
+/* Break rows use same input sizing/feel as phases */
+.break-row .field input[type="number"] {
+  width: 4.75rem;
+  padding: .5rem .6rem;
+  background: #151515;
+  border: 1px solid var(--ui-border);
+  color: var(--text);
+}
+
+/* Remove remnants of the previous blue chip backgrounds */
+.btn.mini,
+.move-btns .btn.mini,
+#classSettings .btn.mini {
+  background: var(--ui);
+  border-color: var(--ui-border);
+}
+
+/* Optional: tone down the card borders so the image shines through */
+.card { border-color: rgba(255,255,255,.07); }
+
+/* go from .20 → .12 for a very light veil */
+body::before{ background-image:
+  linear-gradient(to bottom, rgba(12,12,13,.12), rgba(12,12,13,.12)), var(--bg-image);
+}
+
+
+
   </style>
 </head>
 <body>
   <div class="wrap">
     <div class="topbar">
-      <h1 class="title">💡 Tips & Guidance</h1>
+      <h1 class="title">Tips & Guidance</h1>
       <a class="btn" href="./index.html">← Back to app</a>
     </div>
 
