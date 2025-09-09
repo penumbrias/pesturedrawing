@@ -44,6 +44,55 @@ body.in-session::before { opacity: 0; pointer-events: none; }
   body::before { background-attachment: scroll, scroll; }
 }
 
+/* === Class row: mobile-friendly layout === */
+@media (max-width: 560px) {
+  /* Tighter gaps so everything fits */
+  #classPhases .class-row { gap: .45rem; align-items: flex-start; }
+
+  /* Stack move buttons when customizing is ON, but don't force them visible */
+  #classSettings.customizing .class-row .move-btns {
+    flex-direction: column;
+    gap: .25rem;
+  }
+  #classPhases .class-row .btn.mini { padding: .32rem .48rem; line-height: 1.05; }
+
+  /* Inputs get a label underneath on mobile */
+  #classPhases .class-row .field {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  #classPhases .class-row .field input {
+    width: 3.3rem; /* compact but tap‑able */
+    text-align: center;
+  }
+  #classPhases .class-row .field .sub {
+    display: block;
+    font-size: .75rem;
+    color: var(--muted);
+    opacity: .9;
+    margin-top: .18rem;
+    line-height: 1;
+  }
+
+  /* Keep the ✕ remove button visible at the end */
+  #classPhases .class-row .remove-row { margin-left: auto; }
+
+  /* Hide desktop inline words on mobile (we add them with ::after on desktop) */
+  #classPhases .f-count::after,
+  #classPhases .f-min::after,
+  #classPhases .f-sec::after { content: none; }
+}
+
+/* === Desktop: keep the one‑line sentence using pseudo‑labels === */
+@media (min-width: 561px) {
+  #classPhases .field .sub { display: none; }
+  #classPhases .f-count::after { content: " images for"; margin: 0 .35rem 0 .35rem; color: var(--muted); }
+  #classPhases .f-min::after  { content: " min";        margin-left: .35rem;       color: var(--muted); }
+  #classPhases .f-sec::after  { content: " sec";        margin-left: .35rem;       color: var(--muted); }
+}
+
+
 
 /* Loading overlay */
 .loading-overlay {
@@ -340,15 +389,29 @@ Have fun!</p>
     <div id="classPhases" style="margin-top:.5rem;">
   <!-- default example phase row -->
   <div class="class-row class-phase" style="display:flex;align-items:center;gap:.5rem;margin:.25rem 0;">
-    <div class="move-btns">
-      <button class="btn mini move-up" type="button" aria-label="Move up">↑</button>
-      <button class="btn mini move-down" type="button" aria-label="Move down">↓</button>
-    </div>
-    <input type="number" class="phase-count" value="5" style="width:2rem;" /> imgs for
-    <input type="number" class="phase-minutes" value="0" style="width:2rem;" /> min
-    <input type="number" class="phase-seconds" value="10" style="width:2rem;" /> sec
-    <button class="btn mini remove-row" type="button" aria-label="Remove">✕</button>
+  <div class="move-btns">
+    <button class="btn mini move-up" type="button" aria-label="Move up">↑</button>
+    <button class="btn mini move-down" type="button" aria-label="Move down">↓</button>
   </div>
+
+  <div class="field f-count">
+    <input type="number" class="phase-count" value="5" style="width:3rem;" />
+    <div class="sub">images</div>
+  </div>
+
+  <div class="field f-min">
+    <input type="number" class="phase-minutes" value="0" style="width:3rem;" />
+    <div class="sub">min</div>
+  </div>
+
+  <div class="field f-sec">
+    <input type="number" class="phase-seconds" value="10" style="width:3rem;" />
+    <div class="sub">sec</div>
+  </div>
+
+  <button class="btn mini remove-row" type="button" aria-label="Remove">✕</button>
+</div>
+
 </div>
 <!-- Session length summary (display-only) -->
 <div class="row" id="classTotalRow" style="margin-top:.75rem; align-items:center;">
@@ -1819,9 +1882,9 @@ document.getElementById('addPhaseBtn').addEventListener('click', () => {
     <button class="btn mini move-up" type="button" aria-label="Move up">↑</button>
     <button class="btn mini move-down" type="button" aria-label="Move down">↓</button>
   </div>
-  <input type="number" class="phase-count" value="1" style="width:2rem;" /> imgs for
-  <input type="number" class="phase-minutes" value="0" style="width:2rem;" /> min
-  <input type="number" class="phase-seconds" value="30" style="width:2rem;" /> sec
+  <input type="number" class="phase-count" value="1" style="width:3rem;" /> images for
+  <input type="number" class="phase-minutes" value="0" style="width:3rem;" /> min
+  <input type="number" class="phase-seconds" value="30" style="width:3rem;" /> sec
   <button class="btn mini remove-row" type="button" aria-label="Remove">✕</button>
 `;
 container.appendChild(row);
@@ -1917,18 +1980,31 @@ function addPhaseRow(count, min, sec) {
   row.setAttribute('draggable', 'true');
   row.style.cssText = 'display:flex;align-items:center;gap:.5rem;margin:.25rem 0;';
   row.innerHTML = `
-  <div class="move-btns">
-    <button class="btn mini move-up" type="button" aria-label="Move up">↑</button>
-    <button class="btn mini move-down" type="button" aria-label="Move down">↓</button>
-  </div>
-  <input type="number" class="phase-count" value="${count}" style="width:3rem;" /> images for
-  <input type="number" class="phase-minutes" value="${min}" style="width:3rem;" /> min
-  <input type="number" class="phase-seconds" value="${sec}" style="width:3rem;" /> sec
-  <button class="btn mini remove-row" type="button" aria-label="Remove">✕</button>
-`;
+    <div class="move-btns">
+      <button class="btn mini move-up" type="button" aria-label="Move up">↑</button>
+      <button class="btn mini move-down" type="button" aria-label="Move down">↓</button>
+    </div>
 
+    <div class="field f-count">
+      <input type="number" class="phase-count" value="${count}" style="width:3rem;" />
+      <div class="sub">images</div>
+    </div>
+
+    <div class="field f-min">
+      <input type="number" class="phase-minutes" value="${min}" style="width:3rem;" />
+      <div class="sub">min</div>
+    </div>
+
+    <div class="field f-sec">
+      <input type="number" class="phase-seconds" value="${sec}" style="width:3rem;" />
+      <div class="sub">sec</div>
+    </div>
+
+    <button class="btn mini remove-row" type="button" aria-label="Remove">✕</button>
+  `;
   container.appendChild(row);
 }
+
 
 function addBreakRow(min, sec) {
   const container = document.getElementById('classPhases');
@@ -1936,19 +2012,29 @@ function addBreakRow(min, sec) {
   row.className = 'class-row break-row';
   row.setAttribute('draggable', 'true');
   row.style.cssText = 'display:flex;align-items:center;gap:.5rem;margin:.25rem 0; background:#12131a; border:1px dashed #2a2d3a; padding:.35rem .5rem; border-radius:8px;';
- row.innerHTML = `
-  <div class="move-btns">
-    <button class="btn mini move-up" type="button" aria-label="Move up">↑</button>
-    <button class="btn mini move-down" type="button" aria-label="Move down">↓</button>
-  </div>
-  <strong>Break</strong> for
-  <input type="number" class="break-minutes" value="${min}" style="width:3rem;" /> min
-  <input type="number" class="break-seconds" value="${sec}" style="width:3rem;" /> sec
-  <button class="btn mini remove-row" type="button" aria-label="Remove">✕</button>
-`;
+  row.innerHTML = `
+    <div class="move-btns">
+      <button class="btn mini move-up" type="button" aria-label="Move up">↑</button>
+      <button class="btn mini move-down" type="button" aria-label="Move down">↓</button>
+    </div>
 
+    <strong>Break</strong>
+
+    <div class="field f-min">
+      <input type="number" class="break-minutes" value="${min}" style="width:3rem;" />
+      <div class="sub">min</div>
+    </div>
+
+    <div class="field f-sec">
+      <input type="number" class="break-seconds" value="${sec}" style="width:3rem;" />
+      <div class="sub">sec</div>
+    </div>
+
+    <button class="btn mini remove-row" type="button" aria-label="Remove">✕</button>
+  `;
   container.appendChild(row);
 }
+
 
 function resetClassToDefault() {
   // Show Class UI (but do NOT enable customizing)
