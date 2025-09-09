@@ -230,6 +230,12 @@ body:not(.in-session) #startBtn {
   }
 }
 
+/* Show Tips/Guidance only on the setup screen */
+.site-nav { display: none; }                  /* hidden by default */
+body.at-setup .site-nav { display: flex; }    /* visible on setup */
+body.in-session .site-nav { display: none !important; } /* extra safety */
+
+
 /* Hide the CTA once the drawing session starts */
 body.in-session #startBtn { display: none !important; }
 
@@ -238,6 +244,7 @@ body.in-session #startBtn { display: none !important; }
   <audio id="bellSound" src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" preload="auto"></audio>
 </head>
 <body>
+<body class="at-setup">
 <!-- Top navigation -->
 <nav class="site-nav" aria-label="Primary">
   <a href="./tips.html" id="tipsLink">Tips / Guidance</a>
@@ -1591,6 +1598,9 @@ function refreshImage() {
 
 function togglePause() { isPaused = !isPaused; document.getElementById("pauseBtn").innerText = isPaused ? "▶️" : "⏸️"; }
 function endSession() {
+document.body.classList.remove('in-session');
+document.body.classList.remove('at-setup'); // hide Tips button on the finished screen
+
   clearInterval(sessionTimer);
   document.getElementById("viewer").style.display = "none";
   document.getElementById("breakScreen").style.display = "none";
@@ -1605,6 +1615,9 @@ function endSession() {
 function parseBellTimes() { return document.getElementById("bellTimes").value.split(",").map(n=>parseInt(n.trim())).filter(n=>!isNaN(n)); }
 
 async function startSession() {
+document.body.classList.remove('at-setup');
+document.body.classList.add('in-session');
+
   // Prime audio while we’re still in the click handler
   ensureAudio();
   // Read session options
@@ -1756,6 +1769,9 @@ setHint(ok ? 'Select one or more boards below' : 'Could not reach Pinterest — 
 
 // Basic helpers
 function backToSetup(){
+document.body.classList.remove('in-session');
+document.body.classList.add('at-setup');
+
   document.getElementById('finishedScreen').style.display = 'none';
   document.getElementById('setup').style.display = 'block';
   document.body.classList.remove('in-session');   // ← add this line
@@ -1803,9 +1819,9 @@ document.getElementById('addPhaseBtn').addEventListener('click', () => {
     <button class="btn mini move-up" type="button" aria-label="Move up">↑</button>
     <button class="btn mini move-down" type="button" aria-label="Move down">↓</button>
   </div>
-  <input type="number" class="phase-count" value="1" style="width:3rem;" /> images for
-  <input type="number" class="phase-minutes" value="0" style="width:3rem;" /> min
-  <input type="number" class="phase-seconds" value="30" style="width:3rem;" /> sec
+  <input type="number" class="phase-count" value="1" style="width:2rem;" /> imgs for
+  <input type="number" class="phase-minutes" value="0" style="width:2rem;" /> min
+  <input type="number" class="phase-seconds" value="30" style="width:2rem;" /> sec
   <button class="btn mini remove-row" type="button" aria-label="Remove">✕</button>
 `;
 container.appendChild(row);
