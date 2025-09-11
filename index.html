@@ -4,6 +4,14 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Pesture Drawing</title>
+<!-- Favicon / app icons -->
+
+<link rel="icon" type="image/png" sizes="32x32" href="img/favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="img/favicon-16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="img/apple-touch-icon.png">
+<link rel="mask-icon" href="img/safari-pinned-tab.svg" color="#911d1d">
+<meta name="theme-color" content="#0f0e0d">
+
   <style>
 
 /* === THEME (single source of truth) ===================================== */
@@ -405,6 +413,35 @@ body.in-session #startBtn{ display:none !important; }
   --accent: #911d1d;              /* deep maroon */
   --accent-ink: #b02c2c;           /* readable text on dark maroon */
   --ring: rgba(139,30,63,.35);    /* focus ring that matches the new accent */
+}
+
+/* Show the CTA only while we're on the setup screen */
+#startBtn { display: none; }
+body.at-setup #startBtn { display: inline-flex; }
+
+/* (You can keep your existing `body.in-session #startBtn{display:none}`; 
+   this rule just makes it future‑proof for the finished screen too.) */
+
+/* Stronger ink color for text on primary buttons */
+:root { --accent-ink: #0b0c0d; } /* near-black, desaturated */
+
+/* Belt-and-suspenders: force the start button text specifically */
+#startBtn.btn.primary { color: #0b0c0d !important; }
+
+/* Final theme tokens */
+:root{
+  --bg: #0f0e0d;
+  --text: #eceae6;
+  --muted: #b9b3aa;
+
+  --accent: #911d1d;  /* deep maroon */
+  --accent-ink: #0b0c0d; /* near-black text on accent */
+  --ring: rgba(145,29,29,.35);
+
+  --panel: rgba(22,22,24,.34);
+  --card:  rgba(24,25,27,.42);
+  --ui:    #262524;
+  --ui-border: rgba(255,255,255,.11);
 }
 
 
