@@ -445,6 +445,17 @@ body.at-setup #startBtn { display: inline-flex; }
 }
 
 
+/* Start button: no border, no halo/ring */
+#startBtn{
+  border: none !important;                     /* remove the physical 1px border */
+  box-shadow: 0 12px 32px rgba(0,0,0,.35) !important; /* keep only the drop shadow */
+}
+#startBtn:focus,
+#startBtn:focus-visible{
+  outline: none;                                /* stop the browser’s default focus outline */
+}
+
+
   </style>
   <audio id="bellSound" src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" preload="auto"></audio>
 </head>
