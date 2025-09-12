@@ -318,6 +318,18 @@ body.in-session::before { opacity: 0; pointer-events: none; }
   }
 }
 
+@media (max-width: 560px) {
+  #startBtn {
+    left: .85rem;
+    right: .85rem;
+    /* Center the label */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    text-align: center; /* fallback */
+  }
+}
+
 /* Respect reduced‑motion users (no subtle hover shifts, etc.) */
 @media (prefers-reduced-motion: no-preference) {
   #startBtn:hover { transform: translateY(-1px); }
