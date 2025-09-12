@@ -464,6 +464,15 @@ body.at-setup #startBtn { display: inline-flex; }
 }
 
 
+/* Desktop: make the Start Drawing button larger */
+@media (min-width: 1024px) {
+  #startBtn{
+    font-size: 1.15rem;     /* ~18px; give it more presence */
+    padding: 1.1rem 1.5rem; /* taller & wider hit area   */
+    min-width: 230px;       /* optional: keeps it from looking too small */
+  }
+}
+
   </style>
   <audio id="bellSound" src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" preload="auto"></audio>
 </head>
