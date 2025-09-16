@@ -255,6 +255,9 @@ body.in-session::before { opacity: 0; pointer-events: none; }
     .session-controls { position: absolute; top: 1rem; right: 1rem; display: flex; gap: .5rem; }
     .session-controls .btn { padding: .5rem .75rem; font-size: 1rem; }
 
+
+
+
     .timer { position: absolute; top: 1rem; left: 1rem; color: white; font-size: 2rem; text-shadow: 0 1px 2px rgba(0,0,0,.6); }
     #sessionTimer { top: 3.5rem; }
     #breakNextLabel { position: absolute; top: 1rem; left: 50%; transform: translateX(-50%); color: #b3b3b3; font-size: 1.1rem; display:none; letter-spacing:.02em; }
@@ -473,6 +476,37 @@ body.at-setup #startBtn { display: inline-flex; }
   }
 }
 
+/* === Session UI toggle (eye) ============================================= */
+.ui-toggle{
+  position: absolute;
+  top: .75rem;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 44px; height: 44px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: transparent; border: 0; padding: 0;
+  color: rgba(255,255,255,.9);
+  opacity: .35;
+  cursor: pointer;
+  z-index: 9200;                /* above controls, below loader (10000) */
+}
+.ui-toggle:hover,
+.ui-toggle:focus-visible{ opacity: .9; outline: none; }
+.ui-toggle .closed{ display: none; }
+
+/* When the UI is hidden, swap the icon and hide timers/controls */
+#viewer.chrome-hidden .ui-toggle .open{ display: none; }
+#viewer.chrome-hidden .ui-toggle .closed{ display: block; }
+
+/* Hide the “chrome” (but keep the image and eye button) */
+#viewer.chrome-hidden .timer,
+#viewer.chrome-hidden .session-controls,
+#viewer.chrome-hidden #breakNextLabel,
+#viewer.chrome-hidden #viewerToggles{
+  display: none !important;
+}
+
+
   </style>
   <audio id="bellSound" src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" preload="auto"></audio>
 </head>
@@ -690,6 +724,26 @@ If you do not want a countdown bell, clear the "Bell Times" section.
 
   <!-- Viewer -->
   <div class="fullscreen" id="viewer">
+<button id="uiToggleBtn" class="ui-toggle" type="button"
+          aria-label="Hide UI (H)" aria-pressed="false" title="Hide UI (H)">
+    <!-- Open eye (shown when UI is visible) -->
+    <svg class="icon open" viewBox="0 0 24 24" width="22" height="22"
+         fill="none" stroke="currentColor" stroke-width="2"
+         stroke-linecap="round" stroke-linejoin="round">
+      <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"></path>
+      <circle cx="12" cy="12" r="3"></circle>
+    </svg>
+    <!-- Closed eye (shown when UI is hidden) -->
+    <svg class="icon closed" viewBox="0 0 24 24" width="22" height="22"
+         fill="none" stroke="currentColor" stroke-width="2"
+         stroke-linecap="round" stroke-linejoin="round">
+      <path d="M3 3l18 18"></path>
+      <path d="M10.58 10.58A3 3 0 0 0 12 15a3 3 0 0 0 2.12-.88"></path>
+      <path d="M9.9 4.24A10.94 10.94 0 0 1 12 4c7 0 11 8 11 8a21.32 21.32 0 0 1-3.25 3.94"></path>
+      <path d="M6.54 6.54A21.32 21.32 0 0 0 1 12s4 8 11 8a10.94 10.94 0 0 0 4.06-.77"></path>
+    </svg>
+  </button>
+
     <div class="timer" id="imageTimer">00:00</div>
     <div class="timer" id="sessionTimer">00:00</div>
     <div id="breakNextLabel">Break next</div>
@@ -700,7 +754,8 @@ If you do not want a countdown bell, clear the "Bell Times" section.
       <button class="btn" id="endBtn">⏹️</button>
                <button class="btn" id="refreshBtn" title="Refresh image">🔄</button>
     </div>
-    <div style="position:absolute; bottom:1rem; left:1rem; display:flex; gap:.5rem;">
+    <div id="viewerToggles" style="position:absolute; bottom:1rem; left:1rem; display:flex; gap:.5rem;">
+
   <button class="btn" id="fitToScreenBtn" type="button">Fit to Screen: Off</button>
   <button class="btn" id="toggleImgTimerBtn">Toggle Image Timer</button>
   <button class="btn" id="toggleSessTimerBtn">Toggle Session Timer</button>
@@ -747,6 +802,34 @@ document.querySelectorAll('input[name="sourceMode"]').forEach(r => {
   r.addEventListener('change', e => applySourceMode(e.target.value));
 });
 applySourceMode(SOURCE_MODE);
+
+
+function setUiHidden(hidden){
+  const viewer = document.getElementById('viewer');
+  const btn = document.getElementById('uiToggleBtn');
+  viewer.classList.toggle('chrome-hidden', hidden);
+  if (btn){
+    btn.setAttribute('aria-pressed', hidden ? 'true' : 'false');
+    btn.setAttribute('aria-label', hidden ? 'Show UI (H)' : 'Hide UI (H)');
+    btn.title = hidden ? 'Show UI (H)' : 'Hide UI (H)';
+  }
+}
+
+function toggleUiHidden(){
+  const viewer = document.getElementById('viewer');
+  setUiHidden(!viewer.classList.contains('chrome-hidden'));
+}
+
+// Eye button click
+document.getElementById('uiToggleBtn')?.addEventListener('click', toggleUiHidden);
+
+// Keyboard shortcut: H to toggle
+document.addEventListener('keydown', (e) => {
+  if (e.key && e.key.toLowerCase() === 'h'){
+    const viewer = document.getElementById('viewer');
+    if (viewer && viewer.style.display === 'flex') toggleUiHidden();
+  }
+});
 
 
 // Sample images per board (always available)
@@ -1650,6 +1733,8 @@ async function logoutPinterest() {
 
 
 function shouldEndSession() {
+setUiHidden(false);
+
   if (limitMode === "endless") return false;
   if (limitMode === "count") return currentIndex >= limitValue;
   if (limitMode === "time") {
@@ -1968,6 +2053,8 @@ await preloadImage(firstSrc);
 
 // Enter viewer and start (paint first, then hide setup)
 document.getElementById('viewer').style.display = 'flex';
+setUiHidden(false);   // ensure chrome is visible at session start
+
 showImage();
 document.getElementById('setup').style.display = 'none';
 setLoading(false);
