@@ -477,11 +477,14 @@ body.at-setup #startBtn { display: inline-flex; }
 }
 
 /* === Session UI toggle (eye) ============================================= */
+/* Bottom-right eye toggle */
 .ui-toggle{
-  position: absolute;
-  top: .75rem;
-  left: 50%;
-  transform: translateX(-50%);
+  position: absolute;              /* or 'fixed' if you want it pinned to the viewport */
+  bottom: calc(1rem + env(safe-area-inset-bottom));
+  right: 1rem;
+  top: auto;
+  left: auto;
+  transform: none;
   width: 44px; height: 44px;
   display: inline-flex; align-items: center; justify-content: center;
   background: transparent; border: 0; padding: 0;
