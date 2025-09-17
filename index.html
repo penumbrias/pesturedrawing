@@ -14,6 +14,42 @@
 
   <style>
 
+/* === End Session confirm modal ========================================== */
+.confirm-overlay{
+  position: fixed; inset: 0;
+  display: none;                     /* toggled via JS */
+  align-items: center; justify-content: center;
+  background: rgba(0,0,0,.55);
+  z-index: 10040;                    /* under loading overlay (10000+) */
+}
+/* Show/hide End Session modal via aria-hidden */
+.confirm-overlay[aria-hidden="true"]  { display: none; }
+.confirm-overlay[aria-hidden="false"] { display: flex; }
+
+.confirm-dialog{
+  width: min(420px, calc(100vw - 2rem));
+  background: var(--card);
+  border: 1px solid var(--ui-border);
+  border-radius: 14px;
+  padding: 1rem 1rem 0.8rem;
+  color: var(--text);
+  box-shadow: 0 20px 50px rgba(0,0,0,.45);
+}
+.confirm-dialog h2{
+  margin: 0 0 .35rem 0;
+  font-size: 1.2rem; letter-spacing: .01em;
+}
+.confirm-sub{
+  margin: 0 0 .9rem 0;
+  color: var(--muted);
+}
+.confirm-actions{
+  display: flex; gap: .5rem;
+  justify-content: flex-end;
+  padding: .25rem 0 .5rem;
+}
+
+
 /* === THEME (single source of truth) ===================================== */
 /* Warm dark greys + wine/maroon accent, lighter/clearer panels */
 :root{
@@ -781,6 +817,20 @@ If you do not want a countdown bell, clear the "Bell Times" section.
     <button class="btn" id="backToSetupBtn" style="margin-top:1rem;">Back to Setup</button>
   </div>
 
+<!-- End Session confirmation -->
+<div id="endConfirm" class="confirm-overlay" role="dialog" aria-modal="true" aria-labelledby="endConfirmTitle" aria-hidden="true">
+  <div class="confirm-dialog">
+    <h2 id="endConfirmTitle">End Session?</h2>
+    <p class="confirm-sub">Your current drawing session will stop immediately.</p>
+
+    <div class="confirm-actions">
+      <button class="btn" id="continueSessionBtn" type="button">Continue Session</button>
+      <button class="btn primary" id="confirmEndBtn" type="button">End</button>
+    </div>
+  </div>
+</div>
+
+
 <script>
 /******************************
  *  Pinterest + Fallback Core *
@@ -892,9 +942,10 @@ document.getElementById('uiToggleBtn')?.addEventListener('click', toggleUiHidden
         e.preventDefault();
         break;
 
-      case 'E': case 'e':
-        endSession();
-        break;
+case 'E': case 'e':
+  openEndConfirm();
+  break;
+
     }
   });
 })();
@@ -2014,6 +2065,45 @@ document.body.classList.remove('at-setup'); // hide Tips button on the finished 
 }
 
 
+function openEndConfirm(){
+  const ov = document.getElementById('endConfirm');
+  if (!ov) { endSession(); return; }
+  ov.setAttribute('aria-hidden', 'false');
+  document.getElementById('confirmEndBtn')?.focus(); // focus the primary action
+}
+
+
+function closeEndConfirm(){
+  const ov = document.getElementById('endConfirm');
+  if (!ov) return;
+  ov.setAttribute('aria-hidden', 'true');
+}
+
+// Wire modal buttons (safe with optional chaining)
+document.getElementById('confirmEndBtn')?.addEventListener('click', () => {
+  closeEndConfirm();
+  endSession();           // actual end happens here
+});
+document.getElementById('continueSessionBtn')?.addEventListener('click', closeEndConfirm);
+
+// Click on the dark backdrop = cancel
+document.getElementById('endConfirm')?.addEventListener('click', (e) => {
+  if (e.target === e.currentTarget) closeEndConfirm();
+});
+
+// While modal is open: Esc = cancel, Enter = confirm
+document.addEventListener('keydown', (e) => {
+  const ov = document.getElementById('endConfirm');
+  const open = ov && ov.getAttribute('aria-hidden') === 'false';
+  if (!open) return;
+  if (e.key === 'Escape'){ e.preventDefault(); closeEndConfirm(); }
+  if (e.key === 'Enter'){  e.preventDefault(); document.getElementById('confirmEndBtn')?.click(); }
+});
+</script>
+
+
+<script>
+
 /**********************
  *  UI Event Wiring   *
  **********************/
@@ -2197,7 +2287,7 @@ document.getElementById('prevBtn').addEventListener('click', prevImage);
 document.getElementById('pauseBtn').addEventListener('click', togglePause);
 document.getElementById('nextBtn').addEventListener('click', nextImage);
 document.getElementById('refreshBtn').addEventListener('click', refreshImage);
-document.getElementById('endBtn').addEventListener('click', endSession);
+document.getElementById('endBtn').addEventListener('click', openEndConfirm);
 document.getElementById('toggleImgTimerBtn').addEventListener('click', toggleImageTimer);
 document.getElementById('toggleSessTimerBtn').addEventListener('click', toggleSessionTimer);
 document.getElementById('fitToScreenBtn').addEventListener('click', toggleFitToScreen);
