@@ -826,13 +826,81 @@ function toggleUiHidden(){
 // Eye button click
 document.getElementById('uiToggleBtn')?.addEventListener('click', toggleUiHidden);
 
-// Keyboard shortcut: H to toggle
-document.addEventListener('keydown', (e) => {
-  if (e.key && e.key.toLowerCase() === 'h'){
+<script>
+// --- Keyboard shortcuts ----------------------------------------------------
+// H = Hide/Show UI chrome
+// F = Fit to Screen
+// I = Toggle Image Timer
+// S = Toggle Session Timer
+// ← = Previous image
+// → = Next image
+// R = Refresh image  (ignored if Ctrl/Cmd is held, so browser refresh still works)
+// E = End Session
+
+(function addKeyboardShortcuts(){
+  const isTyping = (e) => {
+    const el = e.target;
+    return el && (
+      el.tagName === 'INPUT' ||
+      el.tagName === 'TEXTAREA' ||
+      el.isContentEditable
+    );
+  };
+
+  document.addEventListener('keydown', (e) => {
+    // Never hijack keys while typing in form fields
+    if (isTyping(e)) return;
+
     const viewer = document.getElementById('viewer');
-    if (viewer && viewer.style.display === 'flex') toggleUiHidden();
-  }
-});
+    const inViewer = viewer && viewer.style.display === 'flex';
+    const k = e.key;
+
+    // Global: H toggles the on-screen chrome (eye)
+    if (k && k.toLowerCase() === 'h') {
+      if (inViewer) toggleUiHidden();
+      return;
+    }
+
+    // The rest only when the viewer is active
+    if (!inViewer) return;
+
+    switch (k) {
+      case 'F': case 'f':
+        toggleFitToScreen();
+        break;
+
+      case 'I': case 'i':
+        toggleImageTimer();
+        break;
+
+      case 'S': case 's':
+        toggleSessionTimer();
+        break;
+
+      case 'ArrowLeft':
+        prevImage();
+        e.preventDefault();   // don't scroll the page
+        break;
+
+      case 'ArrowRight':
+        nextImage();
+        e.preventDefault();
+        break;
+
+      case 'R': case 'r':
+        if (e.metaKey || e.ctrlKey) return; // respect Cmd/Ctrl+R for browser refresh
+        refreshImage();
+        e.preventDefault();
+        break;
+
+      case 'E': case 'e':
+        endSession();
+        break;
+    }
+  });
+})();
+</script>
+
 
 
 // Sample images per board (always available)
@@ -2578,6 +2646,9 @@ if (isClass) {
   <div class="text" id="loadingText">Preparing drawing session…</div>
 </div>
 
+
+
+
 <script>
   // Add your images here (relative paths)
   const BG_IMAGES = [
@@ -2599,9 +2670,35 @@ if (isClass) {
     document.documentElement.style.setProperty('--bg-image', url);
   }
 
-  window.addEventListener('DOMContentLoaded', setRandomBackground);
 </script>
+
 <script>
+window.addEventListener('DOMContentLoaded', () => {
+  // 1) Set a random background
+  setRandomBackground();
+
+  // 2) Add tooltips (titles) to controls once they exist
+  const id = (x) => document.getElementById(x);
+  id('fitToScreenBtn')?.setAttribute('title', 'Fit to Screen (F)');
+  id('toggleImgTimerBtn')?.setAttribute('title', 'Toggle Image Timer (I)');
+  id('toggleSessTimerBtn')?.setAttribute('title', 'Toggle Session Timer (S)');
+  id('prevBtn')?.setAttribute('title', 'Previous Image (←)');
+  id('nextBtn')?.setAttribute('title', 'Next Image (→)');
+  id('refreshBtn')?.setAttribute('title', 'Refresh Image (R)');
+  id('endBtn')?.setAttribute('title', 'End Session (E)');
+  id('uiToggleBtn')?.setAttribute('title', 'Hide/Show UI (H)');
+
+  // 3) Hoist the Start button so its fixed positioning is relative to the viewport
+  const start = id('startBtn');
+  const row = start?.closest('.col-12');
+  if (start) document.body.appendChild(start);
+  if (row && row.childElementCount === 0) row.remove();
+});
+</script>
+
+
+<script>
+
   // Hoist the Start button so position:fixed is relative to the viewport,
   // not the blurred .setup panel.
   window.addEventListener('DOMContentLoaded', () => {
