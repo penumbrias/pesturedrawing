@@ -821,8 +821,7 @@ If you do not want a countdown bell, clear the "Bell Times" section.
 <div id="endConfirm" class="confirm-overlay" role="dialog" aria-modal="true" aria-labelledby="endConfirmTitle" aria-hidden="true">
   <div class="confirm-dialog">
     <h2 id="endConfirmTitle">End Session?</h2>
-    <p class="confirm-sub">Your current drawing session will stop immediately.</p>
-
+    
     <div class="confirm-actions">
       <button class="btn" id="continueSessionBtn" type="button">Continue Session</button>
       <button class="btn primary" id="confirmEndBtn" type="button">End</button>
@@ -2110,8 +2109,7 @@ document.addEventListener('keydown', (e) => {
 function parseBellTimes() { return document.getElementById("bellTimes").value.split(",").map(n=>parseInt(n.trim())).filter(n=>!isNaN(n)); }
 
 async function startSession() {
-document.body.classList.remove('at-setup');
-document.body.classList.add('in-session');
+
 
   // Prime audio while we’re still in the click handler
   ensureAudio();
@@ -2211,8 +2209,10 @@ setLoading(true, 'Loading first image…');
 await preloadImage(firstSrc);
 
 
-// Enter viewer and start (paint first, then hide setup)
-document.getElementById('viewer').style.display = 'flex';
+ // Enter viewer only now that everything is valid/ready
+ document.body.classList.remove('at-setup');
+ document.body.classList.add('in-session');
+ document.getElementById('viewer').style.display = 'flex';
 setUiHidden(false);   // ensure chrome is visible at session start
 
 showImage();
