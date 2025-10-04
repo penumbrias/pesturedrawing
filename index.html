@@ -612,6 +612,33 @@ Have fun!</p>
     <div class="hint" style="margin-top:.25rem">Tip: Ctrl/Cmd-click to select multiple.</div>
   </div>
 </div><!-- /#pinterestSource -->
+<!-- Sequenced boards UI (shown when 2+ boards are selected in either mode) -->
+<div id="sequenceOptions" style="display:none; margin-top:.75rem;">
+  <label style="display:flex; align-items:center; gap:.5rem;">
+    <input type="checkbox" id="sequenceToggle"> Sequence boards?
+  </label>
+
+  <div id="sequenceConfig" style="display:none; padding-left:.5rem; margin-top:.5rem;">
+    <div id="sequenceSummary" class="hint" style="margin-bottom:.5rem;">
+      Total images this session: <strong id="sequenceTotalCount">—</strong>
+      <span id="sequenceCycleHint" style="display:none;">
+        &nbsp;|&nbsp; Cycle length: <strong id="sequenceCycleLength">—</strong>
+      </span>
+    </div>
+
+    <!-- Per-board counts -->
+    <div id="sequenceRows" style="display:block;"></div>
+
+    <div class="row" style="gap:.5rem; margin-top:.5rem;">
+      <button type="button" class="btn" id="sequenceEqualize">Distribute equally</button>
+    </div>
+  </div>
+
+  <div id="mixHint" class="hint" style="margin-top:.25rem;">
+    (Off = randomly mix images from all selected boards)
+  </div>
+</div>
+
 </div><!-- /.col-12.card (Image Source) -->
 
    
@@ -1701,20 +1728,211 @@ let showImageTimer = true; let showSessionTimer = true;
 let fitToScreen = false;
 let slotHistory = {}; // { [slotIndex]: number[] } remembers image indices shown in each slot
 let deck = []; // indices not yet used this cycle
+// ——— Sequenced boards state ———
+let sequenceEnabled = false;
+let selectedBoards = [];             // [{ id, name }]
+let sequenceCounts = {};             // { [boardName]: number }
+let sequenceState = {                // per-board bags + cursors for endless cycling
+  bags: {},                          // { [boardName]: string[] }
+  cursors: {}                        // { [boardName]: number }
+};
+
 
 function buildDeck() {
+  // In endless+sequence mode, build a fresh cycle each time deck empties
+  if (sequenceEnabled && limitMode === 'endless') {
+    imageList = buildSequenceCycle(selectedBoards.map(b => b.name), sequenceCounts);
+  }
+
+  // Always build a sequential deck; randomize only when not sequencing
   deck = Array.from({ length: imageList.length }, (_, i) => i);
-  // Fisher–Yates shuffle
-  for (let i = deck.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [deck[i], deck[j]] = [deck[j], deck[i]];
+
+  if (!sequenceEnabled) {
+    // Fisher–Yates shuffle (random mix mode)
+    for (let i = deck.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [deck[i], deck[j]] = [deck[j], deck[i]];
+    }
+  } else {
+    // For sequence mode we want to keep the exact order of imageList.
+    // deck is already 0..n-1; dealOne() pops from the end, so reverse:
+    deck.reverse(); // popping from the end yields 0,1,2,... in order
   }
 }
+
 
 function dealOne() {
   if (!deck.length) buildDeck();   // when exhausted, reshuffle for the next cycle
   return deck.pop();
 }
+
+// ——— Planned totals (from the visible UI) ———
+function plannedImageTotalFromUI() {
+  const mode = document.querySelector('input[name="mode"]:checked')?.value || 'standard';
+  if (mode === 'class') {
+    let total = 0;
+    document.querySelectorAll('#classPhases .class-row').forEach(row => {
+      if (!row.classList.contains('break-row')) {
+        const n = parseInt(row.querySelector('.phase-count')?.value || '1', 10);
+        total += n;
+      }
+    });
+    return total;
+  }
+  const limit = document.querySelector('input[name="limit"]:checked')?.value || 'count';
+  if (limit === 'count') return parseInt(document.getElementById('limitCountValue')?.value || '0', 10);
+  if (limit === 'time') {
+    const per = (parseInt(document.getElementById('durationMin')?.value || '0', 10) * 60) +
+                (parseInt(document.getElementById('durationSec')?.value || '0', 10));
+    const totalMin = parseInt(document.getElementById('limitValue')?.value || '0', 10);
+    const strict = document.getElementById('strictTime')?.checked;
+    if (!per) return 0;
+    const totalSec = totalMin * 60;
+    return strict ? Math.floor(totalSec / per) : Math.ceil(totalSec / per);
+  }
+  return Infinity; // endless
+}
+
+// Same, but from the *already parsed* session vars inside startSession()
+function plannedImageTotalAtStart() {
+  if (sessionMode === 'class') return classImageSchedule.filter(p => !p.isBreak).length;
+  if (limitMode === 'count') return limitValue;
+  if (limitMode === 'time') {
+    const per = imageDuration || 1;
+    const totalSec = limitValue * 60;
+    return strictTime ? Math.floor(totalSec / per) : Math.ceil(totalSec / per);
+  }
+  return Infinity;
+}
+
+// Distribute counts equally across currently selected boards
+function equalizeSequenceCounts(total = plannedImageTotalFromUI()) {
+  const boards = getActiveBoards();
+  if (!boards.length) return;
+  const finite = Number.isFinite(total);
+  const base = finite ? Math.floor(total / boards.length) : 10; // default per-board for endless
+  const rem  = finite ? (total % boards.length) : 0;
+  sequenceCounts = {};
+  boards.forEach((b, i) => { sequenceCounts[b.name] = base + (finite && i < rem ? 1 : 0); });
+}
+
+// Render rows for per‑board counts
+function renderSequenceRows() {
+  const rows = document.getElementById('sequenceRows');
+  if (!rows) return;
+  rows.innerHTML = '';
+  getActiveBoards().forEach(b => {
+    const name = b.name;
+    const wrap = document.createElement('div');
+    wrap.style.margin = '.25rem 0';
+    wrap.innerHTML = `
+      <label style="display:flex; align-items:center; gap:.5rem;">
+        <span style="min-width:160px;">${name}</span>
+        <input type="number" min="0" class="sequence-count" data-board="${name}"
+               value="${sequenceCounts[name] ?? 0}" style="width:5rem;">
+        <span class="hint">images</span>
+      </label>
+    `;
+    rows.appendChild(wrap);
+  });
+  rows.querySelectorAll('.sequence-count').forEach(inp => {
+    inp.addEventListener('input', () => {
+      const b = inp.getAttribute('data-board');
+      const v = parseInt(inp.value || '0', 10);
+      sequenceCounts[b] = isNaN(v) ? 0 : v;
+      updateSequenceSummaryUI();
+    });
+  });
+}
+
+function updateSequenceSummaryUI() {
+  const totalEl = document.getElementById('sequenceTotalCount');
+  const cycleHint = document.getElementById('sequenceCycleHint');
+  const cycleLenEl = document.getElementById('sequenceCycleLength');
+  if (!totalEl) return;
+
+  const total = plannedImageTotalFromUI();
+  totalEl.textContent = Number.isFinite(total) ? total : '∞ (loops)';
+
+  const cycleLen = Object.values(sequenceCounts).reduce((a, b) => a + (parseInt(b)||0), 0);
+  if (cycleHint && cycleLenEl) {
+    const limit = document.querySelector('input[name="limit"]:checked')?.value;
+    cycleHint.style.display = (limit === 'endless') ? 'inline' : 'none';
+    cycleLenEl.textContent = cycleLen || 0;
+  }
+}
+
+// Show/hide sequence UI based on how many boards are selected
+function handleSequenceVisibility() {
+  const seqWrap = document.getElementById('sequenceOptions');
+  if (!seqWrap) return;
+  const boards = getActiveBoards();
+  const show = boards.length > 1;
+  seqWrap.style.display = show ? 'block' : 'none';
+  if (!show) return;
+
+  if (Object.keys(sequenceCounts).length === 0) {
+    equalizeSequenceCounts(plannedImageTotalFromUI());
+  }
+  renderSequenceRows();
+  updateSequenceSummaryUI();
+}
+
+// Fetch pins *per board* so we can build cycles like “10 A, 5 B, 3 C…”
+async function fetchPinsByBoard(boardObjs) {
+  const out = {};
+  // Detect sample boards by id prefix
+  const isSample = boardObjs.every(b => String(b.id).startsWith('sample-'));
+  if (isSample) {
+    for (const b of boardObjs) {
+      const name = b.name in SAMPLE_BOARDS ? b.name : 'misc. poses';
+      out[b.name] = shuffleArray(SAMPLE_BOARDS[name] || []);
+    }
+    return out;
+  }
+
+  // Real Pinterest boards via backend
+  for (const b of boardObjs) {
+    const pinsUrl = `${BACKEND_BASE}/api/pinterest/boards/${encodeURIComponent(b.id)}/pins?all=1&page_size=250`;
+    try {
+      const res = await fetch(pinsUrl, { credentials: 'include' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      const urls = (data?.pins || data || [])
+        .map(p => typeof p === 'string' ? p : (p.image_url || p.link || p.media?.images?.orig?.url))
+        .filter(u => typeof u === 'string' && /^https?:\/\//i.test(u));
+      out[b.name] = shuffleArray(urls);
+    } catch (e) {
+      console.warn('Pins fetch error for board', b.id, e);
+      out[b.name] = [];
+    }
+  }
+  return out;
+}
+
+// Build one “cycle” using sequenceState.bags + cursors
+function buildSequenceCycle(boardNames, counts) {
+  const cycle = [];
+  for (const name of boardNames) {
+    const need = Math.max(0, parseInt(counts[name] || 0, 10));
+    const bag = sequenceState.bags[name] || [];
+    if (!sequenceState.cursors.hasOwnProperty(name)) sequenceState.cursors[name] = 0;
+
+    for (let i = 0; i < need; i++) {
+      if (!bag.length) continue;
+      let idx = sequenceState.cursors[name] % bag.length;
+      cycle.push(bag[idx]);
+      sequenceState.cursors[name] = idx + 1;
+
+      // When we wrap, reshuffle that bag for variety next pass
+      if (sequenceState.cursors[name] % bag.length === 0) {
+        sequenceState.bags[name] = shuffleArray(bag);
+      }
+    }
+  }
+  return cycle;
+}
+
 
 function toggleFitToScreen() {
   fitToScreen = !fitToScreen;
@@ -2163,32 +2381,74 @@ if (sessionMode === 'class') {
     limitValue = classImageSchedule.length;
   }
 
-  // Build the image list based on current source mode
-let selected = getActiveBoards();
+  // Build the image list (mix vs. sequenced)
+  selectedBoards = getActiveBoards();
 
-if (SOURCE_MODE === 'pinterest' && !selected.length) {
-  alert('Please choose at least one board.');
-  return;
-}
-// In sample mode, default to "all samples" if nothing checked
-if (SOURCE_MODE === 'sample' && !selected.length) {
-  selected = Object.keys(SAMPLE_BOARDS).map((name, i) => ({ id: `sample-${i}`, name }));
-}
+  if (SOURCE_MODE === 'pinterest' && !selectedBoards.length) {
+    alert('Please choose at least one board.');
+    return;
+  }
+  if (SOURCE_MODE === 'sample' && !selectedBoards.length) {
+    // default to “all samples”
+    selectedBoards = Object.keys(SAMPLE_BOARDS).map((name, i) => ({ id: `sample-${i}`, name }));
+  }
 
-setLoading(true, SOURCE_MODE === 'pinterest'
-  ? 'Loading boards and pins from Pinterest…'
-  : 'Loading sample boards…');
+  // Read the toggle at start time
+  sequenceEnabled = !!(document.getElementById('sequenceToggle')?.checked && selectedBoards.length > 1);
 
-try {
-  imageList = await fetchPinsForBoards(selected);
-} catch (e) {
-  console.warn('Failed to fetch pins', e);
-  imageList = [];
-}
-// Fallback: if still empty, load all sample images so we always have something to show
-if (!Array.isArray(imageList) || imageList.length === 0) {
-  imageList = shuffleArray(Object.values(SAMPLE_BOARDS).flat());
-}
+  setLoading(true, SOURCE_MODE === 'pinterest'
+    ? (sequenceEnabled ? 'Loading boards and building sequence…' : 'Loading boards and pins from Pinterest…')
+    : (sequenceEnabled ? 'Loading sample boards and building sequence…' : 'Loading sample boards…'));
+
+  if (sequenceEnabled) {
+    // Prepare per‑board bags and build the first (or entire) list
+    try {
+      sequenceState.bags = await fetchPinsByBoard(selectedBoards);
+      sequenceState.cursors = {};
+    } catch (e) {
+      console.warn('Failed to fetch per-board pins', e);
+      sequenceState.bags = {};
+    }
+
+    // If nothing came back, fall back to all samples
+    if (!Object.values(sequenceState.bags).some(arr => (arr && arr.length))) {
+      sequenceState.bags = {};
+      Object.keys(SAMPLE_BOARDS).forEach(name => {
+        sequenceState.bags[name] = shuffleArray(SAMPLE_BOARDS[name]);
+      });
+    }
+
+    // Ensure counts are seeded
+    if (!Object.keys(sequenceCounts).length) {
+      equalizeSequenceCounts(plannedImageTotalAtStart());
+    }
+
+    const target = plannedImageTotalAtStart();
+    if (Number.isFinite(target)) {
+      // Build enough cycles to hit the planned total
+      const list = [];
+      while (list.length < target) {
+        list.push(...buildSequenceCycle(selectedBoards.map(b => b.name), sequenceCounts));
+        if (list.length === 0) break;
+      }
+      imageList = list.slice(0, target);
+    } else {
+      // Endless: a single cycle; buildDeck() will rebuild a fresh cycle each time
+      imageList = buildSequenceCycle(selectedBoards.map(b => b.name), sequenceCounts);
+    }
+  } else {
+    // MIX MODE (existing behavior)
+    try {
+      imageList = await fetchPinsForBoards(selectedBoards);
+    } catch (e) {
+      console.warn('Failed to fetch pins', e);
+      imageList = [];
+    }
+    if (!Array.isArray(imageList) || imageList.length === 0) {
+      imageList = shuffleArray(Object.values(SAMPLE_BOARDS).flat());
+    }
+  }
+
 
 
 
@@ -2799,6 +3059,51 @@ window.addEventListener('DOMContentLoaded', () => {
   if (start) document.body.appendChild(start);
   if (row && row.childElementCount === 0) row.remove();
 });
+
+  // ——— Sequence UI wiring ———
+  // 1) Show/hide the section when selection changes in either source mode
+  const userBoardsSel = document.getElementById('userBoards');
+  userBoardsSel?.addEventListener('change', handleSequenceVisibility);
+
+  const sampleList = document.getElementById('sampleBoardList');
+  if (sampleList) {
+    sampleList.addEventListener('change', (e) => {
+      if (e.target && e.target.matches('input[type="checkbox"]')) handleSequenceVisibility();
+    });
+  }
+
+  // 2) Toggle opens the config panel
+  const seqToggleEl = document.getElementById('sequenceToggle');
+  if (seqToggleEl) {
+    seqToggleEl.addEventListener('change', () => {
+      document.getElementById('sequenceConfig').style.display = seqToggleEl.checked ? 'block' : 'none';
+      updateSequenceSummaryUI();
+    });
+  }
+
+  // 3) Equalize button
+  const equalizeBtn = document.getElementById('sequenceEqualize');
+  equalizeBtn?.addEventListener('click', () => {
+    equalizeSequenceCounts(plannedImageTotalFromUI());
+    renderSequenceRows();
+    updateSequenceSummaryUI();
+  });
+
+  // 4) Keep totals in sync as the user changes timing/limits/mode
+  ['durationMin','durationSec','limitValue','limitCountValue','strictTime'].forEach(id => {
+    const el = document.getElementById(id);
+    el?.addEventListener('input', updateSequenceSummaryUI);
+  });
+  document.querySelectorAll('input[name="limit"]').forEach(r =>
+    r.addEventListener('change', updateSequenceSummaryUI)
+  );
+  document.querySelectorAll('input[name="mode"]').forEach(r =>
+    r.addEventListener('change', () => { handleSequenceVisibility(); updateSequenceSummaryUI(); })
+  );
+
+  // 5) Initial visibility
+  handleSequenceVisibility();
+
 </script>
 
 
