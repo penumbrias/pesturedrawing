@@ -579,6 +579,56 @@ body.at-setup #startBtn { display: inline-flex; }
   display: none !important;
 }
 
+/* === Mobile polish for Sequence rows (right-aligned controls) ============= */
+#sequenceRows { padding-right: .25rem; }
+
+#sequenceRows .sequence-row{
+  display: grid !important;
+  grid-template-columns: auto 1fr auto !important; /* move buttons | label | controls */
+  align-items: center;
+  gap: .5rem;
+}
+
+#sequenceRows .board-label{
+  width: 220px;                 /* fixed width; wraps if long */
+  white-space: normal;
+  word-break: break-word;
+  line-height: 1.25;
+}
+
+@media (max-width: 560px){
+  #sequenceRows .board-label{ width: 190px; }
+}
+
+#sequenceRows .right-controls{
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  justify-self: end;            /* pin controls to the right edge */
+}
+
+/* Remove the extra 'images' word; keep only the small mobile sub-label */
+#sequenceRows .field .field-label{ display: none !important; }
+#sequenceRows .field .sub{
+  display: block;
+  font-size: .75rem;
+  color: var(--muted);
+  opacity: .9;
+  margin-top: .18rem;
+  line-height: 1;
+}
+@media (min-width: 561px){ #sequenceRows .field .sub{ display: none; } }
+
+#sequenceRows .sequence-count{
+  width: 4.1rem;      /* a tad smaller than before */
+  text-align: center;
+}
+@media (max-width: 560px){
+  #sequenceRows .sequence-count{ width: 3.3rem; }
+}
+
+#sequenceRows .row-btns{ display: inline-flex; gap: .35rem; }
+
 
   </style>
   <audio id="bellSound" src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" preload="auto"></audio>
@@ -659,6 +709,8 @@ Have fun!</p>
         &nbsp;|&nbsp; Cycle length: <strong id="sequenceCycleLength">—</strong>
       </span>
     </div>
+<div id="sequenceTip" class="hint" style="margin: .15rem 0 .5rem 0;">Total images is defined by the Session type / Session limit.</div>
+
 
     <!-- Per-board counts -->
     <div id="sequenceRows" style="display:block;"></div>
@@ -1855,7 +1907,7 @@ async function fetchPinsByBoard(boardObjs) {
 }
 
 // Render the per-slot UI (with ↑/↓, ＋ and ✕)
-function renderSequenceRows() {
+function renderSequenceRows(){
   const rows = document.getElementById('sequenceRows');
   if (!rows) return;
   rows.innerHTML = '';
@@ -1864,28 +1916,31 @@ function renderSequenceRows() {
     const wrap = document.createElement('div');
     wrap.className = 'sequence-row';
     wrap.dataset.index = i;
-    wrap.style.cssText = 'display:flex;align-items:center;gap:.5rem;margin:.25rem 0;';
+    wrap.style.cssText = 'margin:.25rem 0;'; // spacing only, layout is in CSS above
     wrap.innerHTML = `
       <div class="move-btns" style="display:inline-flex; gap:.35rem; margin-right:.25rem;">
         <button class="btn mini move-up"   type="button" aria-label="Move up"   title="Move up">↑</button>
         <button class="btn mini move-down" type="button" aria-label="Move down" title="Move down">↓</button>
       </div>
 
-      <span class="board-label" style="min-width:160px;">${slot.name}</span>
+      <span class="board-label">${slot.name}</span>
 
-      <label class="field" style="display:inline-flex; align-items:center; gap:.5rem;">
-        <input type="number" min="0" class="sequence-count" value="${slot.count}" style="width:5rem;">
-        <span class="field-label">images</span>
-        <span class="sub">images</span>
-      </label>
-
-      <button class="btn mini duplicate-row" type="button" aria-label="Add this board again" title="Add this board again">＋</button>
-      <button class="btn mini remove-row"    type="button" aria-label="Remove this slot"      title="Remove this slot">✕</button>
+      <div class="right-controls">
+        <label class="field">
+          <input type="number" min="0" class="sequence-count" value="${slot.count}">
+          <span class="sub">images</span>
+        </label>
+        <div class="row-btns">
+          <button class="btn mini duplicate-row" type="button" aria-label="Add this board again" title="Add this board again">＋</button>
+          <button class="btn mini remove-row"    type="button" aria-label="Remove this slot"      title="Remove this slot">✕</button>
+        </div>
+      </div>
     `;
     rows.appendChild(wrap);
   });
 
   if (!rows.dataset.wired) {
+    // Move / Duplicate / Remove
     rows.addEventListener('click', (e) => {
       const rowEl = e.target.closest('.sequence-row');
       if (!rowEl) return;
@@ -1894,29 +1949,31 @@ function renderSequenceRows() {
       if (e.target.closest('.move-up')) {
         if (idx > 0) {
           [sequenceSlots[idx - 1], sequenceSlots[idx]] = [sequenceSlots[idx], sequenceSlots[idx - 1]];
-          renderSequenceRows(); updateSequenceSummaryUI();
+          renderSequenceRows(); clampCountsToPlanned(); updateSequenceSummaryUI();
         }
       } else if (e.target.closest('.move-down')) {
         if (idx < sequenceSlots.length - 1) {
           [sequenceSlots[idx + 1], sequenceSlots[idx]] = [sequenceSlots[idx], sequenceSlots[idx + 1]];
-          renderSequenceRows(); updateSequenceSummaryUI();
+          renderSequenceRows(); clampCountsToPlanned(); updateSequenceSummaryUI();
         }
       } else if (e.target.closest('.duplicate-row')) {
-        const copy = { ...sequenceSlots[idx] };
+        const copy = { ...sequenceSlots[idx], count: 0 }; // duplicate with 0 so totals don't overflow
         sequenceSlots.splice(idx + 1, 0, copy);
-        renderSequenceRows(); updateSequenceSummaryUI();
+        renderSequenceRows(); clampCountsToPlanned(); updateSequenceSummaryUI();
       } else if (e.target.closest('.remove-row')) {
         sequenceSlots.splice(idx, 1);
-        renderSequenceRows(); updateSequenceSummaryUI();
+        renderSequenceRows(); clampCountsToPlanned(); updateSequenceSummaryUI();
       }
     });
 
+    // Number inputs
     rows.addEventListener('input', (e) => {
       if (!e.target.classList.contains('sequence-count')) return;
       const rowEl = e.target.closest('.sequence-row');
       const idx = parseInt(rowEl.dataset.index, 10);
-      const val = parseInt(e.target.value || '0', 10);
+      const val = Math.max(0, parseInt(e.target.value || '0', 10));
       sequenceSlots[idx].count = isNaN(val) ? 0 : val;
+      clampCountsToPlanned();
       updateSequenceSummaryUI();
     });
 
@@ -1925,7 +1982,6 @@ function renderSequenceRows() {
 
   updateSequenceSummaryUI();
 }
-
 // Totals (planned; per-cycle for endless)
 function updateSequenceSummaryUI() {
   const totalEl    = document.getElementById('sequenceTotalCount');
@@ -2413,6 +2469,84 @@ document.addEventListener('keydown', (e) => {
 
 
 <script>
+
+<script>
+// How many images are allowed by the current setup screen?
+function plannedImageTotalFromUI(){
+  const mode  = document.querySelector('input[name="mode"]:checked')?.value || 'standard';
+  const limit = document.querySelector('input[name="limit"]:checked')?.value || 'count';
+
+  // Class mode: sum only the *image* rows (ignore breaks)
+  if (mode === 'class') {
+    let total = 0;
+    document.querySelectorAll('#classPhases .class-row').forEach(row => {
+      if (row.classList.contains('break-row')) return;
+      const n = parseInt(row.querySelector('.phase-count')?.value || '1', 10);
+      total += isNaN(n) ? 0 : Math.max(0, n);
+    });
+    return total;
+  }
+
+  // Standard mode
+  if (limit === 'count') {
+    const v = parseInt(document.getElementById('limitCountValue')?.value || '0', 10);
+    return Number.isFinite(v) ? Math.max(0, v) : 0;
+  }
+  if (limit === 'endless') return Infinity;
+
+  // Time-limited sessions vary (breaks etc.); treat as unbounded so we don't block you.
+  // If you *want* a hard cap here, replace Infinity with:
+  // Math.floor((Number(#limitValue)*60) / (Number(#durationMin)*60 + Number(#durationSec) || 1))
+  return Infinity;
+}
+
+function sumSequenceCounts(){
+  return sequenceSlots.reduce((s, sl) => s + (parseInt(sl.count) || 0), 0);
+}
+
+// Keep per-board counts from exceeding the allowed total (when finite)
+function clampCountsToPlanned(){
+  const planned = plannedImageTotalFromUI();
+  if (!Number.isFinite(planned)) return;   // nothing to clamp for endless/time
+
+  let used = 0;
+  sequenceSlots = sequenceSlots.map((slot, i) => {
+    let v = Math.max(0, parseInt(slot.count) || 0);
+    if (used + v > planned) v = Math.max(0, planned - used);
+    used += v;
+
+    // reflect back into the visible input if it exists
+    const input = document.querySelector(`#sequenceRows .sequence-row[data-index="${i}"] input.sequence-count`);
+    if (input) input.value = v;
+    return { ...slot, count: v };
+  });
+}
+
+// Recalculate totals shown above the rows
+function updateSequenceSummaryUI(){
+  const totalEl    = document.getElementById('sequenceTotalCount');
+  const cycleHint  = document.getElementById('sequenceCycleHint');
+  const cycleLenEl = document.getElementById('sequenceCycleLength');
+  if (!totalEl) return;
+
+  const planned = plannedImageTotalFromUI();
+  // If we have a finite plan, keep the rows from exceeding it
+  clampCountsToPlanned();
+
+  const plannedText = Number.isFinite(planned) ? planned : '∞ (loops)';
+  totalEl.textContent = plannedText;
+
+  // “Cycle length” = sum of the per-slot counts
+  const cycleLen = sequenceSlots.reduce((sum, s) => sum + (parseInt(s.count) || 0), 0);
+  if (cycleHint && cycleLenEl) {
+    const limit = document.querySelector('input[name="limit"]:checked')?.value;
+    cycleHint.style.display = (limit === 'endless') ? 'inline' : 'none';
+    cycleLenEl.textContent  = cycleLen || 0;
+  }
+}
+</script>
+
+
 
 /**********************
  *  UI Event Wiring   *
@@ -3167,11 +3301,13 @@ window.addEventListener('DOMContentLoaded', () => {
     updateSequenceSummaryUI();
   });
 
-  $('sequenceEqualize')?.addEventListener('click', () => {
-    equalizeSequenceSlots(plannedImageTotalFromUI());
-    renderSequenceRows();
-    updateSequenceSummaryUI();
-  });
+$('sequenceEqualize')?.addEventListener('click', () => {
+  equalizeSequenceSlots(plannedImageTotalFromUI());
+  clampCountsToPlanned();
+  renderSequenceRows();
+  updateSequenceSummaryUI();
+});
+
 
   ['durationMin','durationSec','limitValue','limitCountValue','strictTime'].forEach((fieldId) => {
     $(fieldId)?.addEventListener('input', updateSequenceSummaryUI);
