@@ -2502,7 +2502,7 @@ if (sessionMode === 'class') {
     } else {
       imageList = buildSequenceCycle(order, sequenceCounts);
     }
-  }
+  
 
   } else {
     // MIX MODE (existing behavior)
@@ -3107,83 +3107,59 @@ if (isClass) {
 
 <script>
 window.addEventListener('DOMContentLoaded', () => {
-  // 1) Set a random background
+  // 1) Background + helpful titles
   setRandomBackground();
+  const $ = (x) => document.getElementById(x);
+  $('fitToScreenBtn')?.setAttribute('title', 'Fit to Screen (F)');
+  $('toggleImgTimerBtn')?.setAttribute('title', 'Toggle Image Timer (I)');
+  $('toggleSessTimerBtn')?.setAttribute('title', 'Toggle Session Timer (S)');
+  $('prevBtn')?.setAttribute('title', 'Previous Image (←)');
+  $('nextBtn')?.setAttribute('title', 'Next Image (→)');
+  $('refreshBtn')?.setAttribute('title', 'Refresh Image (R)');
+  $('endBtn')?.setAttribute('title', 'End Session (E)');
+  $('uiToggleBtn')?.setAttribute('title', 'Hide/Show UI (H)');
 
-  // 2) Add tooltips (titles) to controls once they exist
-  const id = (x) => document.getElementById(x);
-  id('fitToScreenBtn')?.setAttribute('title', 'Fit to Screen (F)');
-  id('toggleImgTimerBtn')?.setAttribute('title', 'Toggle Image Timer (I)');
-  id('toggleSessTimerBtn')?.setAttribute('title', 'Toggle Session Timer (S)');
-  id('prevBtn')?.setAttribute('title', 'Previous Image (←)');
-  id('nextBtn')?.setAttribute('title', 'Next Image (→)');
-  id('refreshBtn')?.setAttribute('title', 'Refresh Image (R)');
-  id('endBtn')?.setAttribute('title', 'End Session (E)');
-  id('uiToggleBtn')?.setAttribute('title', 'Hide/Show UI (H)');
-
-  // 3) Hoist the Start button so its fixed positioning is relative to the viewport
-  const start = id('startBtn');
-  const row = start?.closest('.col-12');
+  // 2) Hoist the Start button once
+  const start = $('startBtn');
+  const row   = start?.closest('.col-12');
   if (start) document.body.appendChild(start);
   if (row && row.childElementCount === 0) row.remove();
-});
 
-  // ——— Sequence UI wiring ———
-  // 1) Show/hide the section when selection changes in either source mode
-  const userBoardsSel = document.getElementById('userBoards');
-  userBoardsSel?.addEventListener('change', handleSequenceVisibility);
+  // 3) Sequence UI wiring
+  $('userBoards')?.addEventListener('change', handleSequenceVisibility);
+  $('sampleBoardList')?.addEventListener('change', (e) => {
+    if (e.target && e.target.matches('input[type="checkbox"]')) handleSequenceVisibility();
+  });
 
-  const sampleList = document.getElementById('sampleBoardList');
-  if (sampleList) {
-    sampleList.addEventListener('change', (e) => {
-      if (e.target && e.target.matches('input[type="checkbox"]')) handleSequenceVisibility();
-    });
-  }
+  $('sequenceToggle')?.addEventListener('change', (e) => {
+    $('sequenceConfig').style.display = e.target.checked ? 'block' : 'none';
+    updateSequenceSummaryUI();
+  });
 
-  // 2) Toggle opens the config panel
-  const seqToggleEl = document.getElementById('sequenceToggle');
-  if (seqToggleEl) {
-    seqToggleEl.addEventListener('change', () => {
-      document.getElementById('sequenceConfig').style.display = seqToggleEl.checked ? 'block' : 'none';
-      updateSequenceSummaryUI();
-    });
-  }
-
-  // 3) Equalize button
-  const equalizeBtn = document.getElementById('sequenceEqualize');
-  equalizeBtn?.addEventListener('click', () => {
+  $('sequenceEqualize')?.addEventListener('click', () => {
     equalizeSequenceCounts(plannedImageTotalFromUI());
     renderSequenceRows();
     updateSequenceSummaryUI();
   });
 
-  // 4) Keep totals in sync as the user changes timing/limits/mode
-  ['durationMin','durationSec','limitValue','limitCountValue','strictTime'].forEach(id => {
-    const el = document.getElementById(id);
-    el?.addEventListener('input', updateSequenceSummaryUI);
+  ['durationMin','durationSec','limitValue','limitCountValue','strictTime'].forEach((fieldId) => {
+    $(fieldId)?.addEventListener('input', updateSequenceSummaryUI);
   });
-  document.querySelectorAll('input[name="limit"]').forEach(r =>
+  document.querySelectorAll('input[name="limit"]').forEach((r) =>
     r.addEventListener('change', updateSequenceSummaryUI)
   );
-  document.querySelectorAll('input[name="mode"]').forEach(r =>
-    r.addEventListener('change', () => { handleSequenceVisibility(); updateSequenceSummaryUI(); })
+  document.querySelectorAll('input[name="mode"]').forEach((r) =>
+    r.addEventListener('change', () => {
+      handleSequenceVisibility();
+      updateSequenceSummaryUI();
+    })
   );
 
-  // 5) Initial visibility
-// Re-run visibility (and thus reconcile + render) after board list changes
-document.getElementById('userBoards')?.addEventListener('change', handleSequenceVisibility);
-
-const sampleList = document.getElementById('sampleBoardList');
-if (sampleList) {
-  sampleList.addEventListener('change', (e) => {
-    if (e.target?.matches('input[type="checkbox"]')) handleSequenceVisibility();
-  });
-}
-
-// Make sure we start with a correct view
-handleSequenceVisibility();
-
+  // 4) Initial view
+  handleSequenceVisibility();
+});
 </script>
+
 
 
 <script>
