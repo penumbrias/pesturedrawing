@@ -205,6 +205,40 @@ body.in-session::before { opacity: 0; pointer-events: none; }
   #classPhases .f-sec::after { content: none; }
 }
 
+
+/* === Sequence rows: mobile-friendly layout === */
+@media (max-width: 560px) {
+  #sequenceRows .sequence-row { gap: .45rem; align-items: flex-start; }
+  #sequenceRows .move-btns { flex-direction: column; gap: .25rem; }
+  #sequenceRows .btn.mini { padding: .32rem .48rem; line-height: 1.05; }
+
+  #sequenceRows .board-label { min-width: auto; }
+
+  /* Label under the input, like the Class UI */
+  #sequenceRows .field {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  #sequenceRows .field input {
+    width: 3.3rem;               /* more compact on mobile */
+    text-align: center;
+  }
+  #sequenceRows .field .sub {
+    display: block;
+    font-size: .75rem;
+    color: var(--muted);
+    opacity: .9;
+    margin-top: .18rem;
+    line-height: 1;
+  }
+}
+
+/* Desktop: keep a single-line sentence with an inline label */
+@media (min-width: 561px) {
+  #sequenceRows .field .sub { display: none; }
+}
+
 /* === Desktop: keep the one‑line sentence using pseudo‑labels === */
 @media (min-width: 561px) {
   #classPhases .field .sub { display: none; }
@@ -1728,185 +1762,181 @@ let showImageTimer = true; let showSessionTimer = true;
 let fitToScreen = false;
 let slotHistory = {}; // { [slotIndex]: number[] } remembers image indices shown in each slot
 let deck = []; // indices not yet used this cycle
+
 // ——— Sequenced boards state ———
 let sequenceEnabled = false;
-let selectedBoards = [];             // [{ id, name }]
-let sequenceCounts = {};             // { [boardName]: number }
-let sequenceState = {                // per-board bags + cursors for endless cycling
-  bags: {},                          // { [boardName]: string[] }
-  cursors: {}                        // { [boardName]: number }
+let selectedBoards = [];   // [{ id, name }]
+let sequenceSlots = [];    // [{ name: 'Board A', count: 5 }, ...] (duplicates allowed)
+
+let sequenceState = {      // per-board bags + cursors for endless cycling
+  bags: {},                // { [boardName]: string[] }
+  cursors: {}              // { [boardName]: number }
 };
 
-// Current display order for the sequence (array of board *names*)
-let sequenceOrder = [];
-
-
-function buildDeck() {
-  // In endless+sequence mode, build a fresh cycle each time deck empties
-if (sequenceEnabled && limitMode === 'endless') {
-  const order = (sequenceOrder && sequenceOrder.length)
-    ? sequenceOrder
-    : selectedBoards.map(b => b.name);
-  imageList = buildSequenceCycle(order, sequenceCounts);
-}
-
-
-  // Always build a sequential deck; randomize only when not sequencing
-  deck = Array.from({ length: imageList.length }, (_, i) => i);
-
-  if (!sequenceEnabled) {
-    // Fisher–Yates shuffle (random mix mode)
-    for (let i = deck.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [deck[i], deck[j]] = [deck[j], deck[i]];
-    }
-  } else {
-    // For sequence mode we want to keep the exact order of imageList.
-    // deck is already 0..n-1; dealOne() pops from the end, so reverse:
-    deck.reverse(); // popping from the end yields 0,1,2,... in order
+// Keep slots in sync with the current selection; preserve order + duplicates
+function reconcileSequenceSlots(activeBoards /* [{id,name}] */) {
+  const selectedNames = activeBoards.map(b => b.name);
+  const kept = sequenceSlots.filter(s => selectedNames.includes(s.name));
+  const present = new Set(kept.map(s => s.name));
+  const added = selectedNames.filter(n => !present.has(n)).map(n => ({ name: n, count: 0 }));
+  sequenceSlots = [...kept, ...added];
+  if (!sequenceSlots.length && selectedNames.length) {
+    sequenceSlots = selectedNames.map(n => ({ name: n, count: 0 }));
   }
 }
 
-
-function dealOne() {
-  if (!deck.length) buildDeck();   // when exhausted, reshuffle for the next cycle
-  return deck.pop();
-}
-
-// Keep sequenceOrder in sync with the current selection, preserving prior order.
-function reconcileSequenceOrder(activeBoards /* [{id,name}] */) {
-  const names = activeBoards.map(b => b.name);
-  const prev  = sequenceOrder.slice();
-
-  const kept  = prev.filter(n => names.includes(n));
-  const added = names.filter(n => !prev.includes(n));
-
-  sequenceOrder = [...kept, ...added];
-
-  // Drop counts for removed boards; seed for new ones
-  Object.keys(sequenceCounts).forEach(n => { if (!names.includes(n)) delete sequenceCounts[n]; });
-  added.forEach(n => { if (sequenceCounts[n] == null) sequenceCounts[n] = 0; });
-}
-
-
-// ——— Planned totals (from the visible UI) ———
-function plannedImageTotalFromUI() {
-  const mode = document.querySelector('input[name="mode"]:checked')?.value || 'standard';
-  if (mode === 'class') {
-    let total = 0;
-    document.querySelectorAll('#classPhases .class-row').forEach(row => {
-      if (!row.classList.contains('break-row')) {
-        const n = parseInt(row.querySelector('.phase-count')?.value || '1', 10);
-        total += n;
-      }
-    });
-    return total;
-  }
-  const limit = document.querySelector('input[name="limit"]:checked')?.value || 'count';
-  if (limit === 'count') return parseInt(document.getElementById('limitCountValue')?.value || '0', 10);
-  if (limit === 'time') {
-    const per = (parseInt(document.getElementById('durationMin')?.value || '0', 10) * 60) +
-                (parseInt(document.getElementById('durationSec')?.value || '0', 10));
-    const totalMin = parseInt(document.getElementById('limitValue')?.value || '0', 10);
-    const strict = document.getElementById('strictTime')?.checked;
-    if (!per) return 0;
-    const totalSec = totalMin * 60;
-    return strict ? Math.floor(totalSec / per) : Math.ceil(totalSec / per);
-  }
-  return Infinity; // endless
-}
-
-// Same, but from the *already parsed* session vars inside startSession()
-function plannedImageTotalAtStart() {
-  if (sessionMode === 'class') return classImageSchedule.filter(p => !p.isBreak).length;
-  if (limitMode === 'count') return limitValue;
-  if (limitMode === 'time') {
-    const per = imageDuration || 1;
-    const totalSec = limitValue * 60;
-    return strictTime ? Math.floor(totalSec / per) : Math.ceil(totalSec / per);
-  }
-  return Infinity;
-}
-
-// Distribute counts equally across currently selected boards
-function equalizeSequenceCounts(total = plannedImageTotalFromUI()) {
-  const boards = getActiveBoards();
-  if (!boards.length) return;
+// Distribute a planned total across the current *slots* (not unique boards)
+function equalizeSequenceSlots(total = plannedImageTotalFromUI()) {
+  if (!sequenceSlots.length) return;
   const finite = Number.isFinite(total);
-  const base = finite ? Math.floor(total / boards.length) : 10; // default per-board for endless
-  const rem  = finite ? (total % boards.length) : 0;
-  sequenceCounts = {};
-  boards.forEach((b, i) => { sequenceCounts[b.name] = base + (finite && i < rem ? 1 : 0); });
+  const base = finite ? Math.floor(total / sequenceSlots.length) : 10; // per-slot default for endless
+  const rem  = finite ? (total % sequenceSlots.length) : 0;
+  sequenceSlots = sequenceSlots.map((slot, i) => ({
+    ...slot,
+    count: base + (finite && i < rem ? 1 : 0)
+  }));
 }
 
-// Render rows for per‑board counts
+// Build one cycle from the slots, pulling from each board’s bag in order
+function buildSequenceCycleFromSlots(slots) {
+  const cycle = [];
+  for (const slot of slots) {
+    const name = slot.name;
+    const need = Math.max(0, parseInt(slot.count || 0, 10));
+    const bag  = sequenceState.bags[name] || [];
+    if (!bag.length) continue;
+
+    if (!Object.prototype.hasOwnProperty.call(sequenceState.cursors, name)) {
+      sequenceState.cursors[name] = 0;
+    }
+
+    for (let i = 0; i < need; i++) {
+      const idx = sequenceState.cursors[name] % bag.length;
+      cycle.push(bag[idx]);
+      sequenceState.cursors[name] = idx + 1;
+
+      // on wrap: reshuffle for variety next pass
+      if (sequenceState.cursors[name] % bag.length === 0) {
+        sequenceState.bags[name] = shuffleArray(bag);
+      }
+    }
+  }
+  return cycle;
+}
+
+// Fetch pins per board (real or sample) for sequencing
+async function fetchPinsByBoard(boardObjs) {
+  const out = {};
+  const isSample = boardObjs.every(b => String(b.id).startsWith('sample-'));
+  if (isSample) {
+    for (const b of boardObjs) {
+      const name = b.name in SAMPLE_BOARDS ? b.name : 'misc. poses';
+      out[b.name] = shuffleArray(SAMPLE_BOARDS[name] || []);
+    }
+    return out;
+  }
+  // Real Pinterest via backend
+  for (const b of boardObjs) {
+    const pinsUrl = `${BACKEND_BASE}/api/pinterest/boards/${encodeURIComponent(b.id)}/pins?all=1&page_size=250`;
+    try {
+      const res = await fetch(pinsUrl, { credentials: 'include' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      const urls = (data?.pins || data || [])
+        .map(p => typeof p === 'string' ? p : (p.image_url || p.link || p.media?.images?.orig?.url))
+        .filter(u => typeof u === 'string' && /^https?:\/\//i.test(u));
+      out[b.name] = shuffleArray(urls);
+    } catch (e) {
+      console.warn('Pins fetch error for board', b.id, e);
+      out[b.name] = [];
+    }
+  }
+  return out;
+}
+
+// Render the per-slot UI (with ↑/↓, ＋ and ✕)
 function renderSequenceRows() {
   const rows = document.getElementById('sequenceRows');
   if (!rows) return;
   rows.innerHTML = '';
 
-  // Use explicit sequenceOrder if we have one; otherwise derive from current selection.
-  const order = (sequenceOrder && sequenceOrder.length)
-    ? sequenceOrder.slice()
-    : getActiveBoards().map(b => b.name);
-
-  order.forEach(name => {
+  sequenceSlots.forEach((slot, i) => {
     const wrap = document.createElement('div');
-    wrap.style.margin = '.25rem 0';
+    wrap.className = 'sequence-row';
+    wrap.dataset.index = i;
+    wrap.style.cssText = 'display:flex;align-items:center;gap:.5rem;margin:.25rem 0;';
     wrap.innerHTML = `
-      <div class="move-btns" style="display:inline-flex; gap:.35rem; margin-right:.5rem;">
-        <button class="btn mini move-up"   type="button" data-board="${name}" aria-label="Move up">↑</button>
-        <button class="btn mini move-down" type="button" data-board="${name}" aria-label="Move down">↓</button>
+      <div class="move-btns" style="display:inline-flex; gap:.35rem; margin-right:.25rem;">
+        <button class="btn mini move-up"   type="button" aria-label="Move up"   title="Move up">↑</button>
+        <button class="btn mini move-down" type="button" aria-label="Move down" title="Move down">↓</button>
       </div>
+
+      <span class="board-label" style="min-width:160px;">${slot.name}</span>
+
       <label class="field" style="display:inline-flex; align-items:center; gap:.5rem;">
-        <span style="min-width:160px;">${name}</span>
-        <input type="number" min="0" class="sequence-count" data-board="${name}"
-               value="${sequenceCounts[name] ?? 0}" style="width:5rem;">
-        <span class="hint">images</span>
+        <input type="number" min="0" class="sequence-count" value="${slot.count}" style="width:5rem;">
+        <span class="field-label">images</span>
+        <span class="sub">images</span>
       </label>
+
+      <button class="btn mini duplicate-row" type="button" aria-label="Add this board again" title="Add this board again">＋</button>
+      <button class="btn mini remove-row"    type="button" aria-label="Remove this slot"      title="Remove this slot">✕</button>
     `;
     rows.appendChild(wrap);
   });
 
-  // Count edits
-  rows.querySelectorAll('.sequence-count').forEach(inp => {
-    inp.addEventListener('input', () => {
-      const b = inp.getAttribute('data-board');
-      const v = parseInt(inp.value || '0', 10);
-      sequenceCounts[b] = isNaN(v) ? 0 : v;
+  if (!rows.dataset.wired) {
+    rows.addEventListener('click', (e) => {
+      const rowEl = e.target.closest('.sequence-row');
+      if (!rowEl) return;
+      const idx = parseInt(rowEl.dataset.index, 10);
+
+      if (e.target.closest('.move-up')) {
+        if (idx > 0) {
+          [sequenceSlots[idx - 1], sequenceSlots[idx]] = [sequenceSlots[idx], sequenceSlots[idx - 1]];
+          renderSequenceRows(); updateSequenceSummaryUI();
+        }
+      } else if (e.target.closest('.move-down')) {
+        if (idx < sequenceSlots.length - 1) {
+          [sequenceSlots[idx + 1], sequenceSlots[idx]] = [sequenceSlots[idx], sequenceSlots[idx + 1]];
+          renderSequenceRows(); updateSequenceSummaryUI();
+        }
+      } else if (e.target.closest('.duplicate-row')) {
+        const copy = { ...sequenceSlots[idx] };
+        sequenceSlots.splice(idx + 1, 0, copy);
+        renderSequenceRows(); updateSequenceSummaryUI();
+      } else if (e.target.closest('.remove-row')) {
+        sequenceSlots.splice(idx, 1);
+        renderSequenceRows(); updateSequenceSummaryUI();
+      }
+    });
+
+    rows.addEventListener('input', (e) => {
+      if (!e.target.classList.contains('sequence-count')) return;
+      const rowEl = e.target.closest('.sequence-row');
+      const idx = parseInt(rowEl.dataset.index, 10);
+      const val = parseInt(e.target.value || '0', 10);
+      sequenceSlots[idx].count = isNaN(val) ? 0 : val;
       updateSequenceSummaryUI();
     });
-  });
 
-  // Up/Down handlers (event delegation)
-  rows.addEventListener('click', (e) => {
-    const up   = e.target.closest('.move-up');
-    const down = e.target.closest('.move-down');
-    if (!up && !down) return;
-    const name = (up || down).getAttribute('data-board');
-    const idx  = sequenceOrder.indexOf(name);
-    if (idx < 0) return;
+    rows.dataset.wired = '1';
+  }
 
-    if (up && idx > 0) {
-      [sequenceOrder[idx - 1], sequenceOrder[idx]] = [sequenceOrder[idx], sequenceOrder[idx - 1]];
-    } else if (down && idx < sequenceOrder.length - 1) {
-      [sequenceOrder[idx + 1], sequenceOrder[idx]] = [sequenceOrder[idx], sequenceOrder[idx + 1]];
-    }
-    renderSequenceRows(); // re-render to reflect new order
-  }, { once: true }); // reattach on every render
+  updateSequenceSummaryUI();
 }
 
-
+// Totals (planned; per-cycle for endless)
 function updateSequenceSummaryUI() {
-  const totalEl = document.getElementById('sequenceTotalCount');
-  const cycleHint = document.getElementById('sequenceCycleHint');
+  const totalEl    = document.getElementById('sequenceTotalCount');
+  const cycleHint  = document.getElementById('sequenceCycleHint');
   const cycleLenEl = document.getElementById('sequenceCycleLength');
   if (!totalEl) return;
 
-  const total = plannedImageTotalFromUI();
-  totalEl.textContent = Number.isFinite(total) ? total : '∞ (loops)';
+  const planned = plannedImageTotalFromUI();
+  totalEl.textContent = Number.isFinite(planned) ? planned : '∞ (loops)';
 
-  const cycleLen = Object.values(sequenceCounts).reduce((a, b) => a + (parseInt(b)||0), 0);
+  const cycleLen = sequenceSlots.reduce((sum, s) => sum + (parseInt(s.count) || 0), 0);
   if (cycleHint && cycleLenEl) {
     const limit = document.querySelector('input[name="limit"]:checked')?.value;
     cycleHint.style.display = (limit === 'endless') ? 'inline' : 'none';
@@ -1914,7 +1944,7 @@ function updateSequenceSummaryUI() {
   }
 }
 
-// Show/hide sequence UI based on how many boards are selected
+// Show/hide sequence UI and keep it consistent with selection
 function handleSequenceVisibility() {
   const boards = getActiveBoards(); // [{id,name}]
   const seqOpt = document.getElementById('sequenceOptions');
@@ -1924,19 +1954,20 @@ function handleSequenceVisibility() {
 
   const many = boards.length > 1;
   seqOpt.style.display = many ? 'block' : 'none';
+  if (!many) { if (cfg) cfg.style.display = 'none'; return; }
 
-  if (many) {
-    reconcileSequenceOrder(boards);
-    if (!Object.keys(sequenceCounts).length) {
-      equalizeSequenceCounts(plannedImageTotalFromUI());
-    }
-    if (toggle && toggle.checked) cfg.style.display = 'block';
-    renderSequenceRows();
-    updateSequenceSummaryUI();
-  } else {
-    if (cfg) cfg.style.display = 'none';
+  reconcileSequenceSlots(boards);
+
+  // If all counts are 0, distribute now
+  if (sequenceSlots.length && sequenceSlots.every(s => !s.count)) {
+    equalizeSequenceSlots(plannedImageTotalFromUI());
   }
+
+  if (toggle && toggle.checked) cfg.style.display = 'block';
+  renderSequenceRows();
+  updateSequenceSummaryUI();
 }
+
 
 
 
@@ -3137,7 +3168,7 @@ window.addEventListener('DOMContentLoaded', () => {
   });
 
   $('sequenceEqualize')?.addEventListener('click', () => {
-    equalizeSequenceCounts(plannedImageTotalFromUI());
+    equalizeSequenceSlots(plannedImageTotalFromUI());
     renderSequenceRows();
     updateSequenceSummaryUI();
   });
@@ -3173,6 +3204,219 @@ window.addEventListener('DOMContentLoaded', () => {
     document.body.appendChild(btn);       // move the button under <body>
     if (row && row.childElementCount === 0) row.remove(); // clean up empty row
   });
+</script>
+
+<!-- ✅ DROP-IN FIXES (paste right before </body>) -->
+<script>
+/* --- 1) Small helpers your page expects but didn’t define --- */
+
+// A no-repeat “deck” of image indexes (reshuffles when empty)
+function buildDeck(){
+  deck = Array.isArray(imageList) ? imageList.map((_, i) => i) : [];
+  deck = shuffleArray(deck);
+}
+function dealOne(){
+  if (!Array.isArray(imageList) || imageList.length === 0) return 0;
+  if (!deck || deck.length === 0) buildDeck();
+  return deck.pop();
+}
+
+// How many IMAGES are planned based on the UI (used by the Sequence summary)
+function plannedImageTotalFromUI(){
+  const mode  = document.querySelector('input[name="mode"]:checked')?.value || 'standard';
+  const limit = document.querySelector('input[name="limit"]:checked')?.value || 'count';
+
+  if (mode === 'class') {
+    let total = 0;
+    document.querySelectorAll('#classPhases .class-row').forEach(row => {
+      if (!row.classList.contains('break-row')) {
+        total += parseInt(row.querySelector('.phase-count')?.value || '0', 10);
+      }
+    });
+    return total;
+  }
+
+  if (limit === 'count') {
+    return parseInt(document.getElementById('limitCountValue')?.value || '0', 10);
+  }
+  if (limit === 'time') {
+    const minutes = parseInt(document.getElementById('limitValue')?.value || '0', 10);
+    const per = (
+      (parseInt(document.getElementById('durationMin')?.value || '0', 10) * 60) +
+      (parseInt(document.getElementById('durationSec')?.value || '0', 10))
+    );
+    return per > 0 ? Math.floor((minutes * 60) / per) : 0;
+  }
+  // endless
+  return Infinity;
+}
+
+// How many images we actually need NOW (after you click Start)
+function plannedImageTotalAtStart(){
+  if (sessionMode === 'class') {
+    // only count image slots (not breaks)
+    return classImageSchedule.filter(p => !p.isBreak).length;
+  }
+  if (limitMode === 'count') return limitValue;
+  if (limitMode === 'time') {
+    return imageDuration > 0 ? Math.floor((limitValue * 60) / imageDuration) : 0;
+  }
+  return Infinity; // endless
+}
+
+// Adapter: if any code calls equalizeSequenceCounts, forward to the real one you have
+function equalizeSequenceCounts(total){ return equalizeSequenceSlots(total); }
+
+/* --- 2) Patch startSession so normal + sequenced modes both work --- */
+(function(){
+  const _oldStart = window.startSession;  // keep a handle so we can unhook it
+
+  window.startSession = async function startSessionPatched(){
+    try {
+      // 2A. Read options (same behavior you already had)
+      ensureAudio();
+      sessionMode = document.querySelector('input[name="mode"]:checked').value;
+
+      bellTimes = (document.getElementById("bellTimes").value || "")
+                    .split(",").map(n=>parseInt(n.trim(),10)).filter(n=>!isNaN(n));
+      const bellModeEl = document.querySelector('input[name="bellMode"]:checked');
+      bellMode = bellModeEl ? bellModeEl.value : 'tone';
+      localStorage.setItem('bellMode', bellMode);
+
+      limitMode = document.querySelector('input[name="limit"]:checked').value;
+      if (limitMode === 'time')      { limitValue = parseInt(document.getElementById('limitValue').value || '0', 10); }
+      else if (limitMode === 'count'){ limitValue = parseInt(document.getElementById('limitCountValue').value || '0', 10); }
+
+      strictTime    = !!document.getElementById('strictTime')?.checked;
+      breakEnabled  = !!document.getElementById('breaks')?.checked;
+      if (sessionMode === 'class') breakEnabled = false;
+      breakAfter    = parseInt(document.getElementById('breakAfter').value || '0', 10);
+      breakDuration = parseInt(document.getElementById('breakDuration').value || '0', 10);
+
+      // Reset runtime state
+      elapsedTime = 0; breaksTaken = 0; inBreak = false;
+      bellFiredThisImage.clear(); bellFiredThisBreak.clear();
+      slotHistory = {};
+      imageDisplayIndex = 0; currentIndex = 0; imageList = []; sessionRemaining = null;
+
+      // Timing
+      if (sessionMode === 'standard') {
+        const durationMin = parseInt(document.getElementById('durationMin').value || '0', 10);
+        const durationSec = parseInt(document.getElementById('durationSec').value || '0', 10);
+        imageDuration = durationMin * 60 + durationSec;
+        classImageSchedule = [];
+      } else {
+        classImageSchedule = [];
+        document.querySelectorAll('#classPhases .class-row').forEach(row => {
+          if (row.classList.contains('break-row')) {
+            const dur = (parseInt(row.querySelector('.break-minutes').value || '0', 10) * 60) +
+                        (parseInt(row.querySelector('.break-seconds').value || '0', 10));
+            classImageSchedule.push({ duration: dur, isBreak: true });
+          } else {
+            const count = parseInt(row.querySelector('.phase-count').value || '1', 10);
+            const dur   = (parseInt(row.querySelector('.phase-minutes').value || '0', 10) * 60) +
+                          (parseInt(row.querySelector('.phase-seconds').value || '0', 10));
+            for (let i = 0; i < count; i++) classImageSchedule.push({ duration: dur, isBreak: false });
+          }
+        });
+        limitMode = 'count';
+        limitValue = classImageSchedule.length; // includes breaks so the session ends cleanly
+      }
+
+      // 2B. Build the list of images (mix OR sequence)
+      selectedBoards = getActiveBoards();
+      if (SOURCE_MODE === 'pinterest' && !selectedBoards.length) {
+        alert('Please choose at least one board.');
+        return;
+      }
+      if (SOURCE_MODE === 'sample' && !selectedBoards.length) {
+        // default to “all sample boards”
+        selectedBoards = Object.keys(SAMPLE_BOARDS).map((name, i) => ({ id: `sample-${i}`, name }));
+      }
+
+      const seqToggle = document.getElementById('sequenceToggle');
+      sequenceEnabled = !!(seqToggle && seqToggle.checked && selectedBoards.length > 1);
+
+      setLoading(true, SOURCE_MODE === 'pinterest'
+        ? (sequenceEnabled ? 'Loading boards and building sequence…' : 'Loading boards and pins from Pinterest…')
+        : (sequenceEnabled ? 'Loading sample boards and building sequence…' : 'Loading sample boards…')
+      );
+
+      try {
+        if (sequenceEnabled) {
+          // Keep slots in sync with selection; seed counts if all zero
+          reconcileSequenceSlots(selectedBoards);
+          if (sequenceSlots.length && sequenceSlots.every(s => !parseInt(s.count || '0', 10))) {
+            equalizeSequenceSlots(plannedImageTotalFromUI());
+          }
+
+          // Load per-board “bags” of URLs
+          sequenceState.bags = await fetchPinsByBoard(selectedBoards);
+          sequenceState.cursors = {};
+
+          // Build cycles from the slots until we reach the target image count
+          const target = plannedImageTotalAtStart();
+          if (Number.isFinite(target)) {
+            const out = [];
+            while (out.length < target) {
+              const oneCycle = buildSequenceCycleFromSlots(sequenceSlots);
+              if (!oneCycle.length) break; // safety
+              out.push(...oneCycle);
+            }
+            imageList = out.slice(0, target);
+          } else {
+            // Endless: one cycle repeats; deck handles the repeats without duplicates in a pass
+            imageList = buildSequenceCycleFromSlots(sequenceSlots);
+          }
+
+          // Fallback to mixed mode if we somehow got nothing
+          if (!Array.isArray(imageList) || imageList.length === 0) {
+            imageList = await fetchPinsForBoards(selectedBoards);
+          }
+        } else {
+          // Mixed mode (random from all selected)
+          imageList = await fetchPinsForBoards(selectedBoards);
+        }
+      } catch (e) {
+        console.warn('Image build failed; falling back to samples', e);
+        imageList = await fetchPinsForBoards(selectedBoards);
+      }
+
+      // 2C. Session timer totals
+      if (limitMode === 'time')      { sessionRemaining = limitValue * 60; }
+      else if (sessionMode === 'class'){ sessionRemaining = classImageSchedule.reduce((s,p)=>s + p.duration, 0); }
+      else                            { sessionRemaining = null; }
+      updateSessionTimer();
+
+      // 2D. First image + viewer
+      buildDeck();
+      imageDisplayIndex = dealOne();
+      slotHistory[currentIndex] = [imageDisplayIndex];
+
+      const firstSrc = safeURL(imageList[imageDisplayIndex]);
+      setLoading(true, 'Loading first image…');
+      await preloadImage(firstSrc);
+
+      document.body.classList.remove('at-setup');
+      document.body.classList.add('in-session');
+      document.getElementById('setup').style.display = 'none';
+      document.getElementById('viewer').style.display = 'flex';
+      setUiHidden(false);
+      setLoading(false);
+
+      showImage();
+    } catch (err) {
+      console.error(err);
+      setLoading(false);
+      alert('Sorry—something went wrong starting the session.');
+    }
+  };
+
+  // Swap the old click handler for this patched one
+  const btn = document.getElementById('startBtn');
+  if (btn && typeof _oldStart === 'function') btn.removeEventListener('click', _oldStart);
+  if (btn) btn.addEventListener('click', window.startSession);
+})();
 </script>
 
 
