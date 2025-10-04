@@ -1737,12 +1737,19 @@ let sequenceState = {                // per-board bags + cursors for endless cyc
   cursors: {}                        // { [boardName]: number }
 };
 
+// Current display order for the sequence (array of board *names*)
+let sequenceOrder = [];
+
 
 function buildDeck() {
   // In endless+sequence mode, build a fresh cycle each time deck empties
-  if (sequenceEnabled && limitMode === 'endless') {
-    imageList = buildSequenceCycle(selectedBoards.map(b => b.name), sequenceCounts);
-  }
+if (sequenceEnabled && limitMode === 'endless') {
+  const order = (sequenceOrder && sequenceOrder.length)
+    ? sequenceOrder
+    : selectedBoards.map(b => b.name);
+  imageList = buildSequenceCycle(order, sequenceCounts);
+}
+
 
   // Always build a sequential deck; randomize only when not sequencing
   deck = Array.from({ length: imageList.length }, (_, i) => i);
@@ -1765,6 +1772,22 @@ function dealOne() {
   if (!deck.length) buildDeck();   // when exhausted, reshuffle for the next cycle
   return deck.pop();
 }
+
+// Keep sequenceOrder in sync with the current selection, preserving prior order.
+function reconcileSequenceOrder(activeBoards /* [{id,name}] */) {
+  const names = activeBoards.map(b => b.name);
+  const prev  = sequenceOrder.slice();
+
+  const kept  = prev.filter(n => names.includes(n));
+  const added = names.filter(n => !prev.includes(n));
+
+  sequenceOrder = [...kept, ...added];
+
+  // Drop counts for removed boards; seed for new ones
+  Object.keys(sequenceCounts).forEach(n => { if (!names.includes(n)) delete sequenceCounts[n]; });
+  added.forEach(n => { if (sequenceCounts[n] == null) sequenceCounts[n] = 0; });
+}
+
 
 // ——— Planned totals (from the visible UI) ———
 function plannedImageTotalFromUI() {
@@ -1821,12 +1844,21 @@ function renderSequenceRows() {
   const rows = document.getElementById('sequenceRows');
   if (!rows) return;
   rows.innerHTML = '';
-  getActiveBoards().forEach(b => {
-    const name = b.name;
+
+  // Use explicit sequenceOrder if we have one; otherwise derive from current selection.
+  const order = (sequenceOrder && sequenceOrder.length)
+    ? sequenceOrder.slice()
+    : getActiveBoards().map(b => b.name);
+
+  order.forEach(name => {
     const wrap = document.createElement('div');
     wrap.style.margin = '.25rem 0';
     wrap.innerHTML = `
-      <label style="display:flex; align-items:center; gap:.5rem;">
+      <div class="move-btns" style="display:inline-flex; gap:.35rem; margin-right:.5rem;">
+        <button class="btn mini move-up"   type="button" data-board="${name}" aria-label="Move up">↑</button>
+        <button class="btn mini move-down" type="button" data-board="${name}" aria-label="Move down">↓</button>
+      </div>
+      <label class="field" style="display:inline-flex; align-items:center; gap:.5rem;">
         <span style="min-width:160px;">${name}</span>
         <input type="number" min="0" class="sequence-count" data-board="${name}"
                value="${sequenceCounts[name] ?? 0}" style="width:5rem;">
@@ -1835,6 +1867,8 @@ function renderSequenceRows() {
     `;
     rows.appendChild(wrap);
   });
+
+  // Count edits
   rows.querySelectorAll('.sequence-count').forEach(inp => {
     inp.addEventListener('input', () => {
       const b = inp.getAttribute('data-board');
@@ -1843,7 +1877,25 @@ function renderSequenceRows() {
       updateSequenceSummaryUI();
     });
   });
+
+  // Up/Down handlers (event delegation)
+  rows.addEventListener('click', (e) => {
+    const up   = e.target.closest('.move-up');
+    const down = e.target.closest('.move-down');
+    if (!up && !down) return;
+    const name = (up || down).getAttribute('data-board');
+    const idx  = sequenceOrder.indexOf(name);
+    if (idx < 0) return;
+
+    if (up && idx > 0) {
+      [sequenceOrder[idx - 1], sequenceOrder[idx]] = [sequenceOrder[idx], sequenceOrder[idx - 1]];
+    } else if (down && idx < sequenceOrder.length - 1) {
+      [sequenceOrder[idx + 1], sequenceOrder[idx]] = [sequenceOrder[idx], sequenceOrder[idx + 1]];
+    }
+    renderSequenceRows(); // re-render to reflect new order
+  }, { once: true }); // reattach on every render
 }
+
 
 function updateSequenceSummaryUI() {
   const totalEl = document.getElementById('sequenceTotalCount');
@@ -1864,19 +1916,29 @@ function updateSequenceSummaryUI() {
 
 // Show/hide sequence UI based on how many boards are selected
 function handleSequenceVisibility() {
-  const seqWrap = document.getElementById('sequenceOptions');
-  if (!seqWrap) return;
-  const boards = getActiveBoards();
-  const show = boards.length > 1;
-  seqWrap.style.display = show ? 'block' : 'none';
-  if (!show) return;
+  const boards = getActiveBoards(); // [{id,name}]
+  const seqOpt = document.getElementById('sequenceOptions');
+  const toggle = document.getElementById('sequenceToggle');
+  const cfg    = document.getElementById('sequenceConfig');
+  if (!seqOpt) return;
 
-  if (Object.keys(sequenceCounts).length === 0) {
-    equalizeSequenceCounts(plannedImageTotalFromUI());
+  const many = boards.length > 1;
+  seqOpt.style.display = many ? 'block' : 'none';
+
+  if (many) {
+    reconcileSequenceOrder(boards);
+    if (!Object.keys(sequenceCounts).length) {
+      equalizeSequenceCounts(plannedImageTotalFromUI());
+    }
+    if (toggle && toggle.checked) cfg.style.display = 'block';
+    renderSequenceRows();
+    updateSequenceSummaryUI();
+  } else {
+    if (cfg) cfg.style.display = 'none';
   }
-  renderSequenceRows();
-  updateSequenceSummaryUI();
 }
+
+
 
 // Fetch pins *per board* so we can build cycles like “10 A, 5 B, 3 C…”
 async function fetchPinsByBoard(boardObjs) {
@@ -2401,7 +2463,10 @@ if (sessionMode === 'class') {
     : (sequenceEnabled ? 'Loading sample boards and building sequence…' : 'Loading sample boards…'));
 
   if (sequenceEnabled) {
-    // Prepare per‑board bags and build the first (or entire) list
+    // Maintain order first
+    reconcileSequenceOrder(selectedBoards); // seeds/keeps sequenceOrder
+
+    // Prepare per‑board bags
     try {
       sequenceState.bags = await fetchPinsByBoard(selectedBoards);
       sequenceState.cursors = {};
@@ -2410,32 +2475,35 @@ if (sessionMode === 'class') {
       sequenceState.bags = {};
     }
 
-    // If nothing came back, fall back to all samples
     if (!Object.values(sequenceState.bags).some(arr => (arr && arr.length))) {
+      // safety: fall back to samples
       sequenceState.bags = {};
       Object.keys(SAMPLE_BOARDS).forEach(name => {
         sequenceState.bags[name] = shuffleArray(SAMPLE_BOARDS[name]);
       });
     }
 
-    // Ensure counts are seeded
     if (!Object.keys(sequenceCounts).length) {
       equalizeSequenceCounts(plannedImageTotalAtStart());
     }
 
+    const order = (sequenceOrder && sequenceOrder.length)
+      ? sequenceOrder
+      : selectedBoards.map(b => b.name);
+
     const target = plannedImageTotalAtStart();
     if (Number.isFinite(target)) {
-      // Build enough cycles to hit the planned total
       const list = [];
       while (list.length < target) {
-        list.push(...buildSequenceCycle(selectedBoards.map(b => b.name), sequenceCounts));
+        list.push(...buildSequenceCycle(order, sequenceCounts));
         if (list.length === 0) break;
       }
       imageList = list.slice(0, target);
     } else {
-      // Endless: a single cycle; buildDeck() will rebuild a fresh cycle each time
-      imageList = buildSequenceCycle(selectedBoards.map(b => b.name), sequenceCounts);
+      imageList = buildSequenceCycle(order, sequenceCounts);
     }
+  }
+
   } else {
     // MIX MODE (existing behavior)
     try {
@@ -3102,7 +3170,18 @@ window.addEventListener('DOMContentLoaded', () => {
   );
 
   // 5) Initial visibility
-  handleSequenceVisibility();
+// Re-run visibility (and thus reconcile + render) after board list changes
+document.getElementById('userBoards')?.addEventListener('change', handleSequenceVisibility);
+
+const sampleList = document.getElementById('sampleBoardList');
+if (sampleList) {
+  sampleList.addEventListener('change', (e) => {
+    if (e.target?.matches('input[type="checkbox"]')) handleSequenceVisibility();
+  });
+}
+
+// Make sure we start with a correct view
+handleSequenceVisibility();
 
 </script>
 
