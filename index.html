@@ -953,7 +953,7 @@ If you do not want a countdown bell, clear the "Bell Times" section.
 
     <div class="session-controls">
       <button class="btn" id="prevBtn">≪</button>
-      <button class="btn" id="pauseBtn">∥⊳</button>
+      <button class="btn" id="pauseBtn">⊳</button>
       <button class="btn" id="nextBtn">≫</button>
       <button class="btn" id="endBtn">∎</button>
                <button class="btn" id="refreshBtn" title="Reshuffle image">∾</button>
@@ -2464,7 +2464,7 @@ showImage();
 }
 
 
-function togglePause() { isPaused = !isPaused; document.getElementById("pauseBtn").innerText = isPaused ? "▶️" : "⏸️"; }
+function togglePause() { isPaused = !isPaused; document.getElementById("pauseBtn").innerText = isPaused ? "" : "∥"; }
 function endSession() {
 setBoardBadge('');
 
