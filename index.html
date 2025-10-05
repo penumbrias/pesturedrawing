@@ -4000,6 +4000,79 @@ function safeURL(p) {
 }
 </script>
 
+<script>
+/* === Session indicator (x/y) when "Number of images" is selected ========== */
+(function () {
+  // Replace the session-timer updater so it can render either time OR x/y.
+  function renderSessionIndicator() {
+    const el = document.getElementById('sessionTimer');
+    if (!el) return;
+
+    // Show x/y only for Standard + Number of images (count) sessions.
+    if (window.limitMode === 'count') {
+      const total = (Number.isFinite(window.limitValue) && window.limitValue > 0)
+        ? window.limitValue
+        : (Array.isArray(window.imageList) ? window.imageList.length : 0);
+
+      // 1-based index for humans; clamp to total if we’ve reached/passed the end.
+      const idx = Math.min((window.currentIndex || 0) + 1, total || ((window.currentIndex || 0) + 1));
+
+      el.textContent = `${idx}/${total || '—'}`;
+      el.style.display = window.showSessionTimer ? 'block' : 'none';
+      return;
+    }
+
+    // Otherwise fall back to time display (used by Class and time-limited sessions).
+    if (typeof window.sessionRemaining === 'number' && window.sessionRemaining !== null) {
+      const m = String(Math.floor(window.sessionRemaining / 60)).padStart(2, '0');
+      const s = String(window.sessionRemaining % 60).padStart(2, '0');
+      el.textContent = `${m}:${s}`;
+      el.style.display = window.showSessionTimer ? 'block' : 'none';
+    } else {
+      el.style.display = 'none';
+    }
+  }
+
+  // Make our renderer the new session-timer updater.
+  window.updateSessionTimer = renderSessionIndicator;
+
+  // Ensure the indicator refreshes whenever the current image slot changes.
+  const _show = window.showImage;
+  window.showImage = function () {
+    const r = _show ? _show.apply(this, arguments) : undefined;
+    renderSessionIndicator();
+    return r;
+  };
+
+  const _next = window.nextImage;
+  window.nextImage = function () {
+    const r = _next ? _next.apply(this, arguments) : undefined;
+    renderSessionIndicator();
+    return r;
+  };
+
+  const _prev = window.prevImage;
+  window.prevImage = function () {
+    const r = _prev ? _prev.apply(this, arguments) : undefined;
+    renderSessionIndicator();
+    return r;
+  };
+
+  // Also re-render immediately if someone toggles visibility.
+  const _toggleSess = window.toggleSessionTimer;
+  window.toggleSessionTimer = function () {
+    if (typeof window.showSessionTimer === 'boolean') {
+      window.showSessionTimer = !window.showSessionTimer;
+    }
+    renderSessionIndicator();
+    if (_toggleSess && _toggleSess !== window.toggleSessionTimer) {
+      // In case prior logic needs to run (safe no-op if unchanged).
+      try { _toggleSess(); } catch (_) {}
+    }
+  };
+})();
+</script>
+
 
 </body>
 </html>
