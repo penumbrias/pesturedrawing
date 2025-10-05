@@ -4009,7 +4009,7 @@ function safeURL(p) {
     if (!el) return;
 
     // Show x/y only for Standard + Number of images (count) sessions.
-    if (window.limitMode === 'count') {
+    if (window.sessionMode === 'standard' && window.limitMode === 'count') {
       const total = (Number.isFinite(window.limitValue) && window.limitValue > 0)
         ? window.limitValue
         : (Array.isArray(window.imageList) ? window.imageList.length : 0);
