@@ -629,6 +629,37 @@ body.at-setup #startBtn { display: inline-flex; }
 
 #sequenceRows .row-btns{ display: inline-flex; gap: .35rem; }
 
+/* Mobile: bring the input + plus/close buttons in from the edge */
+@media (max-width: 560px){
+  /* add breathing room on the right (with safe-area support on iOS) */
+  #sequenceRows{ padding-right: .9rem; }
+  @supports (padding: max(0px)) {
+    #sequenceRows{ padding-right: calc(.9rem + env(safe-area-inset-right)); }
+  }
+
+  /* nudge the right-side controls left a touch */
+  #sequenceRows .right-controls{ margin-right: .35rem; }
+
+  /* allow the middle track to shrink a bit more on tiny screens */
+  #sequenceRows .sequence-row{
+    grid-template-columns: auto minmax(0,1fr) auto !important;
+  }
+
+  /* make the fixed label column a bit narrower on mobile */
+  #sequenceRows .board-label{
+    width: 165px;      /* was 190px */
+    min-width: 0;      /* let grid shrink the track if needed */
+  }
+
+  /* slightly smaller number input so the row fits comfortably */
+  #sequenceRows .sequence-count{ width: 3rem; } /* was 3.3rem */
+}
+
+/* Very narrow phones (e.g., 320–360px wide) */
+@media (max-width: 360px){
+  #sequenceRows .board-label{ width: 150px; }
+}
+
 
   </style>
   <audio id="bellSound" src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" preload="auto"></audio>
@@ -709,7 +740,7 @@ Have fun!</p>
         &nbsp;|&nbsp; Cycle length: <strong id="sequenceCycleLength">—</strong>
       </span>
     </div>
-<div id="sequenceTip" class="hint" style="margin: .15rem 0 .5rem 0;">Total images is defined by the Session type / Session limit.</div>
+<div id="sequenceTip" class="hint" style="margin: .15rem 0 .5rem 0;"><em>Total image count is defined in the Session type / Session limit.</em></div>
 
 
     <!-- Per-board counts -->
