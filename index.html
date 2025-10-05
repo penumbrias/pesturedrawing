@@ -660,6 +660,25 @@ body.at-setup #startBtn { display: inline-flex; }
   #sequenceRows .board-label{ width: 150px; }
 }
 
+/* === Board badge (top center, subtle) =============================== */
+#boardBadge{
+  position: absolute;
+  top: .5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: .9rem;
+  line-height: 1.15;
+  color: var(--text);
+  opacity: .3;                      /* ~30% opacity */
+  letter-spacing: .02em;
+  pointer-events: none;
+  z-index: 9200;                     /* above the image & timers */
+  text-shadow: 0 1px 2px rgba(0,0,0,.45);
+}
+
+/* If UI chrome is hidden (H), hide the badge too */
+#viewer.chrome-hidden #boardBadge { display: none !important; }
+
 
   </style>
   <audio id="bellSound" src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" preload="auto"></audio>
@@ -930,18 +949,20 @@ If you do not want a countdown bell, clear the "Bell Times" section.
     <div class="timer" id="imageTimer">00:00</div>
     <div class="timer" id="sessionTimer">00:00</div>
     <div id="breakNextLabel">Break next</div>
+<div id="boardBadge" aria-live="polite" aria-atomic="true" hidden></div>
+
     <div class="session-controls">
-      <button class="btn" id="prevBtn">⏮️</button>
-      <button class="btn" id="pauseBtn">⏸️</button>
-      <button class="btn" id="nextBtn">⏭️</button>
-      <button class="btn" id="endBtn">⏹️</button>
-               <button class="btn" id="refreshBtn" title="Refresh image">🔄</button>
+      <button class="btn" id="prevBtn">≪</button>
+      <button class="btn" id="pauseBtn">∥⊳</button>
+      <button class="btn" id="nextBtn">≫</button>
+      <button class="btn" id="endBtn">∎</button>
+               <button class="btn" id="refreshBtn" title="Reshuffle image">∾</button>
     </div>
     <div id="viewerToggles" style="position:absolute; bottom:1rem; left:1rem; display:flex; gap:.5rem;">
 
-  <button class="btn" id="fitToScreenBtn" type="button">Fit to Screen: Off</button>
-  <button class="btn" id="toggleImgTimerBtn">Toggle Image Timer</button>
-  <button class="btn" id="toggleSessTimerBtn">Toggle Session Timer</button>
+  <button class="btn" id="fitToScreenBtn" type="button">FtS: Off</button>
+  <button class="btn" id="toggleImgTimerBtn">image time</button>
+  <button class="btn" id="toggleSessTimerBtn"sSession time</button>
 </div>
     <img id="currentImage" alt="reference" src="" />
   </div>
@@ -1026,7 +1047,7 @@ document.getElementById('uiToggleBtn')?.addEventListener('click', toggleUiHidden
 // S = Toggle Session Timer
 // ← = Previous image
 // → = Next image
-// R = Refresh image  (ignored if Ctrl/Cmd is held, so browser refresh still works)
+// R = Reshuffle image  (ignored if Ctrl/Cmd is held, so browser refresh still works)
 // E = End Session
 
 (function addKeyboardShortcuts(){
@@ -1590,6 +1611,25 @@ let limitMode = "count", limitValue = 10, strictTime = false;
 let inBreak = false, breakTimeRemaining = 0, breaksTaken = 0;
 let breakEnabled = false, breakAfter = 20, breakDuration = 5;
 let bellTimes = [], bellFiredThisImage = new Set(), bellFiredThisBreak = new Set();
+let lastBoardBadge = null;
+
+function setBoardBadge(name){
+  const el = document.getElementById('boardBadge');
+  if (!el) return;
+
+  if (!name) {
+    el.setAttribute('hidden', '');
+    el.textContent = '';
+    lastBoardBadge = null;
+    return;
+  }
+  // Only update when the board actually changes
+  if (name === lastBoardBadge && !el.hasAttribute('hidden')) return;
+
+  el.textContent = name;
+  el.removeAttribute('hidden');
+  lastBoardBadge = name;
+}
 
 
 // --- Alert / Audio helpers ---
@@ -2265,10 +2305,15 @@ function shouldEndSession() {
 function startBreak(custom = breakDuration * 60) {
   inBreak = true; breaksTaken++; bellFiredThisBreak.clear();
   breakTimeRemaining = custom;
+
+  // Hide the board badge during breaks
+  setBoardBadge('');
+
   document.getElementById("viewer").style.display = "none";
   document.getElementById("breakScreen").style.display = "flex";
   updateBreakTimer();
 }
+
 function updateBreakTimer() {
   const m = String(Math.floor(breakTimeRemaining/60)).padStart(2,'0');
   const s = String(breakTimeRemaining%60).padStart(2,'0');
@@ -2421,6 +2466,8 @@ showImage();
 
 function togglePause() { isPaused = !isPaused; document.getElementById("pauseBtn").innerText = isPaused ? "▶️" : "⏸️"; }
 function endSession() {
+setBoardBadge('');
+
 document.body.classList.remove('in-session');
 document.body.classList.remove('at-setup'); // hide Tips button on the finished screen
 
@@ -2552,6 +2599,8 @@ function updateSequenceSummaryUI(){
 function parseBellTimes() { return document.getElementById("bellTimes").value.split(",").map(n=>parseInt(n.trim())).filter(n=>!isNaN(n)); }
 
 async function startSession() {
+
+setBoardBadge('');
 
 
   // Prime audio while we’re still in the click handler
@@ -3278,7 +3327,7 @@ window.addEventListener('DOMContentLoaded', () => {
   $('toggleSessTimerBtn')?.setAttribute('title', 'Toggle Session Timer (S)');
   $('prevBtn')?.setAttribute('title', 'Previous Image (←)');
   $('nextBtn')?.setAttribute('title', 'Next Image (→)');
-  $('refreshBtn')?.setAttribute('title', 'Refresh Image (R)');
+  $('refreshBtn')?.setAttribute('title', 'Reshuffle Image (R)');
   $('endBtn')?.setAttribute('title', 'End Session (E)');
   $('uiToggleBtn')?.setAttribute('title', 'Hide/Show UI (H)');
 
@@ -3733,51 +3782,62 @@ function equalizeSequenceCounts(total){ return equalizeSequenceSlots(total); }
   const _oldRefresh = window.refreshImage;
   const _oldPrev    = window.prevImage;
 
-  window.showImage = function(){
-    const seqOn  = !!(document.getElementById('sequenceToggle')?.checked && (selectedBoards?.length || 0) > 1);
-    if (!seqOn) return _oldShow ? _oldShow() : undefined;
+// Inside the DROP‑IN PATCH IIFE that overrides showImage:
+window.showImage = function(){
+  const seqOn  = !!(document.getElementById('sequenceToggle')?.checked && (selectedBoards?.length || 0) > 1);
 
-    if (sessionMode === 'class' && currentIndex >= classImageSchedule.length) return endSession();
+  // If NOT sequenced, make sure badge is hidden and fall back
+  if (!seqOn) {
+    setBoardBadge('');                // <— add this line
+    return _oldShow ? _oldShow() : undefined;
+  }
 
-    document.getElementById("breakScreen").style.display = "none";
-    document.getElementById("viewer").style.display = "flex";
-    document.getElementById("breakNextLabel").style.display = "none";
-    bellFiredThisImage.clear();
+  if (sessionMode === 'class' && currentIndex >= classImageSchedule.length) return endSession();
 
-    const img = document.getElementById("currentImage");
+  document.getElementById("breakScreen").style.display = "none";
+  document.getElementById("viewer").style.display = "flex";
+  document.getElementById("breakNextLabel").style.display = "none";
+  bellFiredThisImage.clear();
 
-    // Timers
-    if (sessionMode === "class") {
-      const schedule = classImageSchedule[currentIndex];
-      if (schedule.isBreak) { startBreak(schedule.duration); return; }
-      remaining = schedule.duration;
-    } else {
-      remaining = imageDuration;
-    }
+  const img = document.getElementById("currentImage");
 
-    const board = boardForCurrentSlot();
-    if (!board) {
-      // safety fallback
-      const urls = Object.values(sequenceState.bags || {}).find(a => a?.length) || [];
-      img.src = safeURL(urls[0] || (imageList?.[0] || ''));
-      updateTimerDisplay(); runTimer();
-      return;
-    }
+  // Timers…
+  if (sessionMode === "class") {
+    const schedule = classImageSchedule[currentIndex];
+    if (schedule.isBreak) { startBreak(schedule.duration); return; }
+    remaining = schedule.duration;
+  } else {
+    remaining = imageDuration;
+  }
 
-    let hist = slotHistory[currentIndex];
-    let url;
-    if (!hist || hist.length === 0) {
-      url = drawFromBoard(board);
-      slotHistory[currentIndex] = [url];
-    } else {
-      url = hist[hist.length - 1];
-    }
+  // ← Determine planned board for THIS slot
+  const board = boardForCurrentSlot();
 
-    img.classList.toggle('fit-contain', fitToScreen);
-    img.src = safeURL(url);
-    updateTimerDisplay();
-    runTimer();
-  };
+  // 🔔 Update the small badge whenever the board changes (or first image)
+  setBoardBadge(board || '');         // <— add this line
+
+  if (!board) {
+    // safety fallback
+    const urls = Object.values(sequenceState.bags || {}).find(a => a?.length) || [];
+    img.src = safeURL(urls[0] || (imageList?.[0] || ''));
+    updateTimerDisplay(); runTimer();
+    return;
+  }
+
+  let hist = slotHistory[currentIndex];
+  let url;
+  if (!hist || hist.length === 0) {
+    url = drawFromBoard(board);
+    slotHistory[currentIndex] = [url];
+  } else {
+    url = hist[hist.length - 1];
+  }
+
+  img.classList.toggle('fit-contain', fitToScreen);
+  img.src = safeURL(url);
+  updateTimerDisplay();
+  runTimer();
+};
 
   window.refreshImage = function(){
     if (inBreak) return;
