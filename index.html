@@ -3889,10 +3889,19 @@ function dealOne(excludeIdx = null) {
 }
 
 /* --- Hardened refresh: guarantees a valid URL (no "undefined") --- */
-function refreshImage() {
+// Keep a reference to any earlier (sequence-aware) refresh
+const __seqRefresh = (typeof window.refreshImage === 'function') ? window.refreshImage : null;
+
+window.refreshImage = function unifiedRefresh(){
   if (inBreak) return;
 
-  // Reset this slot’s countdown (does not advance the sequence)
+  // If Sequence is ON and we captured the sequence-aware refresher, use it
+  const seqOn = !!(document.getElementById('sequenceToggle')?.checked && (selectedBoards?.length || 0) > 1);
+  if (seqOn && __seqRefresh) {
+    return __seqRefresh();   // uses boardForCurrentSlot() + drawFromBoard()
+  }
+
+  // --- Mixed mode fallback: use imageList + deck ---
   const duration = (sessionMode === 'class')
     ? (classImageSchedule[currentIndex]?.duration || imageDuration)
     : imageDuration;
@@ -3906,27 +3915,22 @@ function refreshImage() {
     updateSessionTimer();
   }
 
-  // Pick a valid new index and URL
-  const prevIdx = imageDisplayIndex;
+  const prevIdx = (typeof imageDisplayIndex === 'number') ? imageDisplayIndex : null;
   let idx = dealOne(prevIdx);
   let url = imageList[idx];
 
-  if (!url) {
-    // Deck and list were out-of-sync; rebuild once and try again
+  if (!url) {                 // deck/list drifted; rebuild once
     buildDeck();
     idx = dealOne(prevIdx);
     url = imageList[idx];
   }
-  if (!url) {
-    console.warn('Refresh: no valid image available; keeping current image.');
-    return;
-  }
+  if (!url) return;           // still nothing—keep current image
 
   imageDisplayIndex = idx;
   const img = document.getElementById('currentImage');
   img.classList.toggle('fit-contain', fitToScreen);
-  img.src = safeURL(url);
-}
+  img.src = safeURL(url);     // your safe encoder
+};
 
 /* (optional, but nice-to-have) Make safeURL defensive to avoid "undefined" strings */
 function safeURL(p) {
