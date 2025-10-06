@@ -679,6 +679,33 @@ body.at-setup #startBtn { display: inline-flex; }
 /* If UI chrome is hidden (H), hide the badge too */
 #viewer.chrome-hidden #boardBadge { display: none !important; }
 
+/* === Grouped sequence rows (link/unlink) =============================== */
+#sequenceRows.link-mode .sequence-row { cursor: pointer; }
+#sequenceRows.unlink-mode .sequence-row .member { cursor: pointer; }
+
+#sequenceRows .sequence-row.selected{
+  outline: 1px dashed var(--accent);
+  outline-offset: 2px;
+  background: rgba(145,29,29,.08);
+  border-radius: 8px;
+}
+
+#sequenceRows .sequence-row.group .board-label .members{
+  display:inline-flex; align-items:center; gap:.25rem;
+  padding:.15rem .35rem; border-radius:999px;
+  background: rgba(255,255,255,.04);
+  border: 1px solid var(--ui-border);
+}
+#sequenceRows .sequence-row.group .board-label .member{
+  display:inline-flex; align-items:center; line-height:1.2;
+}
+#sequenceRows .sequence-row.group .board-label .member:not(:last-child)::after{
+  content:"+"; opacity:.6; margin:0 .25rem;
+}
+#sequenceRows.unlink-mode .sequence-row.group .member:hover{
+  text-decoration: underline; text-decoration-thickness: 2px;
+}
+
 
   </style>
   <audio id="bellSound" src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" preload="auto"></audio>
@@ -748,9 +775,14 @@ Have fun!</p>
 </div><!-- /#pinterestSource -->
 <!-- Sequenced boards UI (shown when 2+ boards are selected in either mode) -->
 <div id="sequenceOptions" style="display:none; margin-top:.75rem;">
-  <label style="display:flex; align-items:center; gap:.5rem;">
-    <input type="checkbox" id="sequenceToggle"> Sequence boards?
-  </label>
+  <div class="row" style="align-items:center; gap:.5rem;">
+    <label style="display:flex; align-items:center; gap:.5rem; margin:0;">
+      <input type="checkbox" id="sequenceToggle"> Sequence boards?
+    </label>
+    <button type="button" class="btn mini" id="linkBoardsBtn" style="display:none;">Link boards</button>
+    <button type="button" class="btn mini" id="unlinkBoardsBtn" style="display:none;">Unlink boards</button>
+  </div>
+
 
   <div id="sequenceConfig" style="display:none; padding-left:.5rem; margin-top:.5rem;">
     <div id="sequenceSummary" class="hint" style="margin-bottom:.5rem;">
@@ -1889,20 +1921,47 @@ let deck = []; // indices not yet used this cycle
 // ——— Sequenced boards state ———
 let sequenceEnabled = false;
 let selectedBoards = [];   // [{ id, name }]
-let sequenceSlots = [];    // [{ name: 'Board A', count: 5 }, ...] (duplicates allowed)
 
-let sequenceState = {      // per-board bags + cursors for endless cycling
-  bags: {},                // { [boardName]: string[] }
-  cursors: {}              // { [boardName]: number }
+/** Slot can be:
+ *  - single: { name: "Board", count: N }
+ *  - group : { names: ["B","C",...], count: N }
+ */
+let sequenceSlots = [];
+
+let sequenceState = {
+  bags: {},         // { [boardName]: string[] }
+  cursors: {},      // { [boardName]: number }
+  groupBags: {},    // { [key]: string[] }       key = "B||C"
+  groupCursors: {}  // { [key]: number }
 };
+
+// Link/Unlink transient UI state
+let linkMode = false;
+let unlinkMode = false;
+let pendingLink = new Set();  // indices selected while linking
 
 // Keep slots in sync with the current selection; preserve order + duplicates
 function reconcileSequenceSlots(activeBoards /* [{id,name}] */) {
   const selectedNames = activeBoards.map(b => b.name);
-  const kept = sequenceSlots.filter(s => selectedNames.includes(s.name));
-  const present = new Set(kept.map(s => s.name));
-  const added = selectedNames.filter(n => !present.has(n)).map(n => ({ name: n, count: 0 }));
-  sequenceSlots = [...kept, ...added];
+  const keepSlot = (slot) => {
+    if (Array.isArray(slot.names)) return slot.names.every(n => selectedNames.includes(n));
+    return selectedNames.includes(slot.name);
+  };
+
+  const kept = sequenceSlots.filter(keepSlot);
+
+  const covered = new Set();
+  kept.forEach(s => {
+    if (Array.isArray(s.names)) s.names.forEach(n => covered.add(n));
+    else covered.add(s.name);
+  });
+
+  const addedSingles = selectedNames
+    .filter(n => !covered.has(n))
+    .map(n => ({ name: n, count: 0 }));
+
+  sequenceSlots = [...kept, ...addedSingles];
+
   if (!sequenceSlots.length && selectedNames.length) {
     sequenceSlots = selectedNames.map(n => ({ name: n, count: 0 }));
   }
@@ -1920,25 +1979,55 @@ function equalizeSequenceSlots(total = plannedImageTotalFromUI()) {
   }));
 }
 
-// Build one cycle from the slots, pulling from each board’s bag in order
+// Singles draw from one board; groups draw from the union of all members.
 function buildSequenceCycleFromSlots(slots) {
   const cycle = [];
+
+  const uniqueUnion = (arrays) => {
+    const seen = new Set(), out = [];
+    arrays.forEach(arr => (arr || []).forEach(u => {
+      if (typeof u === 'string' && u && !seen.has(u)) { seen.add(u); out.push(u); }
+    }));
+    return out;
+  };
+
   for (const slot of slots) {
-    const name = slot.name;
     const need = Math.max(0, parseInt(slot.count || 0, 10));
+
+    // GROUP
+    if (Array.isArray(slot.names) && slot.names.length > 1) {
+      const key = slot.names.join('||');
+      if (!sequenceState.groupBags[key]) {
+        const memberBags = slot.names.map(n => sequenceState.bags[n] || []);
+        sequenceState.groupBags[key] = shuffleArray(uniqueUnion(memberBags));
+        sequenceState.groupCursors[key] = 0;
+      }
+      const bag = sequenceState.groupBags[key] || [];
+      if (!bag.length) continue;
+
+      for (let i = 0; i < need; i++) {
+        const cur = sequenceState.groupCursors[key] % bag.length;
+        cycle.push(bag[cur]);
+        sequenceState.groupCursors[key] = cur + 1;
+        if (sequenceState.groupCursors[key] % bag.length === 0) {
+          sequenceState.groupBags[key] = shuffleArray(bag);
+        }
+      }
+      continue;
+    }
+
+    // SINGLE (legacy)
+    const name = slot.names?.[0] || slot.name;
     const bag  = sequenceState.bags[name] || [];
-    if (!bag.length) continue;
+    if (!bag.length || need <= 0) continue;
 
     if (!Object.prototype.hasOwnProperty.call(sequenceState.cursors, name)) {
       sequenceState.cursors[name] = 0;
     }
-
     for (let i = 0; i < need; i++) {
       const idx = sequenceState.cursors[name] % bag.length;
       cycle.push(bag[idx]);
       sequenceState.cursors[name] = idx + 1;
-
-      // on wrap: reshuffle for variety next pass
       if (sequenceState.cursors[name] % bag.length === 0) {
         sequenceState.bags[name] = shuffleArray(bag);
       }
@@ -1983,18 +2072,27 @@ function renderSequenceRows(){
   if (!rows) return;
   rows.innerHTML = '';
 
+  const labelHTML = (slot) => {
+    if (Array.isArray(slot.names) && slot.names.length) {
+      const members = slot.names.map(n => `<span class="member" data-name="${n}">${n}</span>`).join('');
+      return `<span class="members">${members}</span>`;
+    }
+    return slot.name;
+  };
+
   sequenceSlots.forEach((slot, i) => {
+    const isGroup = Array.isArray(slot.names) && slot.names.length > 1;
     const wrap = document.createElement('div');
-    wrap.className = 'sequence-row';
+    wrap.className = `sequence-row${isGroup ? ' group' : ''}`;
     wrap.dataset.index = i;
-    wrap.style.cssText = 'margin:.25rem 0;'; // spacing only, layout is in CSS above
+    wrap.style.cssText = 'margin:.25rem 0;';
     wrap.innerHTML = `
       <div class="move-btns" style="display:inline-flex; gap:.35rem; margin-right:.25rem;">
         <button class="btn mini move-up"   type="button" aria-label="Move up"   title="Move up">↑</button>
         <button class="btn mini move-down" type="button" aria-label="Move down" title="Move down">↓</button>
       </div>
 
-      <span class="board-label">${slot.name}</span>
+      <span class="board-label">${labelHTML(slot)}</span>
 
       <div class="right-controls">
         <label class="field">
@@ -2002,21 +2100,46 @@ function renderSequenceRows(){
           <span class="sub">images</span>
         </label>
         <div class="row-btns">
-          <button class="btn mini duplicate-row" type="button" aria-label="Add this board again" title="Add this board again">＋</button>
-          <button class="btn mini remove-row"    type="button" aria-label="Remove this slot"      title="Remove this slot">✕</button>
+          <button class="btn mini duplicate-row" type="button" aria-label="Duplicate step" title="Duplicate step">＋</button>
+          <button class="btn mini remove-row"    type="button" aria-label="Remove step"    title="Remove step">✕</button>
         </div>
       </div>
     `;
+    if (pendingLink.has(i)) wrap.classList.add('selected');
     rows.appendChild(wrap);
   });
 
+  rows.classList.toggle('link-mode', linkMode);
+  rows.classList.toggle('unlink-mode', unlinkMode);
+
   if (!rows.dataset.wired) {
-    // Move / Duplicate / Remove
     rows.addEventListener('click', (e) => {
       const rowEl = e.target.closest('.sequence-row');
       if (!rowEl) return;
       const idx = parseInt(rowEl.dataset.index, 10);
+      const slot = sequenceSlots[idx];
 
+      // Link mode: toggle selection of rows (commit via button)
+      if (linkMode) {
+        if (pendingLink.has(idx)) { pendingLink.delete(idx); rowEl.classList.remove('selected'); }
+        else { pendingLink.add(idx); rowEl.classList.add('selected'); }
+        return;
+      }
+
+      // Unlink mode: click a member name inside a group to remove it
+      if (unlinkMode) {
+        const mem = e.target.closest('.member');
+        if (mem && Array.isArray(slot.names) && slot.names.length > 1) {
+          const next = slot.names.filter(n => n !== mem.dataset.name);
+          if (next.length >= 2) sequenceSlots[idx] = { names: next, count: slot.count };
+          else if (next.length === 1) sequenceSlots[idx] = { name: next[0], count: slot.count };
+          else sequenceSlots.splice(idx, 1);
+          renderSequenceRows(); clampCountsToPlanned(); updateSequenceSummaryUI();
+        }
+        return;
+      }
+
+      // Normal actions
       if (e.target.closest('.move-up')) {
         if (idx > 0) {
           [sequenceSlots[idx - 1], sequenceSlots[idx]] = [sequenceSlots[idx], sequenceSlots[idx - 1]];
@@ -2028,7 +2151,8 @@ function renderSequenceRows(){
           renderSequenceRows(); clampCountsToPlanned(); updateSequenceSummaryUI();
         }
       } else if (e.target.closest('.duplicate-row')) {
-        const copy = { ...sequenceSlots[idx], count: 0 }; // duplicate with 0 so totals don't overflow
+        const base = sequenceSlots[idx];
+        const copy = Array.isArray(base.names) ? { names: [...base.names], count: 0 } : { name: base.name, count: 0 };
         sequenceSlots.splice(idx + 1, 0, copy);
         renderSequenceRows(); clampCountsToPlanned(); updateSequenceSummaryUI();
       } else if (e.target.closest('.remove-row')) {
@@ -2037,7 +2161,6 @@ function renderSequenceRows(){
       }
     });
 
-    // Number inputs
     rows.addEventListener('input', (e) => {
       if (!e.target.classList.contains('sequence-count')) return;
       const rowEl = e.target.closest('.sequence-row');
@@ -2053,6 +2176,7 @@ function renderSequenceRows(){
 
   updateSequenceSummaryUI();
 }
+
 // Totals (planned; per-cycle for endless)
 function updateSequenceSummaryUI() {
   const totalEl    = document.getElementById('sequenceTotalCount');
@@ -2073,19 +2197,27 @@ function updateSequenceSummaryUI() {
 
 // Show/hide sequence UI and keep it consistent with selection
 function handleSequenceVisibility() {
-  const boards = getActiveBoards(); // [{id,name}]
+  const boards = getActiveBoards();
   const seqOpt = document.getElementById('sequenceOptions');
   const toggle = document.getElementById('sequenceToggle');
   const cfg    = document.getElementById('sequenceConfig');
+  const linkBtn   = document.getElementById('linkBoardsBtn');
+  const unlinkBtn = document.getElementById('unlinkBoardsBtn');
   if (!seqOpt) return;
 
   const many = boards.length > 1;
   seqOpt.style.display = many ? 'block' : 'none';
-  if (!many) { if (cfg) cfg.style.display = 'none'; return; }
+  if (linkBtn)   linkBtn.style.display   = (many && toggle?.checked) ? 'inline-block' : 'none';
+  if (unlinkBtn) unlinkBtn.style.display = (many && toggle?.checked) ? 'inline-block' : 'none';
+
+  if (!many) { 
+    linkMode = false; unlinkMode = false; pendingLink.clear();
+    if (cfg) cfg.style.display = 'none';
+    return;
+  }
 
   reconcileSequenceSlots(boards);
 
-  // If all counts are 0, distribute now
   if (sequenceSlots.length && sequenceSlots.every(s => !s.count)) {
     equalizeSequenceSlots(plannedImageTotalFromUI());
   }
@@ -3355,6 +3487,52 @@ $('sequenceEqualize')?.addEventListener('click', () => {
   updateSequenceSummaryUI();
 });
 
+// Link/Unlink modes
+$('linkBoardsBtn')?.addEventListener('click', () => {
+  const toggle = document.getElementById('sequenceToggle');
+  if (!toggle || !toggle.checked) return;
+
+  // First click → enter link mode; second click with ≥2 selected → commit link
+  if (!linkMode) {
+    linkMode = true; unlinkMode = false; pendingLink.clear();
+    renderSequenceRows();
+    return;
+  }
+
+  const indices = Array.from(pendingLink).sort((a,b)=>a-b);
+  if (indices.length >= 2) {
+    const slots = indices.map(i => sequenceSlots[i]);
+    const names = slots.flatMap(s => (Array.isArray(s.names) ? s.names : [s.name]));
+    const count = slots.reduce((sum, s) => sum + (parseInt(s.count)||0), 0);
+    const insertAt = indices[0];
+
+    for (let i = indices.length - 1; i >= 0; i--) sequenceSlots.splice(indices[i], 1);
+    sequenceSlots.splice(insertAt, 0, { names, count });
+
+    linkMode = false; pendingLink.clear();
+    renderSequenceRows(); clampCountsToPlanned(); updateSequenceSummaryUI();
+    return;
+  }
+
+  linkMode = false; pendingLink.clear(); renderSequenceRows();
+});
+
+$('unlinkBoardsBtn')?.addEventListener('click', () => {
+  const toggle = document.getElementById('sequenceToggle');
+  if (!toggle || !toggle.checked) return;
+  unlinkMode = !unlinkMode;
+  linkMode = false; pendingLink.clear();
+  renderSequenceRows();
+});
+
+// Keep buttons visible with the toggle
+$('sequenceToggle')?.addEventListener('change', (e) => {
+  $('sequenceConfig').style.display = e.target.checked ? 'block' : 'none';
+  $('linkBoardsBtn') && (document.getElementById('linkBoardsBtn').style.display = e.target.checked ? 'inline-block' : 'none');
+  $('unlinkBoardsBtn') && (document.getElementById('unlinkBoardsBtn').style.display = e.target.checked ? 'inline-block' : 'none');
+  updateSequenceSummaryUI();
+});
+
 
   ['durationMin','durationSec','limitValue','limitCountValue','strictTime'].forEach((fieldId) => {
     $(fieldId)?.addEventListener('input', updateSequenceSummaryUI);
@@ -3757,12 +3935,14 @@ function equalizeSequenceCounts(total){ return equalizeSequenceSlots(total); }
 
   // Dispatcher: if Sequence is ON, use our start; otherwise use your current start
   window.startSession = async function(){
-    const boards = getActiveBoards();
-    const seqOn  = !!(document.getElementById('sequenceToggle')?.checked && boards.length > 1);
-    if (!seqOn) {
-      return typeof FALLBACK_START === 'function' ? FALLBACK_START() : undefined;
-    }
-    try { await startSequencedSession(); }
+  const boards = getActiveBoards();
+  const seqOn  = !!(document.getElementById('sequenceToggle')?.checked && boards.length > 1);
+  const hasGroups = Array.isArray(window.sequenceSlots) && window.sequenceSlots.some(s => Array.isArray(s.names) && s.names.length > 1);
+  if (!seqOn || hasGroups) {
+    return typeof FALLBACK_START === 'function' ? FALLBACK_START() : undefined;
+  }
+  try { await startSequencedSession(); }
+
     catch (err) { console.error(err); alert('Sorry—could not start the sequenced session.'); setLoading(false); }
   };
 
@@ -3785,10 +3965,11 @@ function equalizeSequenceCounts(total){ return equalizeSequenceSlots(total); }
 // Inside the DROP‑IN PATCH IIFE that overrides showImage:
 window.showImage = function(){
   const seqOn  = !!(document.getElementById('sequenceToggle')?.checked && (selectedBoards?.length || 0) > 1);
+  const hasGroups = Array.isArray(window.sequenceSlots) && window.sequenceSlots.some(s => Array.isArray(s.names) && s.names.length > 1);
 
-  // If NOT sequenced, make sure badge is hidden and fall back
-  if (!seqOn) {
-    setBoardBadge('');                // <— add this line
+  // Fall back when grouped steps are in use
+  if (!seqOn || hasGroups) {
+    setBoardBadge('');
     return _oldShow ? _oldShow() : undefined;
   }
 
@@ -3842,7 +4023,9 @@ window.showImage = function(){
   window.refreshImage = function(){
     if (inBreak) return;
     const seqOn  = !!(document.getElementById('sequenceToggle')?.checked && (selectedBoards?.length || 0) > 1);
-    if (!seqOn) return _oldRefresh ? _oldRefresh() : undefined;
+const hasGroups = Array.isArray(window.sequenceSlots) && window.sequenceSlots.some(s => Array.isArray(s.names) && s.names.length > 1);
+if (!seqOn || hasGroups) return _oldRefresh ? _oldRefresh() : undefined;
+
 
     const newDur = (sessionMode === 'class')
       ? (classImageSchedule[currentIndex]?.duration || imageDuration)
@@ -3868,7 +4051,9 @@ window.showImage = function(){
 
   window.prevImage = function(){
     const seqOn  = !!(document.getElementById('sequenceToggle')?.checked && (selectedBoards?.length || 0) > 1);
-    if (!seqOn) return _oldPrev ? _oldPrev() : undefined;
+const hasGroups = Array.isArray(window.sequenceSlots) && window.sequenceSlots.some(s => Array.isArray(s.names) && s.names.length > 1);
+if (!seqOn || hasGroups) return _oldPrev ? _oldPrev() : undefined;
+
 
     const hist = slotHistory[currentIndex];
     if (hist && hist.length > 1 && !inBreak) {
