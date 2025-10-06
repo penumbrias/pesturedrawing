@@ -706,14 +706,40 @@ body.at-setup #startBtn { display: inline-flex; }
   text-decoration: underline; text-decoration-thickness: 2px;
 }
 
+/* === Temporary dev banner (remove when finished) ======================= */
+.dev-banner{
+  position: sticky; top: 0; z-index: 9600;
+  display: flex; align-items: center; justify-content: center; gap: .6rem;
+  padding: .45rem .75rem;
+  background: rgba(145,29,29,.16);            /* uses your maroon accent tone */
+  border-bottom: 1px solid var(--ui-border);
+  color: var(--text); font-size: .95rem;
+}
+.dev-banner strong{ letter-spacing: .01em; }
+.dev-banner .dismiss{
+  margin-left: .5rem; background: transparent; border: 0; color: inherit;
+  opacity: .7; cursor: pointer; font-size: 1.05rem; line-height: 1;
+}
+.dev-banner .dismiss:hover,
+.dev-banner .dismiss:focus-visible{ opacity: 1; outline: none; }
+
+/* Hide during sessions/breaks/finished screens */
+body:not(.at-setup) .dev-banner{ display: none !important; }
+
 
   </style>
   <audio id="bellSound" src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" preload="auto"></audio>
 </head>
 <body class="at-setup">
+
+<!-- Temporary notice: remove when finished -->
+<div class="dev-banner" id="devBanner" role="status" aria-live="polite">
+  <strong>Site under construction</strong> — things may be unstable.
+  <button type="button" class="dismiss" id="devBannerDismiss" aria-label="Dismiss notice">✕</button>
+</div>
+
 <!-- Top navigation -->
-<nav class="site-nav" aria-label="Primary">
-  <a href="./tips.html" id="tipsLink">Tips / Guidance</a>
+<nav class="site-nav" aria-label="Primary">  <a href="./tips.html" id="tipsLink">Tips / Guidance</a>
 </nav>
 
   <!-- Setup Panel -->
@@ -4255,6 +4281,25 @@ function safeURL(p) {
       try { _toggleSess(); } catch (_) {}
     }
   };
+})();
+</script>
+
+<script>
+/* Temporary dev banner wiring (remove when finished) */
+(function(){
+  const key = 'pd_dev_banner_dismissed';
+  const el  = document.getElementById('devBanner');
+  const btn = document.getElementById('devBannerDismiss');
+  if (!el || !btn) return;
+
+  // Restore prior dismissal
+  if (localStorage.getItem(key) === '1') el.style.display = 'none';
+
+  // One‑click dismiss (persists across reloads)
+  btn.addEventListener('click', () => {
+    localStorage.setItem(key, '1');
+    el.style.display = 'none';
+  });
 })();
 </script>
 
