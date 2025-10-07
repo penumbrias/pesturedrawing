@@ -4296,6 +4296,25 @@ function safeURL(p) {
 </style>
 
 <script>
+/* Bridge LET globals to window.* so the Link/Unlink code can see them */
+(() => {
+  try {
+    Object.defineProperty(window, 'sequenceSlots', {
+      get(){ return sequenceSlots; },
+      set(v){ sequenceSlots = v; },
+      configurable: true
+    });
+    Object.defineProperty(window, 'sequenceState', {
+      get(){ return sequenceState; },
+      set(v){ sequenceState = v; },
+      configurable: true
+    });
+  } catch (e) { console.warn('bridge failed', e); }
+})();
+</script>
+
+
+<script>
 (() => {
   /* =========================================================
    *  1) LINK/UNLINK UX — instant link on click, pop-out unlink
