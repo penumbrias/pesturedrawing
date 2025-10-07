@@ -2982,9 +2982,9 @@ function toggleSessionTimer(){ showSessionTimer = !showSessionTimer; updateSessi
  **********************/
 // Wire up buttons once DOM is ready
 document.getElementById('startBtn').addEventListener('click', startSession);
-document.getElementById('prevBtn').addEventListener('click', prevImage);
+document.getElementById('prevBtn').addEventListener('click', () => window.prevImage?.());
 document.getElementById('pauseBtn').addEventListener('click', togglePause);
-document.getElementById('nextBtn').addEventListener('click', nextImage);
+document.getElementById('nextBtn').addEventListener('click', () => window.nextImage?.());
 document.getElementById('refreshBtn').addEventListener('click', () => window.refreshImage && window.refreshImage());
 document.getElementById('endBtn').addEventListener('click', openEndConfirm);
 document.getElementById('toggleImgTimerBtn').addEventListener('click', toggleImageTimer);
