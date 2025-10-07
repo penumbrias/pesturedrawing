@@ -4258,6 +4258,91 @@ if (!PD_sequencePlan.length) {
 })();
 </script>
 
+<script>
+/* 1) Expose sequencing helpers globally so earlier overrides don't crash */
+(function () {
+  // Map class index -> image ordinal (skips breaks)
+  if (typeof window.imageOrdinalForIndex !== 'function') {
+    window.imageOrdinalForIndex = function (idx) {
+      if (window.sessionMode !== 'class') return idx;
+      let count = 0, sched = window.classImageSchedule || [];
+      for (let i = 0; i <= idx && i < sched.length; i++) {
+        if (!sched[i]?.isBreak) count++;
+      }
+      return Math.max(0, count - 1);
+    };
+  }
+
+  // Draw a URL from a single board name or a "A||B" group
+  if (typeof window.drawFromKey !== 'function') {
+    window.drawFromKey = function (key) {
+      if (!key) return '';
+      const S = window.sequenceState || (window.sequenceState = {
+        bags: {}, cursors: {}, groupBags: {}, groupCursors: {}
+      });
+
+      // Group
+      if (key.includes('||')) {
+        const k = key;
+        if (!S.groupBags[k]) {
+          const members = k.split('||');
+          const seen = new Set(), bag = [];
+          members.forEach(n => (S.bags[n] || []).forEach(u => {
+            if (typeof u === 'string' && u && !seen.has(u)) { seen.add(u); bag.push(u); }
+          }));
+          S.groupBags[k] = bag.sort(() => Math.random() - 0.5);
+          S.groupCursors[k] = 0;
+        }
+        const bag = S.groupBags[k]; if (!bag.length) return '';
+        const i = S.groupCursors[k] % bag.length;
+        const url = bag[i];
+        S.groupCursors[k] = i + 1;
+        if (S.groupCursors[k] % bag.length === 0) {
+          S.groupBags[k] = bag.sort(() => Math.random() - 0.5);
+        }
+        return url;
+      }
+
+      // Single
+      const n = key;
+      if (!Object.prototype.hasOwnProperty.call(S.cursors, n)) S.cursors[n] = 0;
+      const bag = S.bags[n] || [];
+      if (!bag.length) return '';
+      const i = S.cursors[n] % bag.length;
+      const url = bag[i];
+      S.cursors[n] = i + 1;
+      if (S.cursors[n] % bag.length === 0) {
+        S.bags[n] = bag.sort(() => Math.random() - 0.5);
+      }
+      return url;
+    };
+  }
+
+  // Make the current plan visible globally for code that checks it
+  if (!Array.isArray(window.PD_sequencePlan)) window.PD_sequencePlan = [];
+})();
+</script>
+
+<script>
+/* 2) Ensure the final (unified) startSession is the one that runs */
+window.addEventListener('DOMContentLoaded', () => {
+  const btn = document.getElementById('startBtn');
+  if (!btn) return;
+
+  // Remove any older listeners by replacing the node
+  const clone = btn.cloneNode(true);
+  btn.parentNode.replaceChild(clone, btn);
+
+  // Capture-phase handler that stops all earlier bubbling listeners
+  clone.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    if (typeof window.startSession === 'function') {
+      window.startSession();
+    }
+  }, true);
+});
+</script>
 
 
 <script>
