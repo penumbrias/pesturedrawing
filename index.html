@@ -1671,6 +1671,7 @@ let inBreak = false, breakTimeRemaining = 0, breaksTaken = 0;
 let breakEnabled = false, breakAfter = 20, breakDuration = 5;
 let bellTimes = [], bellFiredThisImage = new Set(), bellFiredThisBreak = new Set();
 let lastBoardBadge = null;
+let sequenceEnabledAtStart = false;
 
 function setBoardBadge(name){
   const el = document.getElementById('boardBadge');
@@ -3766,20 +3767,13 @@ function dealOne(excludeIdx = null) {
 // Keep a reference to any earlier (sequence-aware) refresh
 const __seqRefresh = (typeof window.refreshImage === 'function') ? window.refreshImage : null;
 
-window.refreshImage = function unifiedRefresh(){
+window.refreshImage = function () {
   if (inBreak) return;
 
-  // If Sequence is ON and we captured the sequence-aware refresher, use it
-  const seqOn = !!(document.getElementById('sequenceToggle')?.checked && (selectedBoards?.length || 0) > 1);
-  if (seqOn && __seqRefresh) {
-    return __seqRefresh();   // uses boardForCurrentSlot() + drawFromBoard()
-  }
-
-  // --- Mixed mode fallback: use imageList + deck ---
+  // Reset this slot’s timer but keep the session timer consistent
   const duration = (sessionMode === 'class')
     ? (classImageSchedule[currentIndex]?.duration || imageDuration)
     : imageDuration;
-
   const was = remaining;
   remaining = duration;
   bellFiredThisImage.clear();
@@ -3789,21 +3783,36 @@ window.refreshImage = function unifiedRefresh(){
     updateSessionTimer();
   }
 
+  const img = document.getElementById('currentImage');
+
+  if (sequenceEnabledAtStart && PD_sequencePlan.length) {
+    // Sequenced refresh: draw a new URL from the correct board (or group)
+    const ord = (function imageOrdinalForIndex(idx){
+      if (sessionMode !== 'class') return idx;
+      let count = 0;
+      for (let i = 0; i <= idx && i < classImageSchedule.length; i++) {
+        if (!classImageSchedule[i]?.isBreak) count++;
+      }
+      return Math.max(0, count - 1);
+    })(currentIndex);
+
+    const key = PD_sequencePlan[ord % PD_sequencePlan.length];
+    const url = drawFromKey(key);
+    (slotHistory[ord] ||= []).push(url);
+    setBoardBadge(key.includes('||') ? key.replace(/\|\|/g, ' + ') : key);
+    img.classList.toggle('fit-contain', fitToScreen);
+    img.src = safeURL(url);
+    return;
+  }
+
+  // Mixed-mode refresh
   const prevIdx = (typeof imageDisplayIndex === 'number') ? imageDisplayIndex : null;
   let idx = dealOne(prevIdx);
-  let url = imageList[idx];
-
-  if (!url) {                 // deck/list drifted; rebuild once
-    buildDeck();
-    idx = dealOne(prevIdx);
-    url = imageList[idx];
-  }
-  if (!url) return;           // still nothing—keep current image
-
+  if (!imageList[idx]) { buildDeck(); idx = dealOne(prevIdx); }
   imageDisplayIndex = idx;
-  const img = document.getElementById('currentImage');
+  setBoardBadge('');
   img.classList.toggle('fit-contain', fitToScreen);
-  img.src = safeURL(url);     // your safe encoder
+  img.src = safeURL(imageList[idx]);
 };
 
 /* (optional, but nice-to-have) Make safeURL defensive to avoid "undefined" strings */
@@ -4019,48 +4028,82 @@ function safeURL(p) {
   function labelForKey(k){ return k?.includes('||') ? k.replace(/\|\|/g, ' + ') : (k || ''); }
 
   // Start: build exactly one source (seq plan OR mixed deck), then show
-  window.startSession = async function(){
-    // Read boards + toggle once
-    selectedBoards = getActiveBoards();
-    const seqOn = !!(document.getElementById('sequenceToggle')?.checked && selectedBoards.length > 1);
+window.startSession = async function () {
+  // — Reset runtime so no mixed deck leaks in —
+  elapsedTime = 0;
+  breaksTaken = 0;
+  inBreak = false;
+  bellFiredThisImage.clear();
+  bellFiredThisBreak.clear();
+  slotHistory = {};
+  imageDisplayIndex = 0;
+  currentIndex = 0;
+  deck = [];
+  imageList = [];
 
-    // Build sources
-    if (seqOn) {
-      setLoading(true, 'Loading boards and building sequence…');
-      sequenceState.bags = await fetchPinsByBoard(selectedBoards);
-      sequenceState.cursors = {};
-      sequenceState.groupBags = {}; sequenceState.groupCursors = {};
-// Keep slots in sync and seed counts if they are all zero
-reconcileSequenceSlots(selectedBoards);
-if (sequenceSlots.length && sequenceSlots.every(s => !parseInt(s.count || '0', 10))) {
-  equalizeSequenceSlots(plannedImageTotalFromUI());
-}
-clampCountsToPlanned();
-      
-PD_sequencePlan = planFromSlots(sequenceSlots);
+  // Read the selection once and freeze Sequence ON/OFF for this session
+  selectedBoards = getActiveBoards();
+  sequenceEnabledAtStart = !!(document.getElementById('sequenceToggle')?.checked && selectedBoards.length > 1);
 
-      // Prime first image (faster first paint)
-      slotHistory = {};
-      const firstKey = PD_sequencePlan[0];
-      const firstUrl = drawFromKey(firstKey);
-      slotHistory[0] = [firstUrl];
-      await preloadImage(safeURL(firstUrl));
-    } else {
-      setLoading(true, SOURCE_MODE === 'pinterest' ? 'Loading boards and pins from Pinterest…' : 'Loading sample boards…');
-      imageList = await fetchPinsForBoards(selectedBoards);
-      buildDeck();
-      slotHistory = {};
+  if (sequenceEnabledAtStart) {
+    setLoading(true, 'Loading boards and building sequence…');
+
+    // Per-board bags
+    sequenceState.bags = await fetchPinsByBoard(selectedBoards);
+    sequenceState.cursors = {};
+    sequenceState.groupBags = {};
+    sequenceState.groupCursors = {};
+
+    // Keep slots in sync + seed counts if needed
+    reconcileSequenceSlots(selectedBoards);
+    if (sequenceSlots.length && sequenceSlots.every(s => !parseInt(s.count || '0', 10))) {
+      equalizeSequenceSlots(plannedImageTotalFromUI());
+    }
+    clampCountsToPlanned();
+
+    // Build the concrete per-slot plan (["Board A","Board A","Board B",...])
+    PD_sequencePlan = (function planFromSlots(slots){
+      const out = [];
+      for (const s of slots) {
+        const n = Math.max(0, parseInt(s.count || 0, 10));
+        const key = Array.isArray(s.names) && s.names.length > 1
+          ? s.names.join('||')
+          : (s.names?.[0] || s.name);
+        for (let i = 0; i < n; i++) out.push(key);
+      }
+      return out.filter(Boolean);
+    })(sequenceSlots);
+
+    // Safety fallback: at least cycle once through the selected boards
+    if (!PD_sequencePlan.length) {
+      PD_sequencePlan = selectedBoards.map(b => b.name);
     }
 
-    // Enter viewer
-    document.body.classList.remove('at-setup');
-    document.body.classList.add('in-session');
-    document.getElementById('setup').style.display  = 'none';
-    document.getElementById('viewer').style.display = 'flex';
-    setUiHidden(false);
-    setLoading(false);
-    showImage();
-  };
+    // Prime the first image for fast first paint
+    const firstKey = PD_sequencePlan[0];
+    const firstUrl = drawFromKey(firstKey);
+    slotHistory[0] = [firstUrl];
+    await preloadImage(safeURL(firstUrl));
+  } else {
+    // Mixed mode: build one random list across all selected boards
+    setLoading(true, SOURCE_MODE === 'pinterest'
+      ? 'Loading boards and pins from Pinterest…'
+      : 'Loading sample boards…'
+    );
+    imageList = await fetchPinsForBoards(selectedBoards);
+    buildDeck();
+  }
+
+  // Enter viewer
+  document.body.classList.remove('at-setup');
+  document.body.classList.add('in-session');
+  document.getElementById('setup').style.display  = 'none';
+  document.getElementById('viewer').style.display = 'flex';
+  setUiHidden(false);
+  setLoading(false);
+
+  showImage();
+};
 
   // Single showImage that respects sequencing when ON
   const _originalShow = window.showImage;
@@ -4082,7 +4125,7 @@ PD_sequencePlan = planFromSlots(sequenceSlots);
       remaining = imageDuration;
     }
 
-    const seqOn = !!(document.getElementById('sequenceToggle')?.checked && selectedBoards.length > 1);
+const seqOn = !!sequenceEnabledAtStart;
     if (seqOn) {
 if (!PD_sequencePlan.length) {
   // No valid plan → behave like mixed mode
