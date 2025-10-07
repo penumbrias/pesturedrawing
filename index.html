@@ -1962,8 +1962,9 @@ let sequenceState = {
 };
 
 // Link/Unlink transient UI state
-let linkMode = false;
-let unlinkMode = false;
+// Single source of truth so every script agrees
+window.linkMode  = window.linkMode  || false;
+window.unlinkMode = window.unlinkMode || false;
 let pendingLink = new Set();  // indices selected while linking
 
 // Keep slots in sync with the current selection; preserve order + duplicates
@@ -2135,8 +2136,8 @@ function renderSequenceRows(){
     rows.appendChild(wrap);
   });
 
-  rows.classList.toggle('link-mode', linkMode);
-  rows.classList.toggle('unlink-mode', unlinkMode);
+ rows.classList.toggle('link-mode',   window.linkMode);
+ rows.classList.toggle('unlink-mode', window.unlinkMode);
 
   if (!rows.dataset.wired) {
     rows.addEventListener('click', (e) => {
@@ -2146,14 +2147,14 @@ function renderSequenceRows(){
       const slot = sequenceSlots[idx];
 
       // Link mode: toggle selection of rows (commit via button)
-      if (linkMode) {
+      if (window.linkMode) {
         if (pendingLink.has(idx)) { pendingLink.delete(idx); rowEl.classList.remove('selected'); }
         else { pendingLink.add(idx); rowEl.classList.add('selected'); }
         return;
       }
 
       // Unlink mode: click a member name inside a group to remove it
-      if (unlinkMode) {
+      if (window.unlinkMode) {
         const mem = e.target.closest('.member');
         if (mem && Array.isArray(slot.names) && slot.names.length > 1) {
           const next = slot.names.filter(n => n !== mem.dataset.name);
@@ -2237,7 +2238,7 @@ function handleSequenceVisibility() {
   if (unlinkBtn) unlinkBtn.style.display = (many && toggle?.checked) ? 'inline-block' : 'none';
 
   if (!many) { 
-    linkMode = false; unlinkMode = false; pendingLink.clear();
+    window.linkMode = false; window.unlinkMode = false; pendingLink.clear();
     if (cfg) cfg.style.display = 'none';
     return;
   }
@@ -3519,8 +3520,8 @@ $('linkBoardsBtn')?.addEventListener('click', () => {
   if (!toggle || !toggle.checked) return;
 
   // First click → enter link mode; second click with ≥2 selected → commit link
-  if (!linkMode) {
-    linkMode = true; unlinkMode = false; pendingLink.clear();
+ if (!window.linkMode) {
+   window.linkMode = true; window.unlinkMode = false; pendingLink.clear();
     renderSequenceRows();
     return;
   }
@@ -3535,19 +3536,19 @@ $('linkBoardsBtn')?.addEventListener('click', () => {
     for (let i = indices.length - 1; i >= 0; i--) sequenceSlots.splice(indices[i], 1);
     sequenceSlots.splice(insertAt, 0, { names, count });
 
-    linkMode = false; pendingLink.clear();
+    window.linkMode = false; pendingLink.clear();
     renderSequenceRows(); clampCountsToPlanned(); updateSequenceSummaryUI();
     return;
   }
 
-  linkMode = false; pendingLink.clear(); renderSequenceRows();
+  window.linkMode = false; pendingLink.clear(); renderSequenceRows();
 });
 
 $('unlinkBoardsBtn')?.addEventListener('click', () => {
   const toggle = document.getElementById('sequenceToggle');
   if (!toggle || !toggle.checked) return;
-  unlinkMode = !unlinkMode;
-  linkMode = false; pendingLink.clear();
+  window.unlinkMode = !unlinkMode;
+  window.linkMode = false; pendingLink.clear();
   renderSequenceRows();
 });
 
@@ -4720,3 +4721,5 @@ function safeURL(p) {
 
 </body>
 </html>
+
+
