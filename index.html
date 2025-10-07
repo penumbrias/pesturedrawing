@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -726,7 +727,6 @@ body.at-setup #startBtn { display: inline-flex; }
 /* Hide during sessions/breaks/finished screens */
 body:not(.at-setup) .dev-banner{ display: none !important; }
 
-
   </style>
   <audio id="bellSound" src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" preload="auto"></audio>
 </head>
@@ -734,12 +734,13 @@ body:not(.at-setup) .dev-banner{ display: none !important; }
 
 <!-- Temporary notice: remove when finished -->
 <div class="dev-banner" id="devBanner" role="status" aria-live="polite">
-  <strong>Site under construction</strong> things might not work temporarily! back up soon
+  <strong>Site under construction</strong> features may be down temporarily, back up soon!
   <button type="button" class="dismiss" id="devBannerDismiss" aria-label="Dismiss notice">✕</button>
 </div>
 
 <!-- Top navigation -->
-<nav class="site-nav" aria-label="Primary">  <a href="./tips.html" id="tipsLink">Tips / Guidance</a>
+<nav class="site-nav" aria-label="Primary">
+  <a href="./tips.html" id="tipsLink">Tips / Guidance</a>
 </nav>
 
   <!-- Setup Panel -->
@@ -1962,9 +1963,8 @@ let sequenceState = {
 };
 
 // Link/Unlink transient UI state
-// Single source of truth so every script agrees
-window.linkMode  = window.linkMode  || false;
-window.unlinkMode = window.unlinkMode || false;
+let linkMode = false;
+let unlinkMode = false;
 let pendingLink = new Set();  // indices selected while linking
 
 // Keep slots in sync with the current selection; preserve order + duplicates
@@ -2136,8 +2136,8 @@ function renderSequenceRows(){
     rows.appendChild(wrap);
   });
 
- rows.classList.toggle('link-mode',   window.linkMode);
- rows.classList.toggle('unlink-mode', window.unlinkMode);
+  rows.classList.toggle('link-mode', linkMode);
+  rows.classList.toggle('unlink-mode', unlinkMode);
 
   if (!rows.dataset.wired) {
     rows.addEventListener('click', (e) => {
@@ -2147,14 +2147,14 @@ function renderSequenceRows(){
       const slot = sequenceSlots[idx];
 
       // Link mode: toggle selection of rows (commit via button)
-      if (window.linkMode) {
+      if (linkMode) {
         if (pendingLink.has(idx)) { pendingLink.delete(idx); rowEl.classList.remove('selected'); }
         else { pendingLink.add(idx); rowEl.classList.add('selected'); }
         return;
       }
 
       // Unlink mode: click a member name inside a group to remove it
-      if (window.unlinkMode) {
+      if (unlinkMode) {
         const mem = e.target.closest('.member');
         if (mem && Array.isArray(slot.names) && slot.names.length > 1) {
           const next = slot.names.filter(n => n !== mem.dataset.name);
@@ -2238,7 +2238,7 @@ function handleSequenceVisibility() {
   if (unlinkBtn) unlinkBtn.style.display = (many && toggle?.checked) ? 'inline-block' : 'none';
 
   if (!many) { 
-    window.linkMode = false; window.unlinkMode = false; pendingLink.clear();
+    linkMode = false; unlinkMode = false; pendingLink.clear();
     if (cfg) cfg.style.display = 'none';
     return;
   }
@@ -3520,8 +3520,8 @@ $('linkBoardsBtn')?.addEventListener('click', () => {
   if (!toggle || !toggle.checked) return;
 
   // First click → enter link mode; second click with ≥2 selected → commit link
- if (!window.linkMode) {
-   window.linkMode = true; window.unlinkMode = false; pendingLink.clear();
+  if (!linkMode) {
+    linkMode = true; unlinkMode = false; pendingLink.clear();
     renderSequenceRows();
     return;
   }
@@ -3536,19 +3536,19 @@ $('linkBoardsBtn')?.addEventListener('click', () => {
     for (let i = indices.length - 1; i >= 0; i--) sequenceSlots.splice(indices[i], 1);
     sequenceSlots.splice(insertAt, 0, { names, count });
 
-    window.linkMode = false; pendingLink.clear();
+    linkMode = false; pendingLink.clear();
     renderSequenceRows(); clampCountsToPlanned(); updateSequenceSummaryUI();
     return;
   }
 
-  window.linkMode = false; pendingLink.clear(); renderSequenceRows();
+  linkMode = false; pendingLink.clear(); renderSequenceRows();
 });
 
 $('unlinkBoardsBtn')?.addEventListener('click', () => {
   const toggle = document.getElementById('sequenceToggle');
   if (!toggle || !toggle.checked) return;
-  window.unlinkMode = !unlinkMode;
-  window.linkMode = false; pendingLink.clear();
+  unlinkMode = !unlinkMode;
+  linkMode = false; pendingLink.clear();
   renderSequenceRows();
 });
 
@@ -4285,446 +4285,6 @@ function safeURL(p) {
 })();
 </script>
 
-<style>
-  /* Subtle “mode is on” feedback for link/unlink buttons */
-  #linkBoardsBtn.is-active, #unlinkBoardsBtn.is-active {
-    outline: 2px solid var(--accent);
-    outline-offset: 2px;
-    box-shadow: 0 0 0 3px var(--ring);
-    filter: brightness(1.05);
-  }
-</style>
-
-<script>
-/* Bridge LET globals to window.* so the Link/Unlink code can see them */
-(() => {
-  try {
-    Object.defineProperty(window, 'sequenceSlots', {
-      get(){ return sequenceSlots; },
-      set(v){ sequenceSlots = v; },
-      configurable: true
-    });
-    Object.defineProperty(window, 'sequenceState', {
-      get(){ return sequenceState; },
-      set(v){ sequenceState = v; },
-      configurable: true
-    });
-  } catch (e) { console.warn('bridge failed', e); }
-})();
-</script>
-
-
-<script>
-(() => {
-  /* =========================================================
-   *  1) LINK/UNLINK UX — instant link on click, pop-out unlink
-   * ========================================================= */
-  const rowsEl   = document.getElementById('sequenceRows');
-  const linkBtn  = document.getElementById('linkBoardsBtn');
-  const unlinkBtn= document.getElementById('unlinkBoardsBtn');
-
-  // Reuse your globals if they exist; otherwise define
-  window.linkMode   = !!window.linkMode;
-  window.unlinkMode = !!window.unlinkMode;
-  let linkAnchorIndex = null;                // first clicked row in Link mode
-
-  // Helpers to read/compose slot structure
-  const slotNames = (s) => Array.isArray(s.names) ? [...s.names] : [s.name];
-  function slotOrigMap(s){
-    // Original per-board counts, if known
-    if (s && s.orig && typeof s.orig === 'object') return { ...s.orig };
-
-    // Derive per-board counts if none stored
-    const names = slotNames(s);
-    const count = Math.max(0, parseInt(s.count || 0, 10));
-    if (!names.length || count === 0) return Object.fromEntries(names.map(n => [n, 0]));
-    if (names.length === 1) return { [names[0]]: count };
-
-    const base = Math.floor(count / names.length);
-    let rem = count % names.length;
-    const map = {};
-    names.forEach((n, i) => { map[n] = base + (i < rem ? 1 : 0); });
-    return map;
-  }
-  function sumMap(a, b){
-    const out = { ...a };
-    Object.entries(b || {}).forEach(([k, v]) => { out[k] = (out[k] || 0) + (v || 0); });
-    return out;
-  }
-
-  function commitLinkPair(i, j){
-    if (i === j) return;
-    const aIdx = Math.min(i, j), bIdx = Math.max(i, j);
-    const A = window.sequenceSlots[aIdx], B = window.sequenceSlots[bIdx];
-    if (!A || !B) return;
-
-    const names = Array.from(new Set([...slotNames(A), ...slotNames(B)]));
-    const origA = slotOrigMap(A), origB = slotOrigMap(B);
-    const orig  = sumMap(origA, origB);
-    const count = Object.values(orig).reduce((s, n) => s + (parseInt(n) || 0), 0);
-
-    // Replace A with merged group, remove B
-    window.sequenceSlots[aIdx] = { names, count, orig };
-    window.sequenceSlots.splice(bIdx, 1);
-  }
-
-  function popOutMember(groupIndex, boardName){
-    const slot = window.sequenceSlots[groupIndex];
-    if (!slot || !Array.isArray(slot.names) || slot.names.length < 2) return;
-
-    // 1) Determine this board's restored count
-    const orig = slotOrigMap(slot);
-    const boardCount = Math.max(0, parseInt(orig[boardName] || 0, 10));
-
-    // 2) New single slot directly *below* the group
-    const newSingle = { name: boardName, count: boardCount };
-    window.sequenceSlots.splice(groupIndex + 1, 0, newSingle);
-
-    // 3) Shrink the group, subtracting the popped count
-    const remainingNames = slot.names.filter(n => n !== boardName);
-    delete orig[boardName];
-    const remainingCount = Math.max(0, (parseInt(slot.count || 0, 10)) - boardCount);
-
-    if (remainingNames.length === 1) {
-      // Group collapses to single
-      window.sequenceSlots[groupIndex] = { name: remainingNames[0], count: remainingCount };
-    } else {
-      window.sequenceSlots[groupIndex] = { names: remainingNames, count: remainingCount, orig };
-    }
-  }
-
-  // Button visuals (pressed state)
-function paintModeButtons(){
-  const link  = document.getElementById('linkBoardsBtn');
-  const unlk  = document.getElementById('unlinkBoardsBtn');
-  const rows  = document.getElementById('sequenceRows');
-
-  if (link){
-    link.classList.toggle('is-active',  !!window.linkMode);
-    link.setAttribute('aria-pressed',   window.linkMode ? 'true' : 'false');
-  }
-  if (unlk){
-    unlk.classList.toggle('is-active',  !!window.unlinkMode);
-    unlk.setAttribute('aria-pressed',   window.unlinkMode ? 'true' : 'false');
-  }
-  if (rows){
-    rows.classList.toggle('link-mode',   !!window.linkMode);
-    rows.classList.toggle('unlink-mode', !!window.unlinkMode);
-  }
-}
-  // Replace any older button handlers with ours (clone trick clears listeners)
-  function rewireButton(btn, onClick){
-    if (!btn) return null;
-    const clone = btn.cloneNode(true);
-    btn.parentNode.replaceChild(clone, btn);
-    clone.addEventListener('click', onClick);
-    return clone;
-  }
-  const linkHandler = () => {
-    window.linkMode   = !window.linkMode;
-    window.unlinkMode = false;
-    linkAnchorIndex   = null;
-    paintModeButtons();
-  };
-  const unlinkHandler = () => {
-    window.unlinkMode = !window.unlinkMode;
-    window.linkMode   = false;
-    linkAnchorIndex   = null;
-    paintModeButtons();
-  };
-  const _linkBtn = rewireButton(linkBtn,  linkHandler);
-  const _unlkBtn = rewireButton(unlinkBtn, unlinkHandler);
-  paintModeButtons();
-
-  // Intercept clicks at capture phase so the old handler doesn't run
-  rowsEl?.addEventListener('click', (e) => {
-    if (!rowsEl || (!window.linkMode && !window.unlinkMode)) return;
-    const row = e.target.closest('.sequence-row');
-    if (!row) return;
-    e.stopPropagation();   // prevent the older handler from doing its thing
-    e.stopImmediatePropagation();
-
-    const idx  = parseInt(row.dataset.index, 10);
-    const slot = window.sequenceSlots[idx];
-
-    if (window.linkMode) {
-      // Pairwise, instant link: select anchor, then merge with next click
-      if (linkAnchorIndex == null) {
-        linkAnchorIndex = idx;
-        row.classList.add('selected');
-        return;
-      }
-      if (linkAnchorIndex === idx) {
-        // unselect anchor
-        linkAnchorIndex = null;
-        row.classList.remove('selected');
-        return;
-      }
-      commitLinkPair(linkAnchorIndex, idx);
-      linkAnchorIndex = Math.min(linkAnchorIndex, idx); // anchor becomes the merged group
-      if (typeof window.renderSequenceRows === 'function') {
-        window.renderSequenceRows();
-      }
-      window.clampCountsToPlanned?.();
-      window.updateSequenceSummaryUI?.();
-      // Keep Link mode on for rapid chaining
-      paintModeButtons();
-      return;
-    }
-
-    if (window.unlinkMode) {
-      // Click a member chip to pop it out under the group
-      const mem = e.target.closest('.member');
-      if (mem && Array.isArray(slot?.names) && slot.names.length > 1) {
-        popOutMember(idx, mem.dataset.name);
-        if (typeof window.renderSequenceRows === 'function') {
-          window.renderSequenceRows();
-        }
-        window.clampCountsToPlanned?.();
-        window.updateSequenceSummaryUI?.();
-      }
-    }
-  }, true); // capture
-})();
-
-(() => {
-  /* =========================================================
-   *  2) VIEWER RUNTIME — groups draw from the whole union
-   *      (fixes: Next works; Refresh pulls from full group)
-   * ========================================================= */
-  const has = (v) => Array.isArray(v) ? v.length > 0 : !!v;
-  const uniq = (arr) => Array.from(new Set(arr));
-
-  // Build a flattened cycle like: [ single(A) × count, group(B+C) × count, … ]
-  function buildCycleFromSlots(slots){
-    const cycle = [];
-    slots.forEach(s => {
-      const c = Math.max(0, parseInt(s.count || 0, 10));
-      if (!c) return;
-      if (Array.isArray(s.names) && s.names.length > 1) {
-        const key = s.names.join('||');
-        for (let i = 0; i < c; i++) cycle.push({ kind:'group', key, names:[...s.names] });
-      } else {
-        const name = s.names?.[0] || s.name;
-        for (let i = 0; i < c; i++) cycle.push({ kind:'single', name });
-      }
-    });
-    return cycle;
-  }
-
-  // Per-board + per-group bags
-  function ensureGroupBag(state, key, names){
-    if (!state.groupBags[key]) {
-      const merged = uniq([].concat(...names.map(n => state.bags[n] || [])));
-      state.groupBags[key] = window.shuffleArray ? window.shuffleArray(merged) : merged;
-      state.groupCursors[key] = 0;
-    }
-  }
-  function drawFromBoard(state, name){
-    let bag = state.bags[name] || [];
-    if (!bag.length) return null;
-    if (!Object.prototype.hasOwnProperty.call(state.cursors, name)) state.cursors[name] = 0;
-    const idx = state.cursors[name] % bag.length;
-    const url = bag[idx];
-    state.cursors[name] = idx + 1;
-    if (state.cursors[name] % bag.length === 0) {
-      state.bags[name] = window.shuffleArray ? window.shuffleArray(bag) : bag;
-    }
-    return url;
-  }
-  function drawFromGroup(state, key, names){
-    ensureGroupBag(state, key, names);
-    const bag = state.groupBags[key] || [];
-    if (!bag.length) return null;
-    const i = state.groupCursors[key] % bag.length;
-    const url = bag[i];
-    state.groupCursors[key] = i + 1;
-    if (state.groupCursors[key] % bag.length === 0) {
-      state.groupBags[key] = window.shuffleArray ? window.shuffleArray(bag) : bag;
-    }
-    return url;
-  }
-
-  // Map class currentIndex (includes breaks) → image ordinal
-  function imageOrdinalForIndex(idx){
-    if (window.sessionMode !== 'class') return idx;
-    let count = 0;
-    for (let i = 0; i <= idx && i < (window.classImageSchedule?.length || 0); i++) {
-      if (!window.classImageSchedule[i]?.isBreak) count++;
-    }
-    return Math.max(0, count - 1);
-  }
-
-  // Public runtime toggled on at session start
-  const RT = {
-    active: false,              // sequence ON + at least one slot
-    cycle: [],                  // flattened descriptors for one pass
-    state: { bags:{}, cursors:{}, groupBags:{}, groupCursors:{} }, // per-board & per-group
-  };
-  window.__PD_RT = RT;
-
-  // Save originals so we can fall back
-  const _origStart   = window.startSession;
-  const _origShow    = window.showImage;
-  const _origNext    = window.nextImage;
-  const _origPrev    = window.prevImage;
-  const _origRefresh = window.refreshImage;
-
-  // Wrap startSession to activate the runtime when Sequencing is ON
-  window.startSession = async function patchedStart(){
-    // Let your current startSession do all of its work (fetching bags, timers, etc.)
-    const r = await _origStart?.apply(this, arguments);
-
-    // Decide if we should activate
-    const seqOn = !!(document.getElementById('sequenceToggle')?.checked && (window.selectedBoards?.length || 0) > 1);
-    RT.active = seqOn && Array.isArray(window.sequenceSlots) && window.sequenceSlots.length > 0;
-
-    if (RT.active) {
-      // Rebuild the cycle from your current slots
-      RT.cycle = buildCycleFromSlots(window.sequenceSlots);
-
-      // Ensure per-board bags exist (your code already filled sequenceState.bags)
-      RT.state.bags = { ...(window.sequenceState?.bags || {}) };
-      RT.state.cursors = {};
-      RT.state.groupBags = {};
-      RT.state.groupCursors = {};
-    }
-    return r;
-  };
-
-  // Unified helper used by show/refresh when runtime is active
-  function descriptorForCurrentSlot(){
-    if (!RT.active || !RT.cycle.length) return null;
-    const ord = imageOrdinalForIndex(window.currentIndex || 0);
-    return RT.cycle[ ord % RT.cycle.length ] || null;
-  }
-  function drawForDescriptor(desc){
-    if (!desc) return null;
-    if (desc.kind === 'single') return drawFromBoard(RT.state, desc.name);
-    if (desc.kind === 'group')  return drawFromGroup(RT.state, desc.key, desc.names);
-    return null;
-  }
-  function badgeForDescriptor(desc){
-    if (!desc) return '';
-    if (desc.kind === 'single') return desc.name;
-    return desc.names.join(' + ');
-  }
-
-  // SHOW IMAGE — when active, pull from the board/group for this slot
-  window.showImage = function patchedShow(){
-    if (!RT.active) return _origShow?.apply(this, arguments);
-
-    // Handle break rows in Class mode
-    if (window.sessionMode === 'class' &&
-        (window.currentIndex || 0) >= (window.classImageSchedule?.length || 0)) {
-      return window.endSession?.();
-    }
-    const sched = window.classImageSchedule?.[window.currentIndex || 0];
-    if (sched?.isBreak) return window.startBreak?.(sched.duration);
-
-    // Timers (reuse your existing logic)
-    window.remaining = (window.sessionMode === 'class') ? (sched?.duration || window.imageDuration)
-                                                        : window.imageDuration;
-    const img = document.getElementById('currentImage');
-
-    const desc = descriptorForCurrentSlot();
-    const url  = drawForDescriptor(desc) || (Array.isArray(window.imageList) ? window.imageList[0] : '');
-    // Remember image history per slot (so Prev works inside slot)
-    window.slotHistory = window.slotHistory || {};
-    const h = window.slotHistory[window.currentIndex] || (window.slotHistory[window.currentIndex] = []);
-    if (!h.length || h[h.length - 1] !== url) h.push(url);
-
-    // Badge: show which board/group this came from
-    window.setBoardBadge?.(badgeForDescriptor(desc));
-
-    img.classList.toggle('fit-contain', !!window.fitToScreen);
-    img.src = (typeof window.safeURL === 'function') ? window.safeURL(url) : url;
-
-    window.updateTimerDisplay?.();
-    window.runTimer?.();
-  };
-
-  // NEXT / PREV — just move the slot pointer, let showImage do the rest
-  window.nextImage = function patchedNext(){
-    if (!RT.active) return _origNext?.apply(this, arguments);
-    window.currentIndex++;
-    window.showImage();
-  };
-  window.prevImage = function patchedPrev(){
-    if (!RT.active) return _origPrev?.apply(this, arguments);
-
-    const hist = (window.slotHistory || {})[window.currentIndex];
-    if (hist && hist.length > 1 && !window.inBreak) {
-      // Step back within this slot's history
-      hist.pop();
-      const url = hist[hist.length - 1];
-      const img = document.getElementById('currentImage');
-
-      const duration = (window.sessionMode === 'class')
-        ? (window.classImageSchedule?.[window.currentIndex]?.duration || window.imageDuration)
-        : window.imageDuration;
-      const was = window.remaining;
-      window.remaining = duration;
-      window.bellFiredThisImage?.clear?.();
-      window.updateTimerDisplay?.();
-      if (window.sessionRemaining != null) {
-        window.sessionRemaining += (window.remaining - was);
-        window.updateSessionTimer?.();
-      }
-      img.src = (typeof window.safeURL === 'function') ? window.safeURL(url) : url;
-      return;
-    }
-
-    // Move to previous *image* slot (skip breaks)
-    if (window.sessionMode === 'class') {
-      let idx = Math.max(0, (window.currentIndex || 0) - 1);
-      while (idx > 0 && window.classImageSchedule?.[idx]?.isBreak) idx--;
-      window.currentIndex = idx;
-    } else {
-      window.currentIndex = Math.max(0, (window.currentIndex || 0) - 1);
-    }
-    // Ensure there is at least one image in history for that slot
-    const desc = descriptorForCurrentSlot();
-    const h2 = window.slotHistory[window.currentIndex] || (window.slotHistory[window.currentIndex] = []);
-    if (!h2.length) {
-      const url = drawForDescriptor(desc);
-      if (url) h2.push(url);
-    }
-    window.showImage();
-  };
-
-  // REFRESH — draws another from the *same group/board* as the slot descriptor
-  window.refreshImage = function patchedRefresh(){
-    if (!RT.active || window.inBreak) return _origRefresh?.apply(this, arguments);
-
-    const desc = descriptorForCurrentSlot();
-    const url  = drawForDescriptor(desc);
-    if (!url) return;
-
-    // Reset this slot's timer and extend the session timer consistently
-    const duration = (window.sessionMode === 'class')
-      ? (window.classImageSchedule?.[window.currentIndex]?.duration || window.imageDuration)
-      : window.imageDuration;
-    const was = window.remaining;
-    window.remaining = duration;
-    window.bellFiredThisImage?.clear?.();
-    window.updateTimerDisplay?.();
-    if (window.sessionRemaining != null) {
-      window.sessionRemaining += (window.remaining - was);
-      window.updateSessionTimer?.();
-    }
-
-    const hist = window.slotHistory?.[window.currentIndex] || (window.slotHistory[window.currentIndex] = []);
-    if (hist[hist.length - 1] !== url) hist.push(url);
-
-    const img = document.getElementById('currentImage');
-    img.classList.toggle('fit-contain', !!window.fitToScreen);
-    img.src = (typeof window.safeURL === 'function') ? window.safeURL(url) : url;
-  };
-})();
-</script>
-
-
 <script>
 /* Temporary dev banner wiring (remove when finished) */
 (function(){
@@ -4747,5 +4307,3 @@ function paintModeButtons(){
 
 </body>
 </html>
-
-
