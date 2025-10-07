@@ -4030,7 +4030,14 @@ function safeURL(p) {
       sequenceState.bags = await fetchPinsByBoard(selectedBoards);
       sequenceState.cursors = {};
       sequenceState.groupBags = {}; sequenceState.groupCursors = {};
-      PD_sequencePlan = planFromSlots(sequenceSlots);
+// Keep slots in sync and seed counts if they are all zero
+reconcileSequenceSlots(selectedBoards);
+if (sequenceSlots.length && sequenceSlots.every(s => !parseInt(s.count || '0', 10))) {
+  equalizeSequenceSlots(plannedImageTotalFromUI());
+}
+clampCountsToPlanned();
+      
+PD_sequencePlan = planFromSlots(sequenceSlots);
 
       // Prime first image (faster first paint)
       slotHistory = {};
@@ -4077,6 +4084,21 @@ function safeURL(p) {
 
     const seqOn = !!(document.getElementById('sequenceToggle')?.checked && selectedBoards.length > 1);
     if (seqOn) {
+if (!PD_sequencePlan.length) {
+  // No valid plan → behave like mixed mode
+  if (!imageList.length) imageList = Object.values(SAMPLE_BOARDS).flat();
+  let hist = slotHistory[currentIndex];
+  if (!hist || !hist.length) {
+    const prev = typeof imageDisplayIndex === 'number' ? imageDisplayIndex : null;
+    imageDisplayIndex = dealOne(prev);
+    slotHistory[currentIndex] = [imageDisplayIndex];
+  } else {
+    imageDisplayIndex = hist[hist.length - 1];
+  }
+  setBoardBadge('');
+  img.classList.toggle('fit-contain', fitToScreen);
+  img.src = safeURL(imageList[imageDisplayIndex]);
+} else {
       const ord = imageOrdinalForIndex(currentIndex);
       let hist = slotHistory[ord], url;
       const key = PD_sequencePlan[ord % PD_sequencePlan.length];
@@ -4165,6 +4187,20 @@ function safeURL(p) {
   };
 })();
 </script>
+
+<script>
+/* Ensure the unified startSession actually runs on click */
+(function rebindStartToUnified(){
+  const btn = document.getElementById('startBtn');
+  if (!btn) return;
+  btn.addEventListener('click', function(e){
+    e.preventDefault();
+    e.stopImmediatePropagation();   // cancel older handlers
+    window.startSession();          // run the unified one
+  }, true);                         // capture phase to win
+})();
+</script>
+
 
 
 <script>
