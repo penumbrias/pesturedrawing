@@ -4375,17 +4375,24 @@ function safeURL(p) {
   }
 
   // Button visuals (pressed state)
-  function paintModeButtons(){
-    if (linkBtn)  { linkBtn.classList.toggle('is-active',  window.linkMode);
-                    linkBtn.setAttribute('aria-pressed', window.linkMode ? 'true' : 'false'); }
-    if (unlinkBtn){ unlinkBtn.classList.toggle('is-active', window.unlinkMode);
-                    unlinkBtn.setAttribute('aria-pressed', window.unlinkMode ? 'true' : 'false'); }
-    if (rowsEl) {
-      rowsEl.classList.toggle('link-mode',   window.linkMode);
-      rowsEl.classList.toggle('unlink-mode', window.unlinkMode);
-    }
-  }
+function paintModeButtons(){
+  const link  = document.getElementById('linkBoardsBtn');
+  const unlk  = document.getElementById('unlinkBoardsBtn');
+  const rows  = document.getElementById('sequenceRows');
 
+  if (link){
+    link.classList.toggle('is-active',  !!window.linkMode);
+    link.setAttribute('aria-pressed',   window.linkMode ? 'true' : 'false');
+  }
+  if (unlk){
+    unlk.classList.toggle('is-active',  !!window.unlinkMode);
+    unlk.setAttribute('aria-pressed',   window.unlinkMode ? 'true' : 'false');
+  }
+  if (rows){
+    rows.classList.toggle('link-mode',   !!window.linkMode);
+    rows.classList.toggle('unlink-mode', !!window.unlinkMode);
+  }
+}
   // Replace any older button handlers with ours (clone trick clears listeners)
   function rewireButton(btn, onClick){
     if (!btn) return null;
