@@ -4285,6 +4285,61 @@ function safeURL(p) {
 })();
 </script>
 
+<!-- HOTFIX: make the “Next image” button always advance -->
+<script>
+(function hotfixNext() {
+  function advanceSlot() {
+    try {
+      // If you're on a break, treat "Next" as "Skip break"
+      if (typeof window.inBreak === 'boolean' && window.inBreak && typeof window.endBreak === 'function') {
+        window.endBreak();
+        return;
+      }
+
+      // Preferred path: call whatever nextImage is *right now*
+      if (typeof window.nextImage === 'function') {
+        window.nextImage();
+        return;
+      }
+
+      // Fallback: manually advance and show
+      if (typeof window.currentIndex === 'number' && typeof window.showImage === 'function') {
+        window.currentIndex++;
+        window.showImage();
+      }
+    } catch (err) {
+      console.error('advanceSlot() failed:', err);
+    }
+  }
+
+  // Rebind the button after all other code
+  var btn = document.getElementById('nextBtn');
+  if (btn) {
+    // Capture phase + stop propagation so earlier handlers can’t “swallow” it
+    btn.addEventListener('click', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      advanceSlot();
+    }, true);
+  }
+
+  // Make the → key use the same logic; don’t interfere while typing
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'ArrowRight') return;
+    var el = e.target;
+    if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) return;
+
+    var viewer = document.getElementById('viewer');
+    var inViewer = viewer && viewer.style.display === 'flex';
+    if (!inViewer) return;
+
+    e.preventDefault();
+    advanceSlot();
+  }, true);
+})();
+</script>
+
+
 <script>
 /* Temporary dev banner wiring (remove when finished) */
 (function(){
