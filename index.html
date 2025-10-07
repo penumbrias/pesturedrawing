@@ -2798,7 +2798,7 @@ if (sessionMode === 'class') {
   }
 
   // Read the toggle at start time
-  sequenceEnabled = !!(document.getElementById('sequenceToggle')?.checked && selectedBoards.length > 1);
+const seqOn = Array.isArray(PD_sequencePlan) && PD_sequencePlan.length > 0;
 
   setLoading(true, SOURCE_MODE === 'pinterest'
     ? (sequenceEnabled ? 'Loading boards and building sequence…' : 'Loading boards and pins from Pinterest…')
@@ -3863,7 +3863,7 @@ window.refreshImage = function () {
       remaining = imageDuration;
     }
 
-    const seqOn = !!sequenceEnabledAtStart;   // frozen at session start
+const seqOn = Array.isArray(PD_sequencePlan) && PD_sequencePlan.length > 0;
 
     if (seqOn) {
       // ---- Sequenced path --------------------------------------------------
@@ -4022,6 +4022,91 @@ window.refreshImage = function () {
 
   // Make the current plan visible globally for code that checks it
   if (!Array.isArray(window.PD_sequencePlan)) window.PD_sequencePlan = [];
+})();
+</script>
+
+<script>
+(function () {
+  const showFallback = window.showImage;
+  const refreshFallback = window.refreshImage;
+  const prevFallback = window.prevImage;
+  const hasPlan = () => Array.isArray(window.PD_sequencePlan) && window.PD_sequencePlan.length > 0;
+
+  window.showImage = function () {
+    if (!hasPlan()) return showFallback && showFallback();
+
+    if (window.sessionMode === 'class' && window.currentIndex >= window.classImageSchedule.length) {
+      return window.endSession();
+    }
+    const img = document.getElementById('currentImage');
+    document.getElementById('breakScreen').style.display = 'none';
+    document.getElementById('viewer').style.display = 'flex';
+    document.getElementById('breakNextLabel').style.display = 'none';
+    window.bellFiredThisImage.clear();
+
+    if (window.sessionMode === 'class') {
+      const step = window.classImageSchedule[window.currentIndex];
+      if (step.isBreak) { window.startBreak(step.duration); return; }
+      window.remaining = step.duration;
+    } else {
+      window.remaining = window.imageDuration;
+    }
+
+    const ord = window.imageOrdinalForIndex(window.currentIndex);
+    const key = window.PD_sequencePlan[ord % window.PD_sequencePlan.length];
+    const url = (window.slotHistory[ord] && window.slotHistory[ord].length)
+      ? window.slotHistory[ord][window.slotHistory[ord].length - 1]
+      : (window.slotHistory[ord] = [window.drawFromKey(key)])[0];
+
+    window.setBoardBadge(key.includes('||') ? key.replace(/\|\|/g, ' + ') : key);
+    img.classList.toggle('fit-contain', window.fitToScreen);
+    img.src = window.safeURL(url);
+    window.updateTimerDisplay();
+    window.runTimer();
+  };
+
+  window.refreshImage = function () {
+    if (!hasPlan() || window.inBreak) return refreshFallback && refreshFallback();
+
+    const ord = window.imageOrdinalForIndex(window.currentIndex);
+    const dur = (window.sessionMode === 'class')
+      ? (window.classImageSchedule[window.currentIndex]?.duration || window.imageDuration)
+      : window.imageDuration;
+    const was = window.remaining;
+    window.remaining = dur;
+    window.bellFiredThisImage.clear();
+    window.updateTimerDisplay();
+    if (window.sessionRemaining !== null) { window.sessionRemaining += (window.remaining - was); window.updateSessionTimer(); }
+
+    const key = window.PD_sequencePlan[ord % window.PD_sequencePlan.length];
+    const url = window.drawFromKey(key);
+    (window.slotHistory[ord] ||= []).push(url);
+    const img = document.getElementById('currentImage');
+    img.classList.toggle('fit-contain', window.fitToScreen);
+    img.src = window.safeURL(url);
+  };
+
+  window.prevImage = function () {
+    if (!hasPlan()) return prevFallback && prevFallback();
+    const ord = window.imageOrdinalForIndex(window.currentIndex);
+    const hist = window.slotHistory[ord];
+    if (hist && hist.length > 1 && !window.inBreak) {
+      hist.pop();
+      const url = hist[hist.length - 1];
+      const dur = (window.sessionMode === 'class')
+        ? (window.classImageSchedule[window.currentIndex]?.duration || window.imageDuration)
+        : window.imageDuration;
+      const was = window.remaining;
+      window.remaining = dur;
+      window.bellFiredThisImage.clear();
+      window.updateTimerDisplay();
+      if (window.sessionRemaining !== null) { window.sessionRemaining += (window.remaining - was); window.updateSessionTimer(); }
+      document.getElementById('currentImage').src = window.safeURL(url);
+      return;
+    }
+    // otherwise, step to the previous slot as usual
+    return prevFallback && prevFallback();
+  };
 })();
 </script>
 
