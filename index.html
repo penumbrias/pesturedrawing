@@ -796,7 +796,11 @@ body:not(.at-setup) .dev-banner{ display: none !important; }
 </head>
 <body class="at-setup">
 
-
+//<!-- Temporary notice: remove when finished -->
+//<div class="dev-banner" id="devBanner" role="status" aria-live="polite">
+//  <strong>Site under construction</strong> features may be down temporarily, back up soon!
+//  <button type="button" class="dismiss" id="devBannerDismiss" aria-label="Dismiss notice">✕</button>
+//</div>
 
 <!-- Top navigation -->
 <nav class="site-nav" aria-label="Primary">
@@ -900,7 +904,7 @@ Have fun!</p>
 
 <div class="col-12 card">
   <h3>Session Type</h3>
-  <label><input type="radio" name="mode" value="standard" checked> Standard - <em> all images display for the same length of time</em></label>
+  <label><input type="radio" name="mode" value="standard" checked> Standard</label>
   <label style="display:flex; align-items:center; gap:.5rem;">
     <input type="radio" name="mode" value="class"> Class
     <select id="classPreset" style="display:none;">
@@ -960,9 +964,6 @@ Have fun!</p>
   <label style="flex:0 0 auto;">Session length:</label>
   <input type="text" id="classTotal" value="00:00" readonly
          style="max-width:9rem; background:#101217; border:1px solid #222430; color:var(--text); border-radius:10px; padding:.45rem .6rem;">
-<label style="flex:0 0 auto; margin-left:.5rem;">Total images:</label>
-  <input type="text" id="classImages" value="0" readonly
-         style="max-width:6rem; background:#101217; border:1px solid #222430; color:var(--text); border-radius:10px; padding:.45rem .6rem;">
 </div>
 
   </div>
@@ -2387,7 +2388,7 @@ function buildSequenceCycle(boardNames, counts) {
 function toggleFitToScreen() {
   fitToScreen = !fitToScreen;
   const img = document.getElementById('currentImage');
-applyFitState();
+  img.classList.toggle('fit-contain', fitToScreen); // ← changed
   const btn = document.getElementById('fitToScreenBtn');
   if (btn) btn.textContent = fitToScreen ? 'Fit to Screen: On' : 'Fit to Screen: Off';
 }
@@ -2606,7 +2607,7 @@ function showImage() {
 
   const img = document.getElementById("currentImage");
   // ✅ Step 6: keep Fit‑to‑Screen in sync on each image
-  applyFitState();
+  img.classList.toggle('fit-contain', fitToScreen);
 
   if (sessionMode === "class") {
     const schedule = classImageSchedule[currentIndex];
@@ -3277,22 +3278,11 @@ function formatDuration(totalSec) {
 }
 
 // Recalculate the total session length and make sure the UI exists
-// Formats seconds as H:MM:SS (or M:SS if < 1h)
-function formatDuration(totalSec) {
-  totalSec = Math.max(0, parseInt(totalSec || 0, 10));
-  const h = Math.floor(totalSec / 3600);
-  const m = Math.floor((totalSec % 3600) / 60);
-  const s = totalSec % 60;
-  return h > 0 ? `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`
-               : `${m}:${String(s).padStart(2,'0')}`;
-}
-
-// Recalculate the total session length AND total images, and ensure the UI exists
 function recalcClassTotal() {
   const settings = document.getElementById('classSettings');
   if (!settings) return;
 
-  // Ensure the summary row exists (works whether you kept the HTML or not)
+  // 1) Ensure the UI exists at the bottom of the Class section
   let totalRow = document.getElementById('classTotalRow');
   if (!totalRow) {
     totalRow = document.createElement('div');
@@ -3300,61 +3290,33 @@ function recalcClassTotal() {
     totalRow.id = 'classTotalRow';
     totalRow.style.marginTop = '.75rem';
     totalRow.style.alignItems = 'center';
-    totalRow.style.gap = '.5rem';
-    totalRow.style.flexWrap = 'wrap';
     totalRow.innerHTML = `
       <label style="flex:0 0 auto;">Session length:</label>
       <input type="text" id="classTotal" value="00:00" readonly
              style="max-width:9rem; background:#101217; border:1px solid #222430; color:var(--text); border-radius:10px; padding:.45rem .6rem;">
-      <label style="flex:0 0 auto; margin-left:.5rem;">Total images:</label>
-      <input type="text" id="classImages" value="0" readonly
-             style="max-width:6rem; background:#101217; border:1px solid #222430; color:var(--text); border-radius:10px; padding:.45rem .6rem;">
     `;
+    // append after all rows in the Class section
     settings.appendChild(totalRow);
-  } else {
-    // If the row exists but the Total images input doesn't, add it once
-    if (!document.getElementById('classImages')) {
-      const label = document.createElement('label');
-      label.style.cssText = 'flex:0 0 auto; margin-left:.5rem;';
-      label.textContent = 'Total images:';
-      const input = document.createElement('input');
-      input.type = 'text';
-      input.id = 'classImages';
-      input.readOnly = true;
-      input.value = '0';
-      input.style.cssText = 'max-width:6rem; background:#101217; border:1px solid #222430; color:var(--text); border-radius:10px; padding:.45rem .6rem;';
-      totalRow.appendChild(label);
-      totalRow.appendChild(input);
-    }
   }
 
-  // Compute totals
-  let totalSeconds = 0;
-  let totalImages  = 0;
-
+  // 2) Compute the total duration from the class rows
+  let total = 0;
   document.querySelectorAll('#classPhases .class-row').forEach(row => {
     if (row.classList.contains('break-row')) {
       const m = parseInt(row.querySelector('.break-minutes')?.value || '0', 10);
       const s = parseInt(row.querySelector('.break-seconds')?.value || '0', 10);
-      totalSeconds += (m * 60 + s);
-      return; // breaks don’t contribute images
+      total += (m * 60 + s);
+    } else {
+      const n = parseInt(row.querySelector('.phase-count')?.value || '1', 10);
+      const m = parseInt(row.querySelector('.phase-minutes')?.value || '0', 10);
+      const s = parseInt(row.querySelector('.phase-seconds')?.value || '0', 10);
+      total += n * (m * 60 + s);
     }
-
-    // Phase row
-    const n = Math.max(0, parseInt(row.querySelector('.phase-count')?.value || '0', 10) || 0);
-    const m = parseInt(row.querySelector('.phase-minutes')?.value || '0', 10) || 0;
-    const s = parseInt(row.querySelector('.phase-seconds')?.value || '0', 10) || 0;
-    const perImage = m * 60 + s;
-
-    totalImages  += n;
-    totalSeconds += n * perImage;
   });
 
-  // Update fields
-  const totalField  = document.getElementById('classTotal');
-  const imagesField = document.getElementById('classImages');
-  if (totalField)  totalField.value  = formatDuration(totalSeconds);
-  if (imagesField) imagesField.value = String(totalImages);
+  // 3) Update the read-only field
+  const out = document.getElementById('classTotal');
+  if (out) out.value = formatDuration(total);
 }
 
 // Wire Up/Down/Remove buttons (event delegation) + react to input changes
@@ -3969,7 +3931,7 @@ window.refreshImage = function () {
     const url = drawFromKey(key);
     (slotHistory[ord] ||= []).push(url);
     setBoardBadge(key.includes('||') ? key.replace(/\|\|/g, ' + ') : key);
-   applyFitState();
+    img.classList.toggle('fit-contain', fitToScreen);
     img.src = safeURL(url);
     return;
   }
@@ -3980,7 +3942,7 @@ window.refreshImage = function () {
   if (!imageList[idx]) { buildDeck(); idx = dealOne(prevIdx); }
   imageDisplayIndex = idx;
   setBoardBadge('');
-  applyFitState();
+  img.classList.toggle('fit-contain', fitToScreen);
   img.src = safeURL(imageList[idx]);
 };
 
@@ -4352,7 +4314,7 @@ function safeURL(p) {
         slotHistory[ord] = url ? [url] : [];
       }
       setBoardBadge(labelForKey(key));
-      applyFitState();
+      img.classList.toggle('fit-contain', !!window.fitToScreen);
       img.src = safeURL(url || '');
     } else {
       // Mixed mode (deck)
@@ -4360,7 +4322,7 @@ function safeURL(p) {
       const prevIdx = (typeof imageDisplayIndex === 'number') ? imageDisplayIndex : null;
       imageDisplayIndex = dealOne(prevIdx);
       setBoardBadge('');
-     applyFitState();
+      img.classList.toggle('fit-contain', !!window.fitToScreen);
       img.src = safeURL(imageList[imageDisplayIndex] || '');
     }
 
@@ -4389,7 +4351,7 @@ function safeURL(p) {
     const url = window.drawFromKey(key);
     (slotHistory[ord] ||= []).push(url);
     const img = document.getElementById('currentImage');
-    applyFitState();
+    img.classList.toggle('fit-contain', !!window.fitToScreen);
     img.src = safeURL(url || '');
   };
 
@@ -4450,24 +4412,6 @@ function safeURL(p) {
 //  });
 // })();
 // </script>
-
-<script>
-/* === Fit‑to‑Screen: single source of truth + helpers ==================== */
-window.fitToScreen = (localStorage.getItem('pd_fit') === '1');  // restore last choice
-
-function applyFitState(){
-  const img = document.getElementById('currentImage');
-  if (img) applyFitState();
-  const btn = document.getElementById('fitToScreenBtn');
-  if (btn) btn.textContent = window.fitToScreen ? 'FtS On' : 'FtS Off';
-}
-
-function toggleFitToScreen(){
-  window.fitToScreen = !window.fitToScreen;
-  localStorage.setItem('pd_fit', window.fitToScreen ? '1' : '0');
-  applyFitState();
-}
-</script>
 
 
 </body>
