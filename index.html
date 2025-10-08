@@ -2185,18 +2185,38 @@ function renderSequenceRows(){
     return;
   }
 
-  if (unlinkMode) {
-    const mem = e.target.closest('.member');
-    if (mem && Array.isArray(slot.names) && slot.names.length > 1) {
-      const next = slot.names.filter(n => n !== mem.dataset.name);
-      if (next.length >= 2) sequenceSlots[idx] = { names: next, count: slot.count };
-      else if (next.length === 1) sequenceSlots[idx] = { name: next[0], count: slot.count };
-      else sequenceSlots.splice(idx, 1);
-      renderSequenceRows(); clampCountsToPlanned(); updateSequenceSummaryUI();
+// Unlink mode: click a member name inside a group to remove it
+if (unlinkMode) {
+  const mem = e.target.closest('.member');
+  if (mem && Array.isArray(slot.names) && slot.names.length > 1) {
+    const removedName = mem.dataset.name;
+    const remaining   = slot.names.filter(n => n !== removedName);
+
+    // The unlinked board becomes its own step right *after* this row.
+    const unlinkedSlot = { name: removedName, count: 0 };
+
+    // The original row stays in place, updated to either a smaller group or a single.
+    let updatedSlot = null;
+    if (remaining.length >= 2) {
+      updatedSlot = { names: remaining, count: slot.count };
+    } else if (remaining.length === 1) {
+      updatedSlot = { name: remaining[0], count: slot.count };
     }
-    return;
+
+    if (updatedSlot) {
+      // Replace current row with the updated row, and insert the unlinked one *below* it.
+      sequenceSlots.splice(idx, 1, updatedSlot, unlinkedSlot);
+    } else {
+      // (Safety) If somehow nothing remains, just insert the unlinked row in place.
+      sequenceSlots.splice(idx, 1, unlinkedSlot);
+    }
+
+    renderSequenceRows();
+    clampCountsToPlanned();
+    updateSequenceSummaryUI();
   }
-});
+  return;
+}
 
     rows.addEventListener('input', (e) => {
       if (!e.target.classList.contains('sequence-count')) return;
