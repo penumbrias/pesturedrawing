@@ -2143,52 +2143,60 @@ function renderSequenceRows(){
 
   if (!rows.dataset.wired) {
     rows.addEventListener('click', (e) => {
-      const rowEl = e.target.closest('.sequence-row');
-      if (!rowEl) return;
-      const idx = parseInt(rowEl.dataset.index, 10);
-      const slot = sequenceSlots[idx];
+  const rowEl = e.target.closest('.sequence-row');
+  if (!rowEl) return;
+  const idx = parseInt(rowEl.dataset.index, 10);
+  const slot = sequenceSlots[idx];
 
-      // Link mode: toggle selection of rows (commit via button)
-      if (linkMode) {
-        if (pendingLink.has(idx)) { pendingLink.delete(idx); rowEl.classList.remove('selected'); }
-        else { pendingLink.add(idx); rowEl.classList.add('selected'); }
-        return;
-      }
+  // 🔸 Controls should ALWAYS work, even in link/unlink modes
+  if (e.target.closest('.remove-row')) {
+    sequenceSlots.splice(idx, 1);
+    renderSequenceRows(); clampCountsToPlanned(); updateSequenceSummaryUI();
+    return;
+  }
+  if (e.target.closest('.duplicate-row')) {
+    const base = sequenceSlots[idx];
+    const copy = Array.isArray(base.names)
+      ? { names: [...base.names], count: 0 }
+      : { name: base.name, count: 0 };
+    sequenceSlots.splice(idx + 1, 0, copy);
+    renderSequenceRows(); clampCountsToPlanned(); updateSequenceSummaryUI();
+    return;
+  }
+  if (e.target.closest('.move-up')) {
+    if (idx > 0) {
+      [sequenceSlots[idx - 1], sequenceSlots[idx]] = [sequenceSlots[idx], sequenceSlots[idx - 1]];
+      renderSequenceRows(); clampCountsToPlanned(); updateSequenceSummaryUI();
+    }
+    return;
+  }
+  if (e.target.closest('.move-down')) {
+    if (idx < sequenceSlots.length - 1) {
+      [sequenceSlots[idx + 1], sequenceSlots[idx]] = [sequenceSlots[idx], sequenceSlots[idx + 1]];
+      renderSequenceRows(); clampCountsToPlanned(); updateSequenceSummaryUI();
+    }
+    return;
+  }
 
-      // Unlink mode: click a member name inside a group to remove it
-      if (unlinkMode) {
-        const mem = e.target.closest('.member');
-        if (mem && Array.isArray(slot.names) && slot.names.length > 1) {
-          const next = slot.names.filter(n => n !== mem.dataset.name);
-          if (next.length >= 2) sequenceSlots[idx] = { names: next, count: slot.count };
-          else if (next.length === 1) sequenceSlots[idx] = { name: next[0], count: slot.count };
-          else sequenceSlots.splice(idx, 1);
-          renderSequenceRows(); clampCountsToPlanned(); updateSequenceSummaryUI();
-        }
-        return;
-      }
+  // 🔸 Modes come AFTER control handling
+  if (linkMode) {
+    if (pendingLink.has(idx)) { pendingLink.delete(idx); rowEl.classList.remove('selected'); }
+    else { pendingLink.add(idx); rowEl.classList.add('selected'); }
+    return;
+  }
 
-      // Normal actions
-      if (e.target.closest('.move-up')) {
-        if (idx > 0) {
-          [sequenceSlots[idx - 1], sequenceSlots[idx]] = [sequenceSlots[idx], sequenceSlots[idx - 1]];
-          renderSequenceRows(); clampCountsToPlanned(); updateSequenceSummaryUI();
-        }
-      } else if (e.target.closest('.move-down')) {
-        if (idx < sequenceSlots.length - 1) {
-          [sequenceSlots[idx + 1], sequenceSlots[idx]] = [sequenceSlots[idx], sequenceSlots[idx + 1]];
-          renderSequenceRows(); clampCountsToPlanned(); updateSequenceSummaryUI();
-        }
-      } else if (e.target.closest('.duplicate-row')) {
-        const base = sequenceSlots[idx];
-        const copy = Array.isArray(base.names) ? { names: [...base.names], count: 0 } : { name: base.name, count: 0 };
-        sequenceSlots.splice(idx + 1, 0, copy);
-        renderSequenceRows(); clampCountsToPlanned(); updateSequenceSummaryUI();
-      } else if (e.target.closest('.remove-row')) {
-        sequenceSlots.splice(idx, 1);
-        renderSequenceRows(); clampCountsToPlanned(); updateSequenceSummaryUI();
-      }
-    });
+  if (unlinkMode) {
+    const mem = e.target.closest('.member');
+    if (mem && Array.isArray(slot.names) && slot.names.length > 1) {
+      const next = slot.names.filter(n => n !== mem.dataset.name);
+      if (next.length >= 2) sequenceSlots[idx] = { names: next, count: slot.count };
+      else if (next.length === 1) sequenceSlots[idx] = { name: next[0], count: slot.count };
+      else sequenceSlots.splice(idx, 1);
+      renderSequenceRows(); clampCountsToPlanned(); updateSequenceSummaryUI();
+    }
+    return;
+  }
+});
 
     rows.addEventListener('input', (e) => {
       if (!e.target.classList.contains('sequence-count')) return;
@@ -3747,8 +3755,15 @@ function buildDeck() {
   imageList = Array.isArray(imageList)
     ? imageList.filter(u => typeof u === 'string' && u.length)
     : [];
-  deck = imageList.map((_, i) => i);
-  deck = shuffleArray(deck);
+
+  // ⬇️ Sequence ON → keep order; Sequence OFF → shuffle
+  if (window.sequenceEnabledAtStart && window.PD_sequencePlan?.length) {
+    // Preserve the planned order; we’ll consume with shift()
+    deck = imageList.map((_, i) => i);
+  } else {
+    // Mixed mode: randomize
+    deck = shuffleArray(imageList.map((_, i) => i));
+  }
 }
 
 /* --- Safe deal: rebuild when empty/out-of-sync, avoid current image --- */
@@ -3761,14 +3776,23 @@ function dealOne(excludeIdx = null) {
     buildDeck();
   }
 
-  // Optionally avoid returning the same index we’re currently showing
+  // If asked to avoid the current index, skip just that one when we’re about to serve it
   if (excludeIdx != null && imageList.length > 1) {
     const pos = deck.indexOf(excludeIdx);
-    if (pos !== -1) deck.splice(pos, 1);
+    if (pos === 0 && window.sequenceEnabledAtStart && window.PD_sequencePlan?.length) {
+      // In ordered mode, skip the duplicate at the head
+      deck.shift();
+    } else if (pos > -1 && !(window.sequenceEnabledAtStart && window.PD_sequencePlan?.length)) {
+      // In shuffled mode, just remove it from the bag
+      deck.splice(pos, 1);
+    }
     if (deck.length === 0) buildDeck();
   }
 
-  return deck.pop();
+  // ⬇️ Sequence ON = FIFO (respect order); Sequence OFF = LIFO (random)
+  return (window.sequenceEnabledAtStart && window.PD_sequencePlan?.length)
+    ? deck.shift()
+    : deck.pop();
 }
 
 /* --- Hardened refresh: guarantees a valid URL (no "undefined") --- */
@@ -3972,7 +3996,6 @@ function safeURL(p) {
 })();
 </script>
 
-<script>
 <script>
 /* === Sequencing (customizable counts & order) ============================= */
 (function () {
