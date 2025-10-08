@@ -3587,7 +3587,7 @@ window.refreshImage = function () {
 
     const key = PD_sequencePlan[ord % PD_sequencePlan.length];
     const url = drawFromKey(key);
-    (slotHistory[ord] ||= []).push(url);
+    (slotHistory[ord] = slotHistory[ord] || []).push(url);
     setBoardBadge(key.includes('||') ? key.replace(/\|\|/g, ' + ') : key);
    applyFitState();
     img.src = safeURL(url);
@@ -3995,7 +3995,7 @@ function safeURL(p) {
     if (sessionRemaining !== null) { sessionRemaining += (remaining - was); updateSessionTimer(); }
 
     const url = window.drawFromKey(key);
-    (slotHistory[ord] ||= []).push(url);
+    (slotHistory[ord] = slotHistory[ord] || []).push(url);
     const img = document.getElementById('currentImage');
     applyFitState();
     img.src = safeURL(url || '');
