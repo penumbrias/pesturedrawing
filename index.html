@@ -4394,24 +4394,24 @@ function safeURL(p) {
 </script>
 
 
-<script>
-/* Temporary dev banner wiring (remove when finished) */
-(function(){
-  const key = 'pd_dev_banner_dismissed';
-  const el  = document.getElementById('devBanner');
-  const btn = document.getElementById('devBannerDismiss');
-  if (!el || !btn) return;
+//<script>
+//* Temporary dev banner wiring (remove when finished) */
+//(function(){
+//  const key = 'pd_dev_banner_dismissed';
+//  const el  = document.getElementById('devBanner');
+//  const btn = document.getElementById('devBannerDismiss');
+//  if (!el || !btn) return;
 
   // Restore prior dismissal
-  if (localStorage.getItem(key) === '1') el.style.display = 'none';
+//  if (localStorage.getItem(key) === '1') el.style.display = 'none';
 
   // One‑click dismiss (persists across reloads)
-  btn.addEventListener('click', () => {
-    localStorage.setItem(key, '1');
-    el.style.display = 'none';
-  });
-})();
-</script>
+//  btn.addEventListener('click', () => {
+//    localStorage.setItem(key, '1');
+//    el.style.display = 'none';
+//  });
+// })();
+// </script>
 
 
 </body>
