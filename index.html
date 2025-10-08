@@ -2822,7 +2822,8 @@ function toggleSessionTimer(){ showSessionTimer = !showSessionTimer; updateSessi
  *  DOM Listeners     *
  **********************/
 // Wire up buttons once DOM is ready
-document.getElementById('startBtn').addEventListener('click', startSession);
+document.getElementById('startBtn')
+  .addEventListener('click', () => window.startSession && window.startSession());
 document.getElementById('prevBtn').addEventListener('click', () => window.prevImage?.());
 document.getElementById('pauseBtn').addEventListener('click', togglePause);
 document.getElementById('nextBtn').addEventListener('click', () => window.nextImage?.());
@@ -3501,7 +3502,7 @@ function plannedImageTotalAtStart(){
 
 // Adapter: if any code calls equalizeSequenceCounts, forward to the real one you have
 function equalizeSequenceCounts(total){ return equalizeSequenceSlots(total); }
-
+</script>
 
 
 <script>
@@ -4038,24 +4039,6 @@ function safeURL(p) {
 
 
 
-//<script>
-//* Temporary dev banner wiring (remove when finished) */
-//(function(){
-//  const key = 'pd_dev_banner_dismissed';
-//  const el  = document.getElementById('devBanner');
-//  const btn = document.getElementById('devBannerDismiss');
-//  if (!el || !btn) return;
-
-  // Restore prior dismissal
-//  if (localStorage.getItem(key) === '1') el.style.display = 'none';
-
-  // One‑click dismiss (persists across reloads)
-//  btn.addEventListener('click', () => {
-//    localStorage.setItem(key, '1');
-//    el.style.display = 'none';
-//  });
-// })();
-// </script>
 
 <script>
 /* === Fit‑to‑Screen: single source of truth + helpers ==================== */
