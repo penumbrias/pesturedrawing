@@ -1,3 +1,5 @@
+Yeah the sequencing still isnt working. It is showing images from all boards at random, not exclusive to the defined sequence. 
+
 
 <!DOCTYPE html>
 <html lang="en">
@@ -3768,41 +3770,60 @@ function dealOne(excludeIdx = null) {
 const __seqRefresh = (typeof window.refreshImage === 'function') ? window.refreshImage : null;
 
 window.refreshImage = function () {
-    if (inBreak) return;
+  if (inBreak) return;
 
-    // Reset this slot’s timer
-    const dur = (sessionMode === 'class')
-      ? (classImageSchedule[currentIndex]?.duration || imageDuration)
-      : imageDuration;
-    const was = remaining;
-    remaining = dur;
-    bellFiredThisImage.clear();
-    updateTimerDisplay();
-    if (sessionRemaining !== null) {
-      sessionRemaining += (remaining - was);
-      updateSessionTimer();
-    }
+  // Reset this slot’s timer but keep the session timer consistent
+  const duration = (sessionMode === 'class')
+    ? (classImageSchedule[currentIndex]?.duration || imageDuration)
+    : imageDuration;
+  const was = remaining;
+  remaining = duration;
+  bellFiredThisImage.clear();
+  updateTimerDisplay();
+  if (sessionRemaining !== null) {
+    sessionRemaining += (remaining - was);
+    updateSessionTimer();
+  }
 
-    const seqOn = !!sequenceEnabledAtStart;
+  const img = document.getElementById('currentImage');
 
-    if (seqOn && Array.isArray(PD_sequencePlan) && PD_sequencePlan.length) {
-      const ord = imageOrdinalForIndex(currentIndex);
-      const key = PD_sequencePlan[ord % PD_sequencePlan.length];
-      const url = drawFromKey(key);
-      (slotHistory[ord] ||= []).push(url);
+  if (sequenceEnabledAtStart && PD_sequencePlan.length) {
+    // Sequenced refresh: draw a new URL from the correct board (or group)
+    const ord = (function imageOrdinalForIndex(idx){
+      if (sessionMode !== 'class') return idx;
+      let count = 0;
+      for (let i = 0; i <= idx && i < classImageSchedule.length; i++) {
+        if (!classImageSchedule[i]?.isBreak) count++;
+      }
+      return Math.max(0, count - 1);
+    })(currentIndex);
 
-      const img = document.getElementById('currentImage');
-      img.classList.toggle('fit-contain', fitToScreen);
-      img.src = safeURL(url);
-      return;
-    }
+    const key = PD_sequencePlan[ord % PD_sequencePlan.length];
+    const url = drawFromKey(key);
+    (slotHistory[ord] ||= []).push(url);
+    setBoardBadge(key.includes('||') ? key.replace(/\|\|/g, ' + ') : key);
+    img.classList.toggle('fit-contain', fitToScreen);
+    img.src = safeURL(url);
+    return;
+  }
 
-    // Mixed fallback
-    if (_fallbackRefresh) return _fallbackRefresh();
-  };
-})();
+  // Mixed-mode refresh
+  const prevIdx = (typeof imageDisplayIndex === 'number') ? imageDisplayIndex : null;
+  let idx = dealOne(prevIdx);
+  if (!imageList[idx]) { buildDeck(); idx = dealOne(prevIdx); }
+  imageDisplayIndex = idx;
+  setBoardBadge('');
+  img.classList.toggle('fit-contain', fitToScreen);
+  img.src = safeURL(imageList[idx]);
+};
+
+/* (optional, but nice-to-have) Make safeURL defensive to avoid "undefined" strings */
+function safeURL(p) {
+  return (typeof p === 'string' && p)
+    ? encodeURI(p).replace(/#/g, '%23')
+    : '';
+}
 </script>
-
 
 <script>
 /* === Session indicator (x/y) when "Number of images" is selected ========== */
@@ -3842,69 +3863,37 @@ window.refreshImage = function () {
 
   // Ensure the indicator refreshes whenever the current image slot changes.
   const _show = window.showImage;
-    window.showImage = function () {
-    // End if we've exhausted the class schedule
-    if (sessionMode === 'class' && currentIndex >= classImageSchedule.length) {
-      return endSession();
+  window.showImage = function () {
+    const r = _show ? _show.apply(this, arguments) : undefined;
+    renderSessionIndicator();
+    return r;
+  };
+
+  const _next = window.nextImage;
+  window.nextImage = function () {
+    const r = _next ? _next.apply(this, arguments) : undefined;
+    renderSessionIndicator();
+    return r;
+  };
+
+  const _prev = window.prevImage;
+  window.prevImage = function () {
+    const r = _prev ? _prev.apply(this, arguments) : undefined;
+    renderSessionIndicator();
+    return r;
+  };
+
+  // Also re-render immediately if someone toggles visibility.
+  const _toggleSess = window.toggleSessionTimer;
+  window.toggleSessionTimer = function () {
+    if (typeof window.showSessionTimer === 'boolean') {
+      window.showSessionTimer = !window.showSessionTimer;
     }
-
-    // Reset UI state for this slot
-    const img = document.getElementById('currentImage');
-    document.getElementById('breakScreen').style.display = 'none';
-    document.getElementById('viewer').style.display = 'flex';
-    document.getElementById('breakNextLabel').style.display = 'none';
-    bellFiredThisImage.clear();
-
-    // Per‑slot duration
-    if (sessionMode === 'class') {
-      const step = classImageSchedule[currentIndex];
-      if (step.isBreak) {
-        startBreak(step.duration);
-        return;
-      }
-      remaining = step.duration;
-    } else {
-      remaining = imageDuration;
+    renderSessionIndicator();
+    if (_toggleSess && _toggleSess !== window.toggleSessionTimer) {
+      // In case prior logic needs to run (safe no-op if unchanged).
+      try { _toggleSess(); } catch (_) {}
     }
-
-    const seqOn = !!sequenceEnabledAtStart;   // frozen at session start
-
-    if (seqOn) {
-      // ---- Sequenced path --------------------------------------------------
-      const ord = imageOrdinalForIndex(currentIndex);          // 0‑based image ordinal
-      const key = PD_sequencePlan[ord % PD_sequencePlan.length]; // "Board" or "A||B"
-      let hist = slotHistory[ord];
-
-      if (!hist || !hist.length) {
-        const url = drawFromKey(key);
-        slotHistory[ord] = [url];
-      }
-      const url = slotHistory[ord][slotHistory[ord].length - 1];
-
-      setBoardBadge(key.includes('||') ? key.replace(/\|\|/g, ' + ') : key);
-      img.classList.toggle('fit-contain', fitToScreen);
-      img.src = safeURL(url);
-
-    } else {
-      // ---- Mixed path (random from all selected boards) --------------------
-      if (!imageList.length) imageList = Object.values(SAMPLE_BOARDS).flat();
-
-      let hist = slotHistory[currentIndex];
-      if (!hist || !hist.length) {
-        const prev = (typeof imageDisplayIndex === 'number') ? imageDisplayIndex : null;
-        imageDisplayIndex = dealOne(prev);
-        slotHistory[currentIndex] = [imageDisplayIndex];
-      } else {
-        imageDisplayIndex = hist[hist.length - 1];
-      }
-
-      setBoardBadge('');
-      img.classList.toggle('fit-contain', fitToScreen);
-      img.src = safeURL(imageList[imageDisplayIndex]);
-    }
-
-    updateTimerDisplay();
-    runTimer();
   };
 })();
 </script>
@@ -4076,7 +4065,6 @@ window.startSession = async function () {
 
     // Build the concrete per-slot plan (["Board A","Board A","Board B",...])
     PD_sequencePlan = (function planFromSlots(slots){
-window.PD_sequencePlan = PD_sequencePlan;
       const out = [];
       for (const s of slots) {
         const n = Math.max(0, parseInt(s.count || 0, 10));
@@ -4258,91 +4246,6 @@ if (!PD_sequencePlan.length) {
 })();
 </script>
 
-<script>
-/* 1) Expose sequencing helpers globally so earlier overrides don't crash */
-(function () {
-  // Map class index -> image ordinal (skips breaks)
-  if (typeof window.imageOrdinalForIndex !== 'function') {
-    window.imageOrdinalForIndex = function (idx) {
-      if (window.sessionMode !== 'class') return idx;
-      let count = 0, sched = window.classImageSchedule || [];
-      for (let i = 0; i <= idx && i < sched.length; i++) {
-        if (!sched[i]?.isBreak) count++;
-      }
-      return Math.max(0, count - 1);
-    };
-  }
-
-  // Draw a URL from a single board name or a "A||B" group
-  if (typeof window.drawFromKey !== 'function') {
-    window.drawFromKey = function (key) {
-      if (!key) return '';
-      const S = window.sequenceState || (window.sequenceState = {
-        bags: {}, cursors: {}, groupBags: {}, groupCursors: {}
-      });
-
-      // Group
-      if (key.includes('||')) {
-        const k = key;
-        if (!S.groupBags[k]) {
-          const members = k.split('||');
-          const seen = new Set(), bag = [];
-          members.forEach(n => (S.bags[n] || []).forEach(u => {
-            if (typeof u === 'string' && u && !seen.has(u)) { seen.add(u); bag.push(u); }
-          }));
-          S.groupBags[k] = bag.sort(() => Math.random() - 0.5);
-          S.groupCursors[k] = 0;
-        }
-        const bag = S.groupBags[k]; if (!bag.length) return '';
-        const i = S.groupCursors[k] % bag.length;
-        const url = bag[i];
-        S.groupCursors[k] = i + 1;
-        if (S.groupCursors[k] % bag.length === 0) {
-          S.groupBags[k] = bag.sort(() => Math.random() - 0.5);
-        }
-        return url;
-      }
-
-      // Single
-      const n = key;
-      if (!Object.prototype.hasOwnProperty.call(S.cursors, n)) S.cursors[n] = 0;
-      const bag = S.bags[n] || [];
-      if (!bag.length) return '';
-      const i = S.cursors[n] % bag.length;
-      const url = bag[i];
-      S.cursors[n] = i + 1;
-      if (S.cursors[n] % bag.length === 0) {
-        S.bags[n] = bag.sort(() => Math.random() - 0.5);
-      }
-      return url;
-    };
-  }
-
-  // Make the current plan visible globally for code that checks it
-  if (!Array.isArray(window.PD_sequencePlan)) window.PD_sequencePlan = [];
-})();
-</script>
-
-<script>
-/* 2) Ensure the final (unified) startSession is the one that runs */
-window.addEventListener('DOMContentLoaded', () => {
-  const btn = document.getElementById('startBtn');
-  if (!btn) return;
-
-  // Remove any older listeners by replacing the node
-  const clone = btn.cloneNode(true);
-  btn.parentNode.replaceChild(clone, btn);
-
-  // Capture-phase handler that stops all earlier bubbling listeners
-  clone.addEventListener('click', (e) => {
-    e.preventDefault();
-    e.stopImmediatePropagation();
-    if (typeof window.startSession === 'function') {
-      window.startSession();
-    }
-  }, true);
-});
-</script>
 
 
 <script>
