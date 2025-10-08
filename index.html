@@ -727,6 +727,69 @@ body.at-setup #startBtn { display: inline-flex; }
 /* Hide during sessions/breaks/finished screens */
 body:not(.at-setup) .dev-banner{ display: none !important; }
 
+/* === Group chip: stack members vertically inside the bubble ============== */
+#sequenceRows .sequence-row.group .board-label .members{
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: .15rem;                  /* tight stack */
+  padding: .35rem .5rem;
+  border-radius: 12px;          /* small rounded box instead of a pill */
+  background: rgba(255,255,255,.04);
+  border: 1px solid var(--ui-border);
+  max-width: 100%;
+}
+#sequenceRows .sequence-row.group .board-label .member{
+  display: block;
+  line-height: 1.25;
+  white-space: normal;          /* allow wrap for long names */
+}
+
+/* subtle separators between names */
+#sequenceRows .sequence-row.group .board-label .member + .member{
+  border-top: 1px dashed var(--ui-border);
+  padding-top: .15rem;
+  margin-top: .15rem;
+}
+
+/* kill the old horizontal '+' separators */
+#sequenceRows .sequence-row.group .board-label .member:not(:last-child)::after{
+  content: none !important;
+}
+
+/* Pressed/toggled look while Link or Unlink mode is active */
+#linkBoardsBtn[aria-pressed="true"],
+#unlinkBoardsBtn[aria-pressed="true"]{
+  background: var(--accent);
+  border-color: rgba(178,67,84,.55);
+  color: var(--accent-ink);
+  box-shadow:
+    inset 0 1px 3px rgba(0,0,0,.35),
+    0 0 0 3px var(--ring);
+}
+
+/* Highlight the whole rows area while a mode is active */
+#sequenceRows.link-mode,
+#sequenceRows.unlink-mode{
+  background: rgba(255,255,255,.04);
+  border-radius: 10px;
+  padding: .25rem;
+}
+#sequenceRows.link-mode  { outline: 2px dashed var(--accent);               outline-offset: 4px; }
+#sequenceRows.unlink-mode{ outline: 2px dashed rgba(255,255,255,.22);       outline-offset: 4px; }
+
+/* A small inline caption so it’s obvious what to do */
+#sequenceRows.link-mode::before,
+#sequenceRows.unlink-mode::before{
+  display: block;
+  margin: .25rem .35rem .4rem;
+  font-size: .85rem;
+  color: var(--muted);
+  opacity: .9;
+  content: '';
+}
+#sequenceRows.link-mode::before   { content: 'Link mode: click rows to select'; }
+#sequenceRows.unlink-mode::before { content: 'Unlink mode: click a member name to remove'; }
 
   </style>
   <audio id="bellSound" src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" preload="auto"></audio>
@@ -1969,6 +2032,13 @@ let linkMode = false;
 let unlinkMode = false;
 let pendingLink = new Set();  // indices selected while linking
 
+function updateLinkUnlinkButtonStates(){
+  const linkBtn   = document.getElementById('linkBoardsBtn');
+  const unlinkBtn = document.getElementById('unlinkBoardsBtn');
+  if (linkBtn)   linkBtn.setAttribute('aria-pressed', linkMode   ? 'true' : 'false');
+  if (unlinkBtn) unlinkBtn.setAttribute('aria-pressed', unlinkMode? 'true' : 'false');
+}
+
 // Keep slots in sync with the current selection; preserve order + duplicates
 function reconcileSequenceSlots(activeBoards /* [{id,name}] */) {
   const selectedNames = activeBoards.map(b => b.name);
@@ -2140,6 +2210,7 @@ function renderSequenceRows(){
 
   rows.classList.toggle('link-mode', linkMode);
   rows.classList.toggle('unlink-mode', unlinkMode);
+updateLinkUnlinkButtonStates();
 
   if (!rows.dataset.wired) {
     rows.addEventListener('click', (e) => {
@@ -3517,18 +3588,20 @@ $('linkBoardsBtn')?.addEventListener('click', () => {
   const toggle = document.getElementById('sequenceToggle');
   if (!toggle || !toggle.checked) return;
 
-  // First click → enter link mode; second click with ≥2 selected → commit link
+  // First click -> enter link mode
   if (!linkMode) {
     linkMode = true; unlinkMode = false; pendingLink.clear();
     renderSequenceRows();
+    updateLinkUnlinkButtonStates();     // <-- add
     return;
   }
 
+  // Second click -> if 2+ rows selected, merge them
   const indices = Array.from(pendingLink).sort((a,b)=>a-b);
   if (indices.length >= 2) {
-    const slots = indices.map(i => sequenceSlots[i]);
-    const names = slots.flatMap(s => (Array.isArray(s.names) ? s.names : [s.name]));
-    const count = slots.reduce((sum, s) => sum + (parseInt(s.count)||0), 0);
+    const slots    = indices.map(i => sequenceSlots[i]);
+    const names    = slots.flatMap(s => (Array.isArray(s.names) ? s.names : [s.name]));
+    const count    = slots.reduce((sum, s) => sum + (parseInt(s.count)||0), 0);
     const insertAt = indices[0];
 
     for (let i = indices.length - 1; i >= 0; i--) sequenceSlots.splice(indices[i], 1);
@@ -3536,10 +3609,14 @@ $('linkBoardsBtn')?.addEventListener('click', () => {
 
     linkMode = false; pendingLink.clear();
     renderSequenceRows(); clampCountsToPlanned(); updateSequenceSummaryUI();
+    updateLinkUnlinkButtonStates();     // <-- add
     return;
   }
 
-  linkMode = false; pendingLink.clear(); renderSequenceRows();
+  // If fewer than 2 selected, just exit link mode
+  linkMode = false; pendingLink.clear();
+  renderSequenceRows();
+  updateLinkUnlinkButtonStates();       // <-- add
 });
 
 $('unlinkBoardsBtn')?.addEventListener('click', () => {
@@ -3548,6 +3625,7 @@ $('unlinkBoardsBtn')?.addEventListener('click', () => {
   unlinkMode = !unlinkMode;
   linkMode = false; pendingLink.clear();
   renderSequenceRows();
+updateLinkUnlinkButtonStates(); 
 });
 
 // Keep buttons visible with the toggle
