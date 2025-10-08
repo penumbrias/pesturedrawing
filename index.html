@@ -727,6 +727,16 @@ body.at-setup #startBtn { display: inline-flex; }
 /* Hide during sessions/breaks/finished screens */
 body:not(.at-setup) .dev-banner{ display: none !important; }
 
+/* Hard-pin the floating CTA so no earlier rule can “anchor” it */
+body.at-setup #startBtn{
+  position: fixed !important;
+  right: .85rem !important;
+  bottom: calc(.85rem + env(safe-area-inset-bottom)) !important;
+  z-index: 9000 !important;
+}
+/* Keep it hidden only when not on setup or when a session is running */
+body:not(.at-setup) #startBtn{ display: none !important; }
+
   </style>
   <audio id="bellSound" src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" preload="auto"></audio>
 </head>
@@ -1554,7 +1564,10 @@ const SAMPLE_BOARDS = {
   ]
 };
 
-
+<script>
+  // Expose the dataset for code that reads window.SAMPLE_BOARDS
+  window.SAMPLE_BOARDS = window.SAMPLE_BOARDS || SAMPLE_BOARDS;
+</script>
 
 
 
@@ -2331,12 +2344,15 @@ async function checkAuth() {
     logoutEl.style.display  = authed ? 'inline-block' : 'none';
     loadBtn.disabled        = !authed;
 
+if (!authed) applySourceMode('sample');
+
     return authed;
   } catch {
     statusEl.textContent    = 'Not connected to Pinterest';
     connectEl.style.display = 'inline-block';
     logoutEl.style.display  = 'none';
     loadBtn.disabled        = true;
+applySourceMode('sample');
     return false;
   }
 }
@@ -3299,31 +3315,34 @@ const seqOn = Array.isArray(PD_sequencePlan) && PD_sequencePlan.length > 0;
 <script>
 (function () {
   /* -------------- 1) Default background if --bg-image is 'none' --------- */
-  function setDefaultBg() {
-    const root = document.documentElement;
-    const v = getComputedStyle(root).getPropertyValue('--bg-image');
-    if (!v || v.trim() === 'none') {
-      const all = (window.SAMPLE_BOARDS ? Object.values(SAMPLE_BOARDS).flat() : []);
-      if (all.length) {
-        const pick = all[Math.floor(Math.random() * all.length)];
-        const url  = encodeURI(pick).replace(/#/g, '%23');
-        root.style.setProperty('--bg-image', `url("${url}")`);
-      }
+ function setDefaultBg() {
+  const root = document.documentElement;
+  const v = getComputedStyle(root).getPropertyValue('--bg-image');
+  if (!v || v.trim() === 'none') {
+    const all = Object.values(window.SAMPLE_BOARDS || {}).flat();
+    if (all.length) {
+      const pick = all[Math.floor(Math.random() * all.length)];
+      const url  = encodeURI(pick).replace(/#/g, '%23');
+      root.style.setProperty('--bg-image', `url("${url}")`);
     }
   }
+}
 
   /* -------------- 2) Render the “Quick sample boards” list --------------- */
   function renderSampleBoards() {
-    const wrap = document.getElementById('sampleBoardList');
-    if (!wrap || !window.SAMPLE_BOARDS) return;
-    wrap.innerHTML = Object.keys(SAMPLE_BOARDS).sort().map(name => {
-      const id = `sb_${name.replace(/[^a-z0-9]+/gi,'_')}`;
-      return `<label for="${id}" style="display:flex;align-items:center;gap:.5rem;margin:.25rem 0;">
-                <input id="${id}" type="checkbox" value="${name}">
-                <span>${name}</span>
-              </label>`;
-    }).join('');
-  }
+  const wrap = document.getElementById('sampleBoardList');
+  const data = window.SAMPLE_BOARDS || {};
+  if (!wrap || !Object.keys(data).length) return;
+
+  wrap.innerHTML = Object.keys(data).sort().map(name => {
+    const id = `sb_${name.replace(/[^a-z0-9]+/gi,'_')}`;
+    return `<label for="${id}" style="display:flex;align-items:center;gap:.5rem;margin:.25rem 0;">
+              <input id="${id}" type="checkbox" value="${name}">
+              <span>${name}</span>
+            </label>`;
+  }).join('');
+}
+
 
   /* -------------- 3) Fill the Pinterest <select> with options ------------- */
   function renderUserBoards(boards){
