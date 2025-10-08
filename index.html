@@ -796,11 +796,7 @@ body:not(.at-setup) .dev-banner{ display: none !important; }
 </head>
 <body class="at-setup">
 
-//<!-- Temporary notice: remove when finished -->
-//<div class="dev-banner" id="devBanner" role="status" aria-live="polite">
-//  <strong>Site under construction</strong> features may be down temporarily, back up soon!
-//  <button type="button" class="dismiss" id="devBannerDismiss" aria-label="Dismiss notice">✕</button>
-//</div>
+
 
 <!-- Top navigation -->
 <nav class="site-nav" aria-label="Primary">
@@ -4391,27 +4387,9 @@ function safeURL(p) {
 })();
 </script>
 
-</script>
 
 
-//<script>
-//* Temporary dev banner wiring (remove when finished) */
-//(function(){
-//  const key = 'pd_dev_banner_dismissed';
-//  const el  = document.getElementById('devBanner');
-//  const btn = document.getElementById('devBannerDismiss');
-//  if (!el || !btn) return;
 
-  // Restore prior dismissal
-//  if (localStorage.getItem(key) === '1') el.style.display = 'none';
-
-  // One‑click dismiss (persists across reloads)
-//  btn.addEventListener('click', () => {
-//    localStorage.setItem(key, '1');
-//    el.style.display = 'none';
-//  });
-// })();
-// </script>
 
 
 </body>
