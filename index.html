@@ -4457,7 +4457,11 @@ window.fitToScreen = (localStorage.getItem('pd_fit') === '1');  // restore last 
 
 function applyFitState(){
   const img = document.getElementById('currentImage');
-  if (img) applyFitState();
+  if (!img) return;
+  // Toggle the CSS that makes the image fill the viewport without cropping
+  img.classList.toggle('fit-contain', window.fitToScreen);
+
+  // Sync button label
   const btn = document.getElementById('fitToScreenBtn');
   if (btn) btn.textContent = window.fitToScreen ? 'FtS On' : 'FtS Off';
 }
@@ -4467,6 +4471,9 @@ function toggleFitToScreen(){
   localStorage.setItem('pd_fit', window.fitToScreen ? '1' : '0');
   applyFitState();
 }
+
+// Keep UI in sync on first load
+document.addEventListener('DOMContentLoaded', applyFitState);
 </script>
 
 
