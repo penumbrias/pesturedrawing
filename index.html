@@ -3296,5 +3296,169 @@ const seqOn = Array.isArray(PD_sequencePlan) && PD_sequencePlan.length > 0;
   <div id="loadingText" class="text">Loading…</div>
 </div>
 
+<script>
+(function () {
+  /* -------------- 1) Default background if --bg-image is 'none' --------- */
+  function setDefaultBg() {
+    const root = document.documentElement;
+    const v = getComputedStyle(root).getPropertyValue('--bg-image');
+    if (!v || v.trim() === 'none') {
+      const all = (window.SAMPLE_BOARDS ? Object.values(SAMPLE_BOARDS).flat() : []);
+      if (all.length) {
+        const pick = all[Math.floor(Math.random() * all.length)];
+        const url  = encodeURI(pick).replace(/#/g, '%23');
+        root.style.setProperty('--bg-image', `url("${url}")`);
+      }
+    }
+  }
+
+  /* -------------- 2) Render the “Quick sample boards” list --------------- */
+  function renderSampleBoards() {
+    const wrap = document.getElementById('sampleBoardList');
+    if (!wrap || !window.SAMPLE_BOARDS) return;
+    wrap.innerHTML = Object.keys(SAMPLE_BOARDS).sort().map(name => {
+      const id = `sb_${name.replace(/[^a-z0-9]+/gi,'_')}`;
+      return `<label for="${id}" style="display:flex;align-items:center;gap:.5rem;margin:.25rem 0;">
+                <input id="${id}" type="checkbox" value="${name}">
+                <span>${name}</span>
+              </label>`;
+    }).join('');
+  }
+
+  /* -------------- 3) Fill the Pinterest <select> with options ------------- */
+  function renderUserBoards(boards){
+    const sel = document.getElementById('userBoards');
+    if (!sel) return;
+    sel.innerHTML = boards.map(b => `<option value="${b.id}">${b.name}</option>`).join('');
+  }
+
+  /* -------------- 4) Wire everything once -------------------------------- */
+  function wire() {
+    // Pinterest auth buttons
+    document.getElementById('pinConnectBtn')?.addEventListener('click', connectPinterest);
+    document.getElementById('pinLogoutBtn')?.addEventListener('click', logoutPinterest);
+    document.getElementById('loadBoardsBtn')?.addEventListener('click', async () => {
+      setLoading(true, 'Loading boards…');
+      const { boards } = await fetchUserBoards();
+      renderUserBoards(boards);
+      setLoading(false);
+      handleSequenceVisibility();
+    });
+
+    // Viewer controls
+    document.getElementById('prevBtn')?.addEventListener('click', (e)=>{ e.preventDefault(); prevImage(); });
+    document.getElementById('pauseBtn')?.addEventListener('click', (e)=>{ e.preventDefault(); togglePause(); });
+    document.getElementById('nextBtn')?.addEventListener('click', (e)=>{ e.preventDefault(); nextImage(); });
+    document.getElementById('endBtn')?.addEventListener('click',  (e)=>{ e.preventDefault(); openEndConfirm(); });
+    document.getElementById('refreshBtn')?.addEventListener('click', (e)=>{ e.preventDefault(); refreshImage(); });
+    document.getElementById('skipBreakBtn')?.addEventListener('click', (e)=>{ e.preventDefault(); endBreak(); });
+    document.getElementById('backToSetupBtn')?.addEventListener('click', ()=>{
+      document.getElementById('finishedScreen').style.display='none';
+      document.getElementById('setup').style.display='block';
+      document.body.classList.add('at-setup'); document.body.classList.remove('in-session');
+    });
+
+    // Define the two missing toggle functions if they don’t exist
+    window.toggleImageTimer = window.toggleImageTimer || function(){
+      showImageTimer = !showImageTimer;
+      updateTimerDisplay();
+      const btn = document.getElementById('toggleImgTimerBtn');
+      if (btn) btn.textContent = showImageTimer ? 'Image Time: On' : 'Image Time: Off';
+    };
+    window.toggleSessionTimer = window.toggleSessionTimer || function(){
+      showSessionTimer = !showSessionTimer;
+      updateSessionTimer();
+      const btn = document.getElementById('toggleSessTimerBtn');
+      if (btn) btn.textContent = showSessionTimer ? 'Session Time: On' : 'Session Time: Off';
+    };
+
+    // Fit / timers buttons
+    document.getElementById('fitToScreenBtn')?.addEventListener('click', toggleFitToScreen);
+    document.getElementById('toggleImgTimerBtn')?.addEventListener('click', toggleImageTimer);
+    document.getElementById('toggleSessTimerBtn')?.addEventListener('click', toggleSessionTimer);
+
+    // Sample boards: Select all / Clear / change
+    document.getElementById('sbSelectAll')?.addEventListener('click', ()=>{
+      document.querySelectorAll('#sampleBoardList input[type=checkbox]').forEach(cb => cb.checked = true);
+      handleSequenceVisibility();
+    });
+    document.getElementById('sbClear')?.addEventListener('click', ()=>{
+      document.querySelectorAll('#sampleBoardList input[type=checkbox]').forEach(cb => cb.checked = false);
+      handleSequenceVisibility();
+    });
+    document.getElementById('sampleBoardList')?.addEventListener('change', handleSequenceVisibility);
+
+    // User boards selection changes
+    document.getElementById('userBoards')?.addEventListener('change', handleSequenceVisibility);
+
+    // Sequencer UX
+    document.getElementById('sequenceToggle')?.addEventListener('change', handleSequenceVisibility);
+    document.getElementById('sequenceEqualize')?.addEventListener('click', ()=>{
+      equalizeSequenceSlots(plannedImageTotalFromUI());
+      renderSequenceRows(); updateSequenceSummaryUI();
+    });
+
+    // Link/unlink buttons
+    document.getElementById('linkBoardsBtn')?.addEventListener('click', ()=>{
+      if (!window.linkMode) {
+        window.linkMode = true; window.unlinkMode = false; window.pendingLink?.clear?.();
+        renderSequenceRows();
+        return; // click rows to select; click again to commit
+      }
+      const chosen = [...(window.pendingLink || new Set())];
+      if (chosen.length < 2) { window.linkMode = false; window.pendingLink.clear(); renderSequenceRows(); return; }
+      chosen.sort((a,b)=>a-b);
+      const names = [];
+      let total = 0;
+      chosen.forEach(i => {
+        const s = window.sequenceSlots[i];
+        if (Array.isArray(s.names)) names.push(...s.names); else names.push(s.name);
+        total += (parseInt(s.count)||0);
+      });
+      const first = chosen[0];
+      chosen.slice().sort((a,b)=>b-a).forEach(i => window.sequenceSlots.splice(i,1));
+      window.sequenceSlots.splice(first, 0, { names: [...new Set(names)], count: total });
+      window.linkMode = false; window.pendingLink.clear();
+      renderSequenceRows(); clampCountsToPlanned(); updateSequenceSummaryUI();
+    });
+    document.getElementById('unlinkBoardsBtn')?.addEventListener('click', ()=>{
+      window.unlinkMode = !window.unlinkMode; window.linkMode = false; window.pendingLink?.clear?.();
+      renderSequenceRows();
+    });
+
+    // Mode + limit toggles (show/hide the relevant sections)
+    document.querySelectorAll('input[name="mode"]').forEach(r => r.addEventListener('change', () => {
+      const m = document.querySelector('input[name="mode"]:checked')?.value;
+      document.getElementById('classSettings').style.display   = (m === 'class') ? 'block' : 'none';
+      document.getElementById('standardOptions').style.display = (m === 'class') ? 'none'  : 'block';
+      handleSequenceVisibility();
+    }));
+    document.querySelectorAll('input[name="limit"]').forEach(r => r.addEventListener('change', ()=>{
+      const v = document.querySelector('input[name="limit"]:checked')?.value;
+      document.getElementById('limitCountOptions').style.display = (v === 'count') ? 'block' : 'none';
+      document.getElementById('limitTimeOptions').style.display  = (v === 'time')  ? 'block' : 'none';
+      updateSequenceSummaryUI();
+    }));
+
+    // Bell test button
+    document.getElementById('testBellBtn')?.addEventListener('click', ()=>{
+      const v = parseInt(document.getElementById('testBellValue')?.value || '60', 10) || 60;
+      triggerBell(v);
+    });
+
+    // Initial labels
+    const fBtn = document.getElementById('fitToScreenBtn'); if (fBtn) fBtn.textContent = 'Fit to Screen: Off';
+  }
+
+  // Boot
+  renderSampleBoards();
+  wire();
+  setDefaultBg();
+  checkAuth();                 // non-blocking auth status check
+  handleSequenceVisibility();  // set up sequence UI correctly on first paint
+})();
+</script>
+
+
 </body>
 </html>
