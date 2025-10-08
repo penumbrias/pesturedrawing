@@ -2785,915 +2785,65 @@ if (sessionMode === 'class') {
     limitValue = classImageSchedule.length;
   }
 
-  // Build the image list (mix vs. sequenced)
+ // Build sources & (optionally) a SEQUENCE PLAN
   selectedBoards = getActiveBoards();
-
-  if (SOURCE_MODE === 'pinterest' && !selectedBoards.length) {
-    alert('Please choose at least one board.');
-    return;
-  }
-  if (SOURCE_MODE === 'sample' && !selectedBoards.length) {
-    // default to “all samples”
+  if (!selectedBoards.length) {
+    if (SOURCE_MODE === 'pinterest') { alert('Please choose at least one board.'); return; }
+    // sample fallback → all sample boards
     selectedBoards = Object.keys(SAMPLE_BOARDS).map((name, i) => ({ id: `sample-${i}`, name }));
   }
 
-  // Read the toggle at start time
-const seqOn = Array.isArray(PD_sequencePlan) && PD_sequencePlan.length > 0;
+  const seqToggle = document.getElementById('sequenceToggle');
+  sequenceEnabled = !!(seqToggle && seqToggle.checked && selectedBoards.length > 1);
 
   setLoading(true, SOURCE_MODE === 'pinterest'
     ? (sequenceEnabled ? 'Loading boards and building sequence…' : 'Loading boards and pins from Pinterest…')
-    : (sequenceEnabled ? 'Loading sample boards and building sequence…' : 'Loading sample boards…'));
+    : (sequenceEnabled ? 'Loading sample boards and building sequence…' : 'Loading sample boards…')
+  );
 
-  if (sequenceEnabled) {
-    // Maintain order first
-    reconcileSequenceOrder(selectedBoards); // seeds/keeps sequenceOrder
+try {
+    if (sequenceEnabled) {
+      // Keep slots aligned with the current selection; seed counts if empty
+      reconcileSequenceSlots(selectedBoards);
+      if (sequenceSlots.length && sequenceSlots.every(s => !parseInt(s.count || '0', 10))) {
+        equalizeSequenceSlots(plannedImageTotalFromUI());
+      }
 
-    // Prepare per‑board bags
-    try {
+      // Load per‑board “bags” (name → shuffled URL[])
       sequenceState.bags = await fetchPinsByBoard(selectedBoards);
       sequenceState.cursors = {};
-    } catch (e) {
-      console.warn('Failed to fetch per-board pins', e);
-      sequenceState.bags = {};
-    }
 
-    if (!Object.values(sequenceState.bags).some(arr => (arr && arr.length))) {
-      // safety: fall back to samples
-      sequenceState.bags = {};
-      Object.keys(SAMPLE_BOARDS).forEach(name => {
-        sequenceState.bags[name] = shuffleArray(SAMPLE_BOARDS[name]);
+      // Build a linear plan of keys for each image ordinal, e.g. ["mammals","birds","A||B",...]
+      window.PD_sequencePlan = [];
+      sequenceSlots.forEach(slot => {
+        const key = Array.isArray(slot.names) ? slot.names.join('||') : slot.name;
+        const n   = Math.max(0, parseInt(slot.count || '0', 10));
+        for (let i = 0; i < n; i++) PD_sequencePlan.push(key);
       });
-    }
-
-    if (!Object.keys(sequenceCounts).length) {
-      equalizeSequenceCounts(plannedImageTotalAtStart());
-    }
-
-    const order = (sequenceOrder && sequenceOrder.length)
-      ? sequenceOrder
-      : selectedBoards.map(b => b.name);
-
-    const target = plannedImageTotalAtStart();
-    if (Number.isFinite(target)) {
-      const list = [];
-      while (list.length < target) {
-        list.push(...buildSequenceCycle(order, sequenceCounts));
-        if (list.length === 0) break;
+      if (!window.PD_sequencePlan.length) {
+        // safety for endless/time: at least one step
+        window.PD_sequencePlan = selectedBoards.map(b => b.name);
       }
-      imageList = list.slice(0, target);
-    } else {
-      imageList = buildSequenceCycle(order, sequenceCounts);
-    }
-  
 
-  } else {
-    // MIX MODE (existing behavior)
-    try {
+      // In sequence mode, showImage()/refreshImage() will draw from PD_sequencePlan via drawFromKey().
+      // Still keep a mixed list as a harmless fallback.
+      imageList = Object.values(sequenceState.bags).flat();
+    } else {
+      // Mixed mode (random from all selected boards)
       imageList = await fetchPinsForBoards(selectedBoards);
-    } catch (e) {
-      console.warn('Failed to fetch pins', e);
-      imageList = [];
+      window.PD_sequencePlan = []; // make sure sequencer is off
     }
+
     if (!Array.isArray(imageList) || imageList.length === 0) {
       imageList = shuffleArray(Object.values(SAMPLE_BOARDS).flat());
     }
-  }
-
-
-
-
-  // Prepare session timer totals
-  if (limitMode === 'time') { sessionRemaining = limitValue * 60; }
-  else if (sessionMode === 'class') { sessionRemaining = classImageSchedule.reduce((s,p)=>s+p.duration,0); }
-  else { sessionRemaining = null; }
-  updateSessionTimer();
-
-// Build a no-repeat deck and deal the first image
-buildDeck();
-imageDisplayIndex = dealOne();
-slotHistory[currentIndex] = [imageDisplayIndex];
-
-// Preload that first image so we don't flash a black screen
-const firstSrc = safeURL(imageList[imageDisplayIndex]);
-setLoading(true, 'Loading first image…');
-await preloadImage(firstSrc);
-
-
- // Enter viewer only now that everything is valid/ready
- document.body.classList.remove('at-setup');
- document.body.classList.add('in-session');
- document.getElementById('viewer').style.display = 'flex';
-setUiHidden(false);   // ensure chrome is visible at session start
-
-showImage();
-document.getElementById('setup').style.display = 'none';
-setLoading(false);
-
-document.getElementById('viewer').style.display = 'flex';
-document.body.classList.add('in-session');   // ← add this line
-
-
-}
-
-
-
-
-
-async function loadUserBoards() {
-  const btn = document.getElementById('loadBoardsBtn');
-const hintEl = document.getElementById('loadBoardsHint');
-const setHint = (t) => { if (hintEl) hintEl.textContent = t; };
-const select = document.getElementById('userBoards');
-
-  // clear list
-  select.innerHTML = '';
-
-  // ensure connected first
-  const authed = await checkAuth();
-  if (!authed) {
-    btn.disabled = true;
-setHint('Connect to Pinterest first');
-alert('Please connect to Pinterest first.');
-  }
-
- btn.disabled = true;
-btn.textContent = 'Loading…';
-setHint('Fetching your boards…');
-
-  const { ok, boards } = await fetchUserBoards();
-  boards.forEach(b => {
-    const opt = document.createElement('option');
-    opt.value = b.id;
-    opt.textContent = b.name;
-    select.appendChild(opt);
-  });
-
-btn.disabled = false;
-btn.textContent = ok ? 'Reload my boards' : 'Loaded samples';
-setHint(ok ? 'Select one or more boards below' : 'Could not reach Pinterest — showing samples');
-}
-
-
-// Basic helpers
-function backToSetup(){
-document.body.classList.remove('in-session');
-document.body.classList.add('at-setup');
-
-  document.getElementById('finishedScreen').style.display = 'none';
-  document.getElementById('setup').style.display = 'block';
-  document.body.classList.remove('in-session');   // ← add this line
-}
-
-function skipBreak(){ endBreak(); }
-function toggleImageTimer(){ showImageTimer = !showImageTimer; updateTimerDisplay(); }
-function toggleSessionTimer(){ showSessionTimer = !showSessionTimer; updateSessionTimer(); }
-
-/**********************
- *  DOM Listeners     *
- **********************/
-// Wire up buttons once DOM is ready
-document.getElementById('startBtn').addEventListener('click', startSession);
-document.getElementById('prevBtn').addEventListener('click', () => window.prevImage?.());
-document.getElementById('pauseBtn').addEventListener('click', togglePause);
-document.getElementById('nextBtn').addEventListener('click', () => window.nextImage?.());
-document.getElementById('refreshBtn').addEventListener('click', () => window.refreshImage && window.refreshImage());
-document.getElementById('endBtn').addEventListener('click', openEndConfirm);
-document.getElementById('toggleImgTimerBtn').addEventListener('click', toggleImageTimer);
-document.getElementById('toggleSessTimerBtn').addEventListener('click', toggleSessionTimer);
-document.getElementById('fitToScreenBtn').addEventListener('click', toggleFitToScreen);
-document.getElementById('skipBreakBtn').addEventListener('click', skipBreak);
-document.getElementById('backToSetupBtn').addEventListener('click', backToSetup);
-
-document.getElementById('loadBoardsBtn').addEventListener('click', loadUserBoards);
-document.getElementById('pinConnectBtn').addEventListener('click', connectPinterest);
-document.getElementById('pinLogoutBtn').addEventListener('click', logoutPinterest);
-
-
-
-document.getElementById('customClassToggle').addEventListener('change', (e) => {
-  document.getElementById('customControls').style.display = e.target.checked ? 'block' : 'none';
-  document.getElementById('classSettings').classList.toggle('customizing', e.target.checked);
-});
-
-// Add Phase → use the same builder as the default/preset rows
-document.getElementById('addPhaseBtn').addEventListener('click', () => {
-  addPhaseRow(1, 0, 30);
-  recalcClassTotal();
-});
-
-document.getElementById('insertBreakBtn').addEventListener('click', () => {
-  addBreakRow(2, 0);     // minutes, seconds
-  recalcClassTotal();
-});
-
-// ---- Class presets (durations in seconds) ----
-const CLASS_PRESETS = {
-  // 6×30s, 3×1m, 2×2m, 1×5m
-  '15m': [
-    {type:'phase', n:6, sec:30},
-    {type:'phase', n:3, sec:60},
-    {type:'phase', n:2, sec:120},
-    {type:'phase', n:1, sec:300},
-  ],
-  // 6×10s, 6×30s, 3×1m, 3×2m, 2×5m, 1×7m
-  '30m': [
-    {type:'phase', n:6, sec:10},
-    {type:'phase', n:6, sec:30},
-    {type:'phase', n:3, sec:60},
-    {type:'phase', n:3, sec:120},
-    {type:'phase', n:2, sec:300},
-    {type:'phase', n:1, sec:420},
-  ],
-  // break 2m in the middle: … then 1×10m, 1×25m
-  '60m': [
-    {type:'phase', n:6, sec:10},
-    {type:'phase', n:6, sec:30},
-    {type:'phase', n:3, sec:60},
-    {type:'phase', n:3, sec:120},
-    {type:'phase', n:2, sec:300},
-    {type:'break', sec:120},
-    {type:'phase', n:1, sec:600},
-    {type:'phase', n:1, sec:1500},
-  ],
-  // break 2m, then 2×10m, 2×15m, break 5m, 1×40m
-  '120m': [
-    {type:'phase', n:6, sec:10},
-    {type:'phase', n:6, sec:30},
-    {type:'phase', n:3, sec:60},
-    {type:'phase', n:3, sec:120},
-    {type:'phase', n:2, sec:300},
-    {type:'break', sec:120},
-    {type:'phase', n:2, sec:600},
-    {type:'phase', n:2, sec:900},
-    {type:'break', sec:300},
-    {type:'phase', n:1, sec:2400},
-  ],
-  // break 2m, 2×10m, 2×15m, break 5m, 1×35m, break 5m, 1×60m
-  '180m': [
-    {type:'phase', n:6, sec:10},
-    {type:'phase', n:6, sec:30},
-    {type:'phase', n:3, sec:60},
-    {type:'phase', n:3, sec:120},
-    {type:'phase', n:2, sec:300},
-    {type:'break', sec:120},
-    {type:'phase', n:2, sec:600},
-    {type:'phase', n:2, sec:900},
-    {type:'break', sec:300},
-    {type:'phase', n:1, sec:2100},
-    {type:'break', sec:300},
-    {type:'phase', n:1, sec:3600},
-  ],
-};
-
-// Small helpers to build rows like your UI buttons do
-function addPhaseRow(count, min, sec) {
-  const container = document.getElementById('classPhases');
-  const row = document.createElement('div');
-  row.className = 'class-row class-phase';
-  row.setAttribute('draggable', 'true');
-  row.style.cssText = 'display:flex;align-items:center;gap:.5rem;margin:.25rem 0;';
-  row.innerHTML = `
-    <div class="move-btns">
-      <button class="btn mini move-up" type="button" aria-label="Move up">↑</button>
-      <button class="btn mini move-down" type="button" aria-label="Move down">↓</button>
-    </div>
-
-    <label class="field">
-      <input type="number" class="phase-count" value="${count}" />
-      <span class="field-label">images</span>
-    </label>
-
-    <span class="mobile-for">for</span>
-
-    <label class="field">
-      <input type="number" class="phase-minutes" value="${min}" />
-      <span class="field-label">min</span>
-    </label>
-
-    <label class="field">
-      <input type="number" class="phase-seconds" value="${sec}" />
-      <span class="field-label">sec</span>
-    </label>
-
-    <button class="btn mini remove-row" type="button" aria-label="Remove">✕</button>
-  `;
-  container.appendChild(row);
-}
-
-function addBreakRow(min, sec) {
-  const container = document.getElementById('classPhases');
-  const row = document.createElement('div');
-  row.className = 'class-row break-row';
-  row.setAttribute('draggable', 'true');
-  row.style.cssText = 'display:flex;align-items:center;gap:.5rem;margin:.25rem 0; background:#12131a; border:1px dashed #2a2d3a; padding:.35rem .5rem; border-radius:8px;';
-  row.innerHTML = `
-    <div class="move-btns">
-      <button class="btn mini move-up" type="button" aria-label="Move up">↑</button>
-      <button class="btn mini move-down" type="button" aria-label="Move down">↓</button>
-    </div>
-
-    <strong>Break</strong>
-
-    <label class="field">
-      <input type="number" class="break-minutes" value="${min}" />
-      <span class="field-label">min</span>
-    </label>
-
-    <label class="field">
-      <input type="number" class="break-seconds" value="${sec}" />
-      <span class="field-label">sec</span>
-    </label>
-
-    <button class="btn mini remove-row" type="button" aria-label="Remove">✕</button>
-  `;
-  container.appendChild(row);
-}
-
-
-function resetClassToDefault() {
-  // Show Class UI (but do NOT enable customizing)
-  document.querySelector('input[name="mode"][value="class"]').checked = true;
-  document.getElementById('classSettings').style.display  = 'block';
-  document.getElementById('limitSection').style.display   = 'none';
-  document.getElementById('standardOptions').style.display= 'none';
-
-  // Keep "Customize Class" OFF by default
-  const toggle = document.getElementById('customClassToggle');
-  toggle.checked = false;
-  document.getElementById('customControls').style.display = 'none';
-  document.getElementById('classSettings').classList.remove('customizing');
-
-  // Fresh example row using the same builder the Add button uses
-  const container = document.getElementById('classPhases');
-  container.innerHTML = '';
-  addPhaseRow(5, 0, 10);
-
-  wireClassRowControls(container);
-  recalcClassTotal();
-}
-
-function populateClassPreset(key) {
-  const data = CLASS_PRESETS[key];
-  if (!data) return;
-
-  // Make Class mode visible (but do NOT enable customizing)
-  document.querySelector('input[name="mode"][value="class"]').checked = true;
-  document.getElementById('classSettings').style.display = 'block';
-  document.getElementById('limitSection').style.display = 'none';
-  document.getElementById('standardOptions').style.display = 'none';
-
-  // Keep "Customize Class" OFF unless user flips it
-  const toggle = document.getElementById('customClassToggle');
-  toggle.checked = false;
-  document.getElementById('customControls').style.display = 'none';
-  document.getElementById('classSettings').classList.remove('customizing'); // hides move/remove buttons
-
-  // Build rows for the preset
-  const container = document.getElementById('classPhases');
-  container.innerHTML = '';
-  for (const item of data) {
-    const m = Math.floor(item.sec / 60), s = item.sec % 60;
-    if (item.type === 'break') {
-      addBreakRow(m, s);
-    } else {
-      addPhaseRow(item.n, m, s);
-    }
-  }
-
-  // Make sure handlers are attached and total updates
-  wireClassRowControls(container);
-  recalcClassTotal();
-}
-
-
-// Formats seconds as H:MM:SS (or M:SS if < 1h)
-function formatDuration(totalSec) {
-  totalSec = Math.max(0, parseInt(totalSec || 0, 10));
-  const h = Math.floor(totalSec / 3600);
-  const m = Math.floor((totalSec % 3600) / 60);
-  const s = totalSec % 60;
-  return h > 0 ? `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`
-               : `${m}:${String(s).padStart(2,'0')}`;
-}
-
-// Recalculate the total session length and make sure the UI exists
-function recalcClassTotal() {
-  const settings = document.getElementById('classSettings');
-  if (!settings) return;
-
-  // 1) Ensure the UI exists at the bottom of the Class section
-  let totalRow = document.getElementById('classTotalRow');
-  if (!totalRow) {
-    totalRow = document.createElement('div');
-    totalRow.className = 'row';
-    totalRow.id = 'classTotalRow';
-    totalRow.style.marginTop = '.75rem';
-    totalRow.style.alignItems = 'center';
-    totalRow.innerHTML = `
-      <label style="flex:0 0 auto;">Session length:</label>
-      <input type="text" id="classTotal" value="00:00" readonly
-             style="max-width:9rem; background:#101217; border:1px solid #222430; color:var(--text); border-radius:10px; padding:.45rem .6rem;">
-    `;
-    // append after all rows in the Class section
-    settings.appendChild(totalRow);
-  }
-
-  // 2) Compute the total duration from the class rows
-  let total = 0;
-  document.querySelectorAll('#classPhases .class-row').forEach(row => {
-    if (row.classList.contains('break-row')) {
-      const m = parseInt(row.querySelector('.break-minutes')?.value || '0', 10);
-      const s = parseInt(row.querySelector('.break-seconds')?.value || '0', 10);
-      total += (m * 60 + s);
-    } else {
-      const n = parseInt(row.querySelector('.phase-count')?.value || '1', 10);
-      const m = parseInt(row.querySelector('.phase-minutes')?.value || '0', 10);
-      const s = parseInt(row.querySelector('.phase-seconds')?.value || '0', 10);
-      total += n * (m * 60 + s);
-    }
-  });
-
-  // 3) Update the read-only field
-  const out = document.getElementById('classTotal');
-  if (out) out.value = formatDuration(total);
-}
-
-// Wire Up/Down/Remove buttons (event delegation) + react to input changes
-function wireClassRowControls(container = document.getElementById('classPhases')) {
-  if (!container.dataset.wired) {
-    container.addEventListener('click', (e) => {
-      const row = e.target.closest('.class-row');
-      if (!row) return;
-
-      if (e.target.closest('.move-up')) {
-        const prev = row.previousElementSibling;
-        if (prev) row.parentElement.insertBefore(row, prev);
-        recalcClassTotal();
-      } else if (e.target.closest('.move-down')) {
-        const next = row.nextElementSibling;
-        if (next) row.parentElement.insertBefore(next, row);
-        recalcClassTotal();
-      } else if (e.target.closest('.remove-row')) {
-        row.remove();
-        recalcClassTotal();
-      }
-    });
-
-    container.addEventListener('input', (e) => {
-      if (e.target.matches('.phase-count, .phase-minutes, .phase-seconds, .break-minutes, .break-seconds')) {
-        recalcClassTotal();
-      }
-    });
-
-    container.dataset.wired = '1';
-  }
-  recalcClassTotal();
-}
-
-
-
-
-
-document.querySelectorAll('input[name="mode"]').forEach(radio => {
-  radio.addEventListener('change', () => {
-    const isClass = document.querySelector('input[name="mode"]:checked').value === 'class';
-
-    document.getElementById('classSettings').style.display  = isClass ? 'block' : 'none';
-    document.getElementById('limitSection').style.display   = isClass ? 'none'  : 'block';
-    document.getElementById('standardOptions').style.display= isClass ? 'none'  : 'block';
-    const presetSel = document.getElementById('classPreset');
-    if (presetSel) presetSel.style.display = isClass ? 'inline-block' : 'none';
-
-    const breaksEl = document.getElementById('breaks');
-    if (isClass && breaksEl) breaksEl.checked = false;
-
-    if (isClass) recalcClassTotal(); // <-- ensure the summary is visible & up to date
-  });
-});
-
-
-document.querySelectorAll('input[name="limit"]').forEach(radio => {
-  radio.addEventListener('change', () => {
-    const selected = document.querySelector('input[name="limit"]:checked').value;
-    document.getElementById('limitTimeOptions').style.display = selected === 'time' ? 'block' : 'none';
-    document.getElementById('limitCountOptions').style.display = selected === 'count' ? 'block' : 'none';
-  });
-});
-
-// Preset dropdown: "" = reset to default; otherwise load preset
-const presetSelectEl = document.getElementById('classPreset');
-if (presetSelectEl) {
-  presetSelectEl.addEventListener('change', (e) => {
-    const val = e.target.value;
-    if (!val) {
-      resetClassToDefault();
-    } else {
-      populateClassPreset(val);
-    }
-  });
-}
-
-
-
-// Initial layout state + build sample board list
-// initialize once on load (drag, auth, initial visibility, and sample boards)
-window.addEventListener('DOMContentLoaded', async () => {
-  // If we just returned from Pinterest, exchange the handoff for a partitioned cookie
-  try {
-    const u = new URL(window.location.href);
-    const pd = u.searchParams.get('pd_token');
-    if (pd) {
-      await fetch(`${BACKEND_BASE}/api/auth/set?t=${encodeURIComponent(pd)}`, { credentials: 'include' });
-      u.searchParams.delete('pd_token');           // clean the URL so the token never leaks further
-      window.history.replaceState({}, '', u.toString());
-    }
   } catch (e) {
-    console.warn('Finalize cookie failed', e);
+    console.warn('Image build failed; falling back to samples', e);
+    window.PD_sequencePlan = [];
+    imageList = shuffleArray(Object.values(SAMPLE_BOARDS).flat());
   }
 
-  // 1) Drag on default row + auth banner
- const container = document.getElementById('classPhases');
-if (container) wireClassRowControls(container);
-document.getElementById('classSettings').classList.toggle(
-  'customizing',
-  document.getElementById('customClassToggle').checked
-);
-recalcClassTotal();
-checkAuth();
-
-
-  // 2) Initial section visibility
-const isClass = document.querySelector('input[name="mode"]:checked').value === 'class';
-document.getElementById('classSettings').style.display  = isClass ? 'block' : 'none';
-document.getElementById('limitSection').style.display   = isClass ? 'none'  : 'block';
-document.getElementById('standardOptions').style.display= isClass ? 'none'  : 'block';
-const isTime = document.querySelector('input[name="limit"]:checked').value === 'time';
-document.getElementById('limitTimeOptions').style.display = isTime ? 'block' : 'none';
-
-// Bell mode initial state + persistence
-document.querySelectorAll('input[name="bellMode"]').forEach(r => {
-  r.checked = (r.value === bellMode);
-  r.addEventListener('change', (e) => {
-    bellMode = e.target.value;
-    localStorage.setItem('bellMode', bellMode);
-  });
-});
-
-// Optional: test bell button
-const testBtn = document.getElementById('testBellBtn');
-if (testBtn) {
-  testBtn.addEventListener('click', () => {
-    const v = parseInt(document.getElementById('testBellValue').value || '60', 10);
-    ensureAudio();           // activate audio after user gesture
-    triggerBell(Math.max(0, v));
-  });
-}
-
-
-// NEW: ensure "Enable breaks" is off if we load straight into Class
-if (isClass) {
-  const breaksEl = document.getElementById('breaks');
-  if (breaksEl) breaksEl.checked = false;
-}
-
-  // 3) Preset dropdown visibility on load
-  const presetSel = document.getElementById('classPreset');
-  if (presetSel) presetSel.style.display = isClass ? 'inline-block' : 'none';
-
-  // 4) Build the sample boards list (checkboxes)
-  const list = document.getElementById('sampleBoardList');
-  if (list) {
-    list.innerHTML = '';
-    Object.keys(SAMPLE_BOARDS).forEach(name => {
-      const id  = 'sb_' + name.replace(/[^a-z0-9]+/gi, '_');
-      const row = document.createElement('label');
-      row.style.display = 'flex';
-      row.style.alignItems = 'center';
-      row.style.gap = '.5rem';
-      row.style.padding = '.2rem .3rem';
-      row.innerHTML = `<input type="checkbox" value="${name}" id="${id}"><span>${name}</span>`;
-      list.appendChild(row);
-    });
-  }
-
-  // 5) Select all / clear handlers
-  const allBtn = document.getElementById('sbSelectAll');
-  const clrBtn = document.getElementById('sbClear');
-  if (allBtn) allBtn.addEventListener('click', () => {
-    document.querySelectorAll('#sampleBoardList input[type="checkbox"]').forEach(cb => (cb.checked = true));
-  });
-  if (clrBtn) clrBtn.addEventListener('click', () => {
-    document.querySelectorAll('#sampleBoardList input[type="checkbox"]').forEach(cb => (cb.checked = false));
-  });
-});
-
-</script>
-
-<!-- Loading overlay -->
-<div id="loadingOverlay" class="loading-overlay" aria-live="polite" aria-busy="true">
-  <div class="spinner" role="progressbar" aria-label="Loading"></div>
-  <div class="text" id="loadingText">Preparing drawing session…</div>
-</div>
-
-
-
-
-<script>
-  // Add your images here (relative paths)
-  const BG_IMAGES = [
-    'img/gesture-1.jpg',
-    'img/gesture-2.jpg',
-    'img/gesture-3.jpg',
-    'img/gesture-4.jpg',
-    'img/gesture-5.jpg',
-    'img/gesture-6.jpg',
-    'img/gesture-7.jpg',
-    'img/gesture-8.jpg',
-    'img/gesture-9.jpg',
-    'img/gesture-10.jpg',
-    'img/gesture-11.jpg',
-    'img/gesture-12.jpg',
-    'img/gesture-13.jpg',
-    'img/gesture-14.jpg',
-    'img/gesture-15.jpg',
-    'img/gesture-16.jpg',
-    'img/gesture-17.jpg',
-    'img/gesture-18.jpg',
-    'img/gesture-19.jpg',
-    'img/gesture-20.jpg',
-    'img/gesture-21.jpg',
-    'img/gesture-22.jpg',
-    'img/gesture-23.jpg',
-    'img/gesture-24.jpg'
-  ];
-
-  function setRandomBackground(){
-    if (!BG_IMAGES.length) return;
-    const chosen = BG_IMAGES[Math.floor(Math.random() * BG_IMAGES.length)];
-    // encodeURI keeps slashes, escapes spaces
-    const url = `url("${encodeURI(chosen)}")`;
-    document.documentElement.style.setProperty('--bg-image', url);
-  }
-
-</script>
-
-<script>
-window.addEventListener('DOMContentLoaded', () => {
-  // 1) Background + helpful titles
-  setRandomBackground();
-  const $ = (x) => document.getElementById(x);
-  $('fitToScreenBtn')?.setAttribute('title', 'Fit to Screen (F)');
-  $('toggleImgTimerBtn')?.setAttribute('title', 'Toggle Image Timer (I)');
-  $('toggleSessTimerBtn')?.setAttribute('title', 'Toggle Session Timer (S)');
-  $('prevBtn')?.setAttribute('title', 'Previous Image (←)');
-  $('nextBtn')?.setAttribute('title', 'Next Image (→)');
-  $('refreshBtn')?.setAttribute('title', 'Reshuffle Image (R)');
-  $('endBtn')?.setAttribute('title', 'End Session (E)');
-  $('uiToggleBtn')?.setAttribute('title', 'Hide/Show UI (H)');
-
-  // 2) Hoist the Start button once
-  const start = $('startBtn');
-  const row   = start?.closest('.col-12');
-  if (start) document.body.appendChild(start);
-  if (row && row.childElementCount === 0) row.remove();
-
-  // 3) Sequence UI wiring
-  $('userBoards')?.addEventListener('change', handleSequenceVisibility);
-  $('sampleBoardList')?.addEventListener('change', (e) => {
-    if (e.target && e.target.matches('input[type="checkbox"]')) handleSequenceVisibility();
-  });
-
-  $('sequenceToggle')?.addEventListener('change', (e) => {
-    $('sequenceConfig').style.display = e.target.checked ? 'block' : 'none';
-    updateSequenceSummaryUI();
-  });
-
-$('sequenceEqualize')?.addEventListener('click', () => {
-  equalizeSequenceSlots(plannedImageTotalFromUI());
-  clampCountsToPlanned();
-  renderSequenceRows();
-  updateSequenceSummaryUI();
-});
-
-// Link/Unlink modes
-$('linkBoardsBtn')?.addEventListener('click', () => {
-  const toggle = document.getElementById('sequenceToggle');
-  if (!toggle || !toggle.checked) return;
-
-  // First click → enter link mode; second click with ≥2 selected → commit link
-  if (!linkMode) {
-    linkMode = true; unlinkMode = false; pendingLink.clear();
-    renderSequenceRows();
-    return;
-  }
-
-  const indices = Array.from(pendingLink).sort((a,b)=>a-b);
-  if (indices.length >= 2) {
-    const slots = indices.map(i => sequenceSlots[i]);
-    const names = slots.flatMap(s => (Array.isArray(s.names) ? s.names : [s.name]));
-    const count = slots.reduce((sum, s) => sum + (parseInt(s.count)||0), 0);
-    const insertAt = indices[0];
-
-    for (let i = indices.length - 1; i >= 0; i--) sequenceSlots.splice(indices[i], 1);
-    sequenceSlots.splice(insertAt, 0, { names, count });
-
-    linkMode = false; pendingLink.clear();
-    renderSequenceRows(); clampCountsToPlanned(); updateSequenceSummaryUI();
-    return;
-  }
-
-  linkMode = false; pendingLink.clear(); renderSequenceRows();
-});
-
-$('unlinkBoardsBtn')?.addEventListener('click', () => {
-  const toggle = document.getElementById('sequenceToggle');
-  if (!toggle || !toggle.checked) return;
-  unlinkMode = !unlinkMode;
-  linkMode = false; pendingLink.clear();
-  renderSequenceRows();
-});
-
-// Keep buttons visible with the toggle
-$('sequenceToggle')?.addEventListener('change', (e) => {
-  $('sequenceConfig').style.display = e.target.checked ? 'block' : 'none';
-  $('linkBoardsBtn') && (document.getElementById('linkBoardsBtn').style.display = e.target.checked ? 'inline-block' : 'none');
-  $('unlinkBoardsBtn') && (document.getElementById('unlinkBoardsBtn').style.display = e.target.checked ? 'inline-block' : 'none');
-  updateSequenceSummaryUI();
-});
-
-
-  ['durationMin','durationSec','limitValue','limitCountValue','strictTime'].forEach((fieldId) => {
-    $(fieldId)?.addEventListener('input', updateSequenceSummaryUI);
-  });
-  document.querySelectorAll('input[name="limit"]').forEach((r) =>
-    r.addEventListener('change', updateSequenceSummaryUI)
-  );
-  document.querySelectorAll('input[name="mode"]').forEach((r) =>
-    r.addEventListener('change', () => {
-      handleSequenceVisibility();
-      updateSequenceSummaryUI();
-    })
-  );
-
-  // 4) Initial view
-  handleSequenceVisibility();
-});
-</script>
-
-
-
-<script>
-
-  // Hoist the Start button so position:fixed is relative to the viewport,
-  // not the blurred .setup panel.
-  window.addEventListener('DOMContentLoaded', () => {
-    const btn = document.getElementById('startBtn');
-    if (!btn) return;
-    const row = btn.closest('.col-12');   // the flex row it lived in
-    document.body.appendChild(btn);       // move the button under <body>
-    if (row && row.childElementCount === 0) row.remove(); // clean up empty row
-  });
-</script>
-
-<!-- ✅ DROP-IN FIXES (paste right before </body>) -->
-<script>
-/* --- 1) Small helpers your page expects but didn’t define --- */
-
-// A no-repeat “deck” of image indexes (reshuffles when empty)
-
-// How many IMAGES are planned based on the UI (used by the Sequence summary)
-
-// How many images we actually need NOW (after you click Start)
-function plannedImageTotalAtStart(){
-  if (sessionMode === 'class') {
-    // only count image slots (not breaks)
-    return classImageSchedule.filter(p => !p.isBreak).length;
-  }
-  if (limitMode === 'count') return limitValue;
-  if (limitMode === 'time') {
-    return imageDuration > 0 ? Math.floor((limitValue * 60) / imageDuration) : 0;
-  }
-  return Infinity; // endless
-}
-
-// Adapter: if any code calls equalizeSequenceCounts, forward to the real one you have
-function equalizeSequenceCounts(total){ return equalizeSequenceSlots(total); }
-
-/* --- 2) Patch startSession so normal + sequenced modes both work --- */
-(function(){
-  const _oldStart = window.startSession;  // keep a handle so we can unhook it
-
-  window.startSession = async function startSessionPatched(){
-    try {
-      // 2A. Read options (same behavior you already had)
-      ensureAudio();
-      sessionMode = document.querySelector('input[name="mode"]:checked').value;
-
-      bellTimes = (document.getElementById("bellTimes").value || "")
-                    .split(",").map(n=>parseInt(n.trim(),10)).filter(n=>!isNaN(n));
-      const bellModeEl = document.querySelector('input[name="bellMode"]:checked');
-      bellMode = bellModeEl ? bellModeEl.value : 'tone';
-      localStorage.setItem('bellMode', bellMode);
-
-      limitMode = document.querySelector('input[name="limit"]:checked').value;
-      if (limitMode === 'time')      { limitValue = parseInt(document.getElementById('limitValue').value || '0', 10); }
-      else if (limitMode === 'count'){ limitValue = parseInt(document.getElementById('limitCountValue').value || '0', 10); }
-
-      strictTime    = !!document.getElementById('strictTime')?.checked;
-      breakEnabled  = !!document.getElementById('breaks')?.checked;
-      if (sessionMode === 'class') breakEnabled = false;
-      breakAfter    = parseInt(document.getElementById('breakAfter').value || '0', 10);
-      breakDuration = parseInt(document.getElementById('breakDuration').value || '0', 10);
-
-      // Reset runtime state
-      elapsedTime = 0; breaksTaken = 0; inBreak = false;
-      bellFiredThisImage.clear(); bellFiredThisBreak.clear();
-      slotHistory = {};
-      imageDisplayIndex = 0; currentIndex = 0; imageList = []; sessionRemaining = null;
-
-      // Timing
-      if (sessionMode === 'standard') {
-        const durationMin = parseInt(document.getElementById('durationMin').value || '0', 10);
-        const durationSec = parseInt(document.getElementById('durationSec').value || '0', 10);
-        imageDuration = durationMin * 60 + durationSec;
-        classImageSchedule = [];
-      } else {
-        classImageSchedule = [];
-        document.querySelectorAll('#classPhases .class-row').forEach(row => {
-          if (row.classList.contains('break-row')) {
-            const dur = (parseInt(row.querySelector('.break-minutes').value || '0', 10) * 60) +
-                        (parseInt(row.querySelector('.break-seconds').value || '0', 10));
-            classImageSchedule.push({ duration: dur, isBreak: true });
-          } else {
-            const count = parseInt(row.querySelector('.phase-count').value || '1', 10);
-            const dur   = (parseInt(row.querySelector('.phase-minutes').value || '0', 10) * 60) +
-                          (parseInt(row.querySelector('.phase-seconds').value || '0', 10));
-            for (let i = 0; i < count; i++) classImageSchedule.push({ duration: dur, isBreak: false });
-          }
-        });
-        limitMode = 'count';
-        limitValue = classImageSchedule.length; // includes breaks so the session ends cleanly
-      }
-
-      // 2B. Build the list of images (mix OR sequence)
-      selectedBoards = getActiveBoards();
-      if (SOURCE_MODE === 'pinterest' && !selectedBoards.length) {
-        alert('Please choose at least one board.');
-        return;
-      }
-      if (SOURCE_MODE === 'sample' && !selectedBoards.length) {
-        // default to “all sample boards”
-        selectedBoards = Object.keys(SAMPLE_BOARDS).map((name, i) => ({ id: `sample-${i}`, name }));
-      }
-
-      const seqToggle = document.getElementById('sequenceToggle');
-      sequenceEnabled = !!(seqToggle && seqToggle.checked && selectedBoards.length > 1);
-
-      setLoading(true, SOURCE_MODE === 'pinterest'
-        ? (sequenceEnabled ? 'Loading boards and building sequence…' : 'Loading boards and pins from Pinterest…')
-        : (sequenceEnabled ? 'Loading sample boards and building sequence…' : 'Loading sample boards…')
-      );
-
-      try {
-        if (sequenceEnabled) {
-          // Keep slots in sync with selection; seed counts if all zero
-          reconcileSequenceSlots(selectedBoards);
-          if (sequenceSlots.length && sequenceSlots.every(s => !parseInt(s.count || '0', 10))) {
-            equalizeSequenceSlots(plannedImageTotalFromUI());
-          }
-
-          // Load per-board “bags” of URLs
-          sequenceState.bags = await fetchPinsByBoard(selectedBoards);
-          sequenceState.cursors = {};
-
-          // Build cycles from the slots until we reach the target image count
-          const target = plannedImageTotalAtStart();
-          if (Number.isFinite(target)) {
-            const out = [];
-            while (out.length < target) {
-              const oneCycle = buildSequenceCycleFromSlots(sequenceSlots);
-              if (!oneCycle.length) break; // safety
-              out.push(...oneCycle);
-            }
-            imageList = out.slice(0, target);
-          } else {
-            // Endless: one cycle repeats; deck handles the repeats without duplicates in a pass
-            imageList = buildSequenceCycleFromSlots(sequenceSlots);
-          }
-
-          // Fallback to mixed mode if we somehow got nothing
-          if (!Array.isArray(imageList) || imageList.length === 0) {
-            imageList = await fetchPinsForBoards(selectedBoards);
-          }
-        } else {
-          // Mixed mode (random from all selected)
-          imageList = await fetchPinsForBoards(selectedBoards);
-        }
-      } catch (e) {
-        console.warn('Image build failed; falling back to samples', e);
-        imageList = await fetchPinsForBoards(selectedBoards);
-      }
-
+  
       // 2C. Session timer totals
       if (limitMode === 'time')      { sessionRemaining = limitValue * 60; }
       else if (sessionMode === 'class'){ sessionRemaining = classImageSchedule.reduce((s,p)=>s + p.duration, 0); }
@@ -3701,22 +2851,35 @@ function equalizeSequenceCounts(total){ return equalizeSequenceSlots(total); }
       updateSessionTimer();
 
       // 2D. First image + viewer
-      buildDeck();
-      imageDisplayIndex = dealOne();
-      slotHistory[currentIndex] = [imageDisplayIndex];
+if (sequenceEnabled) {
+  // Sequenced path — preload the right first URL and store it as a URL (not an index)
+  const ord0 = imageOrdinalForIndex(0);
+  const key0 = PD_sequencePlan[ord0 % PD_sequencePlan.length];
+  const firstUrl = drawFromKey(key0);
+  slotHistory[ord0] = [firstUrl];
 
-      const firstSrc = safeURL(imageList[imageDisplayIndex]);
-      setLoading(true, 'Loading first image…');
-      await preloadImage(firstSrc);
+  setLoading(true, 'Loading first image…');
+  await preloadImage(safeURL(firstUrl));
+} else {
+  // Mixed path — use the deck of indices
+  buildDeck();
+  imageDisplayIndex = dealOne();
+  slotHistory[currentIndex] = [imageDisplayIndex];
 
-      document.body.classList.remove('at-setup');
-      document.body.classList.add('in-session');
-      document.getElementById('setup').style.display = 'none';
-      document.getElementById('viewer').style.display = 'flex';
-      setUiHidden(false);
-      setLoading(false);
+  const firstSrc = safeURL(imageList[imageDisplayIndex]);
+  setLoading(true, 'Loading first image…');
+  await preloadImage(firstSrc);
+}
 
-      showImage();
+document.body.classList.remove('at-setup');
+document.body.classList.add('in-session');
+document.getElementById('setup').style.display = 'none';
+document.getElementById('viewer').style.display = 'flex';
+setUiHidden(false);
+setLoading(false);
+
+showImage();
+
     } catch (err) {
       console.error(err);
       setLoading(false);
@@ -3724,11 +2887,8 @@ function equalizeSequenceCounts(total){ return equalizeSequenceSlots(total); }
     }
   };
 
-  // Swap the old click handler for this patched one
-  const btn = document.getElementById('startBtn');
-  if (btn && typeof _oldStart === 'function') btn.removeEventListener('click', _oldStart);
-  if (btn) btn.addEventListener('click', window.startSession);
-})();
+  document.getElementById('startBtn')?.addEventListener('click', startSession);
+
 </script>
 
 
@@ -4131,6 +3291,10 @@ const seqOn = Array.isArray(PD_sequencePlan) && PD_sequencePlan.length > 0;
 })();
 </script>
 
+<div id="loadingOverlay" class="loading-overlay">
+  <div class="spinner"></div>
+  <div id="loadingText" class="text">Loading…</div>
+</div>
 
 </body>
 </html>
