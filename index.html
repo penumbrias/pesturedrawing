@@ -2002,7 +2002,8 @@ let classImageSchedule = [];
 let imageDisplayIndex = 0; // images shown
 let sessionRemaining = null; // seconds
 let showImageTimer = true; let showSessionTimer = true;
-let fitToScreen = false;
+// Make FtS state global so code that reads window.fitToScreen stays in sync
+let fitToScreen = false; window.fitToScreen = fitToScreen;
 let slotHistory = {}; // { [slotIndex]: number[] } remembers image indices shown in each slot
 let deck = []; // indices not yet used this cycle
 
@@ -2382,11 +2383,15 @@ function buildSequenceCycle(boardNames, counts) {
 
 
 function toggleFitToScreen() {
+  // keep local var and window.* in lockstep (other code reads window.fitToScreen)
   fitToScreen = !fitToScreen;
+  window.fitToScreen = fitToScreen;
+
   const img = document.getElementById('currentImage');
-  img.classList.toggle('fit-contain', fitToScreen); // ← changed
+  img.classList.toggle('fit-contain', fitToScreen);
+
   const btn = document.getElementById('fitToScreenBtn');
-  if (btn) btn.textContent = fitToScreen ? 'Fit to Screen: On' : 'Fit to Screen: Off';
+  if (btn) btn.textContent = fitToScreen ? 'FtS On' : 'FtS Off';
 }
 
 
