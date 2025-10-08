@@ -727,6 +727,13 @@ body.at-setup #startBtn { display: inline-flex; }
 /* Hide during sessions/breaks/finished screens */
 body:not(.at-setup) .dev-banner{ display: none !important; }
 
+/* Sequence‑Lite: hide advanced sequence UI (keep only the toggle) */
+#sequenceConfig,
+#linkBoardsBtn,
+#unlinkBoardsBtn {
+  display: none !important;
+}
+
   </style>
   <audio id="bellSound" src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" preload="auto"></audio>
 </head>
@@ -3950,286 +3957,6 @@ function safeURL(p) {
 })();
 </script>
 
-<script>
-/* Unified sequencing engine – only one renderer is active */
-(function(){
-  // We reuse your globals (timers, class schedule, etc.)
-  // Required existing globals/helpers: 
-  // sessionMode, classImageSchedule, selectedBoards, sequenceSlots, sequenceState,
-  // slotHistory, currentIndex, imageList, fitToScreen, imageDuration,
-  // fetchPinsByBoard, fetchPinsForBoards, shuffleArray, setBoardBadge, safeURL,
-  // buildDeck, dealOne, preloadImage, setLoading, setUiHidden
-
-  // Flatten sequenced slots → ["BoardA","BoardA","BoardB", ...] 
-  // (Groups are stored as "BoardA||BoardB")
-  let PD_sequencePlan = [];
-  function planFromSlots(slots){
-    const out = [];
-    for (const s of slots) {
-      const n   = Math.max(0, parseInt(s.count || 0, 10));
-      const key = Array.isArray(s.names) && s.names.length > 1
-        ? s.names.join('||')
-        : (s.names?.[0] || s.name);
-      for (let i=0; i<n; i++) out.push(key);
-    }
-    return out;
-  }
-
-  // Draw from a single board or a group key ("A||B")
-  function drawFromKey(key){
-    if (!key) return '';
-
-    // Group draw
-    if (key.includes('||')){
-      if (!sequenceState.groupBags)    sequenceState.groupBags = {};
-      if (!sequenceState.groupCursors) sequenceState.groupCursors = {};
-      if (!sequenceState.groupBags[key]) {
-        const members = key.split('||');
-        const uniq = []; const seen = new Set();
-        members.forEach(n => (sequenceState.bags[n] || []).forEach(u => {
-          if (typeof u === 'string' && u && !seen.has(u)) { seen.add(u); uniq.push(u); }
-        }));
-        sequenceState.groupBags[key] = shuffleArray(uniq);
-        sequenceState.groupCursors[key] = 0;
-      }
-      const bag = sequenceState.groupBags[key] || [];
-      if (!bag.length) return '';
-      const idx = sequenceState.groupCursors[key] % bag.length;
-      const url = bag[idx];
-      sequenceState.groupCursors[key] = idx + 1;
-      if (sequenceState.groupCursors[key] % bag.length === 0) {
-        sequenceState.groupBags[key] = shuffleArray(bag);
-      }
-      return url;
-    }
-
-    // Single board draw
-    if (!Object.prototype.hasOwnProperty.call(sequenceState.cursors, key)) sequenceState.cursors[key] = 0;
-    const bag = sequenceState.bags[key] || [];
-    if (!bag.length) return '';
-    const idx = sequenceState.cursors[key] % bag.length;
-    const url = bag[idx];
-    sequenceState.cursors[key] = idx + 1;
-    if (sequenceState.cursors[key] % bag.length === 0) {
-      sequenceState.bags[key] = shuffleArray(bag);
-    }
-    return url;
-  }
-
-  // Map class currentIndex (includes breaks) → 0‑based image ordinal
-  function imageOrdinalForIndex(idx){
-    if (sessionMode !== 'class') return idx;
-    let count = 0;
-    for (let i = 0; i <= idx && i < classImageSchedule.length; i++){
-      if (!classImageSchedule[i]?.isBreak) count++;
-    }
-    return Math.max(0, count - 1);
-  }
-  function labelForKey(k){ return k?.includes('||') ? k.replace(/\|\|/g, ' + ') : (k || ''); }
-
-  // Start: build exactly one source (seq plan OR mixed deck), then show
-window.startSession = async function () {
-  // — Reset runtime so no mixed deck leaks in —
-  elapsedTime = 0;
-  breaksTaken = 0;
-  inBreak = false;
-  bellFiredThisImage.clear();
-  bellFiredThisBreak.clear();
-  slotHistory = {};
-  imageDisplayIndex = 0;
-  currentIndex = 0;
-  deck = [];
-  imageList = [];
-
-  // Read the selection once and freeze Sequence ON/OFF for this session
-  selectedBoards = getActiveBoards();
-  sequenceEnabledAtStart = !!(document.getElementById('sequenceToggle')?.checked && selectedBoards.length > 1);
-
-  if (sequenceEnabledAtStart) {
-    setLoading(true, 'Loading boards and building sequence…');
-
-    // Per-board bags
-    sequenceState.bags = await fetchPinsByBoard(selectedBoards);
-    sequenceState.cursors = {};
-    sequenceState.groupBags = {};
-    sequenceState.groupCursors = {};
-
-    // Keep slots in sync + seed counts if needed
-    reconcileSequenceSlots(selectedBoards);
-    if (sequenceSlots.length && sequenceSlots.every(s => !parseInt(s.count || '0', 10))) {
-      equalizeSequenceSlots(plannedImageTotalFromUI());
-    }
-    clampCountsToPlanned();
-
-    // Build the concrete per-slot plan (["Board A","Board A","Board B",...])
-    PD_sequencePlan = (function planFromSlots(slots){
-      const out = [];
-      for (const s of slots) {
-        const n = Math.max(0, parseInt(s.count || 0, 10));
-        const key = Array.isArray(s.names) && s.names.length > 1
-          ? s.names.join('||')
-          : (s.names?.[0] || s.name);
-        for (let i = 0; i < n; i++) out.push(key);
-      }
-      return out.filter(Boolean);
-    })(sequenceSlots);
-
-    // Safety fallback: at least cycle once through the selected boards
-    if (!PD_sequencePlan.length) {
-      PD_sequencePlan = selectedBoards.map(b => b.name);
-    }
-
-    // Prime the first image for fast first paint
-    const firstKey = PD_sequencePlan[0];
-    const firstUrl = drawFromKey(firstKey);
-    slotHistory[0] = [firstUrl];
-    await preloadImage(safeURL(firstUrl));
-  } else {
-    // Mixed mode: build one random list across all selected boards
-    setLoading(true, SOURCE_MODE === 'pinterest'
-      ? 'Loading boards and pins from Pinterest…'
-      : 'Loading sample boards…'
-    );
-    imageList = await fetchPinsForBoards(selectedBoards);
-    buildDeck();
-  }
-
-  // Enter viewer
-  document.body.classList.remove('at-setup');
-  document.body.classList.add('in-session');
-  document.getElementById('setup').style.display  = 'none';
-  document.getElementById('viewer').style.display = 'flex';
-  setUiHidden(false);
-  setLoading(false);
-
-  showImage();
-};
-
-  // Single showImage that respects sequencing when ON
-  const _originalShow = window.showImage;
-  window.showImage = function(){
-    if (sessionMode === 'class' && currentIndex >= classImageSchedule.length) return endSession();
-
-    document.getElementById('breakScreen').style.display   = 'none';
-    document.getElementById('viewer').style.display        = 'flex';
-    document.getElementById('breakNextLabel').style.display= 'none';
-    bellFiredThisImage.clear();
-
-    const img = document.getElementById('currentImage');
-    // timers
-    if (sessionMode === 'class'){
-      const s = classImageSchedule[currentIndex];
-      if (s.isBreak) { startBreak(s.duration); return; }
-      remaining = s.duration;
-    } else {
-      remaining = imageDuration;
-    }
-
-const seqOn = !!sequenceEnabledAtStart;
-    if (seqOn) {
-if (!PD_sequencePlan.length) {
-  // No valid plan → behave like mixed mode
-  if (!imageList.length) imageList = Object.values(SAMPLE_BOARDS).flat();
-  let hist = slotHistory[currentIndex];
-  if (!hist || !hist.length) {
-    const prev = typeof imageDisplayIndex === 'number' ? imageDisplayIndex : null;
-    imageDisplayIndex = dealOne(prev);
-    slotHistory[currentIndex] = [imageDisplayIndex];
-  } else {
-    imageDisplayIndex = hist[hist.length - 1];
-  }
-  setBoardBadge('');
-  img.classList.toggle('fit-contain', fitToScreen);
-  img.src = safeURL(imageList[imageDisplayIndex]);
-} else {
-      const ord = imageOrdinalForIndex(currentIndex);
-      let hist = slotHistory[ord], url;
-      const key = PD_sequencePlan[ord % PD_sequencePlan.length];
-      if (!hist || !hist.length) {
-        url = drawFromKey(key);
-        slotHistory[ord] = [url];
-      } else {
-        url = hist[hist.length - 1];
-      }
-      setBoardBadge(labelForKey(key));
-      img.classList.toggle('fit-contain', fitToScreen);
-      img.src = safeURL(url);
-    } else {
-      // MIX mode (deck)
-      if (!imageList.length) imageList = Object.values(SAMPLE_BOARDS).flat();
-      let hist = slotHistory[currentIndex];
-      if (!hist || !hist.length){
-        const prev = typeof imageDisplayIndex === 'number' ? imageDisplayIndex : null;
-        imageDisplayIndex = dealOne(prev);
-        slotHistory[currentIndex] = [imageDisplayIndex];
-      } else {
-        imageDisplayIndex = hist[hist.length - 1];
-      }
-      setBoardBadge('');
-      img.classList.toggle('fit-contain', fitToScreen);
-      img.src = safeURL(imageList[imageDisplayIndex]);
-    }
-
-    updateTimerDisplay();
-    runTimer();
-  };
-
-  // Refresh draws a new URL for the same slot (seq) or deals a new index (mix)
-  const _originalRefresh = window.refreshImage;
-  window.refreshImage = function(){
-    if (inBreak) return;
-    const seqOn = !!(document.getElementById('sequenceToggle')?.checked && selectedBoards.length > 1);
-    if (!seqOn) return _originalRefresh ? _originalRefresh() : undefined;
-
-    const ord = imageOrdinalForIndex(currentIndex);
-    const dur = (sessionMode === 'class')
-      ? (classImageSchedule[currentIndex]?.duration || imageDuration)
-      : imageDuration;
-    const was = remaining; remaining = dur;
-    bellFiredThisImage.clear(); updateTimerDisplay();
-    if (sessionRemaining !== null){ sessionRemaining += (remaining - was); updateSessionTimer(); }
-
-    const key = PD_sequencePlan[ord % PD_sequencePlan.length];
-    const url = drawFromKey(key);
-    (slotHistory[ord] ||= []).push(url);
-    const img = document.getElementById('currentImage');
-    img.classList.toggle('fit-contain', fitToScreen);
-    img.src = safeURL(url);
-  };
-
-  // Prev works against slotHistory in seq mode; falls back to your original otherwise
-  const _originalPrev = window.prevImage;
-  window.prevImage = function(){
-    const seqOn = !!(document.getElementById('sequenceToggle')?.checked && selectedBoards.length > 1);
-    if (!seqOn) return _originalPrev ? _originalPrev() : undefined;
-
-    const ord = imageOrdinalForIndex(currentIndex);
-    const hist = slotHistory[ord];
-    if (hist && hist.length > 1 && !inBreak){
-      hist.pop();
-      const url = hist[hist.length - 1];
-      const dur = (sessionMode === 'class')
-        ? (classImageSchedule[currentIndex]?.duration || imageDuration)
-        : imageDuration;
-      const was = remaining; remaining = dur;
-      bellFiredThisImage.clear(); updateTimerDisplay();
-      if (sessionRemaining !== null){ sessionRemaining += (remaining - was); updateSessionTimer(); }
-      document.getElementById('currentImage').src = safeURL(url);
-      return;
-    }
-
-    // Move to previous slot (skip breaks in Class)
-    if (sessionMode === 'class'){
-      let idx = Math.max(0, currentIndex - 1);
-      while (idx > 0 && classImageSchedule[idx]?.isBreak) idx--;
-      currentIndex = idx;
-    } else {
-      currentIndex = Math.max(0, currentIndex - 1);
-    }
-    showImage();
-  };
-})();
-</script>
 
 <script>
 /* Ensure the unified startSession actually runs on click */
@@ -4244,6 +3971,270 @@ if (!PD_sequencePlan.length) {
 })();
 </script>
 
+<script>
+/* === Sequence‑Lite (round‑robin across selected boards when toggled) === */
+(function () {
+  // Minimal per‑session state for sequence mode
+  let SEQ_ON = false;          // true when the checkbox is on and 2+ boards selected
+  let SEQ_ORDER = [];          // ["Board A", "Board B", ...] (round‑robin order)
+  let SEQ_BAGS = {};           // { "Board A": [url, url, ...], ... }
+  let SEQ_CURSOR = {};         // { "Board A": 0, ... }  (rotates through each bag)
+
+  // Draw next URL from a board, reshuffling that board when we wrap
+  function drawNextFrom(board) {
+    const bag = SEQ_BAGS[board] || [];
+    if (!bag.length) return '';
+    const i = (SEQ_CURSOR[board] || 0) % bag.length;
+    const url = bag[i];
+    SEQ_CURSOR[board] = i + 1;
+    if (SEQ_CURSOR[board] % bag.length === 0) {
+      SEQ_BAGS[board] = shuffleArray(bag);
+    }
+    return url;
+  }
+
+  // Map class schedule index (includes breaks) → image ordinal (excludes breaks)
+  function imageOrdinalForIndex(idx) {
+    if (sessionMode !== 'class') return idx;
+    let count = 0;
+    for (let i = 0; i <= idx && i < classImageSchedule.length; i++) {
+      if (!classImageSchedule[i]?.isBreak) count++;
+    }
+    return Math.max(0, count - 1);
+  }
+
+  // Build per‑board bags and the round‑robin order from the current selection
+  async function buildSequence() {
+    selectedBoards = getActiveBoards();                  // [{ id, name }]
+    SEQ_BAGS = await fetchPinsByBoard(selectedBoards);   // { name: urls[] }
+    SEQ_CURSOR = {};
+
+    // Order: keep the select/checkbox order, drop any empty boards
+    SEQ_ORDER = selectedBoards
+      .map(b => b.name)
+      .filter(n => (SEQ_BAGS[n] || []).length);
+
+    // Safety fallback: if nothing selected had images, use any non‑empty bag
+    if (!SEQ_ORDER.length) {
+      SEQ_ORDER = Object.keys(SEQ_BAGS).filter(n => (SEQ_BAGS[n] || []).length);
+    }
+  }
+
+  // --- startSession (lite) ---
+  window.startSession = async function () {
+    // Read UI (minimal – keeps your existing behaviors intact)
+    ensureAudio?.();
+    sessionMode = document.querySelector('input[name="mode"]:checked')?.value || 'standard';
+
+    bellTimes = (document.getElementById('bellTimes')?.value || '')
+      .split(',').map(n => parseInt(n.trim(), 10)).filter(n => !isNaN(n));
+    const bellModeEl = document.querySelector('input[name="bellMode"]:checked');
+    bellMode = bellModeEl ? bellModeEl.value : (window.bellMode || 'tone');
+    localStorage.setItem('bellMode', bellMode);
+
+    limitMode  = document.querySelector('input[name="limit"]:checked')?.value || 'count';
+    limitValue = (limitMode === 'time')
+      ? parseInt(document.getElementById('limitValue')?.value || '0', 10)
+      : parseInt(document.getElementById('limitCountValue')?.value || '0', 10);
+    strictTime = !!document.getElementById('strictTime')?.checked;
+
+    breakEnabled = !!document.getElementById('breaks')?.checked;
+    if (sessionMode === 'class') breakEnabled = false;
+    breakAfter    = parseInt(document.getElementById('breakAfter')?.value || '0', 10);
+    breakDuration = parseInt(document.getElementById('breakDuration')?.value || '0', 10);
+
+    // Reset runtime
+    elapsedTime = 0; breaksTaken = 0; inBreak = false;
+    bellFiredThisImage?.clear?.(); bellFiredThisBreak?.clear?.();
+    slotHistory = {}; // (re)use your global; in seq mode we store URLs here
+    imageDisplayIndex = 0; currentIndex = 0; imageList = []; deck = []; sessionRemaining = null;
+
+    // Timing
+    if (sessionMode === 'standard') {
+      const durationMin = parseInt(document.getElementById('durationMin')?.value || '0', 10);
+      const durationSec = parseInt(document.getElementById('durationSec')?.value || '0', 10);
+      imageDuration = durationMin * 60 + durationSec;
+      classImageSchedule = [];
+    } else {
+      classImageSchedule = [];
+      document.querySelectorAll('#classPhases .class-row').forEach(row => {
+        if (row.classList.contains('break-row')) {
+          const m = parseInt(row.querySelector('.break-minutes')?.value || '0', 10);
+          const s = parseInt(row.querySelector('.break-seconds')?.value || '0', 10);
+          classImageSchedule.push({ duration: m * 60 + s, isBreak: true });
+        } else {
+          const n = parseInt(row.querySelector('.phase-count')?.value || '1', 10);
+          const m = parseInt(row.querySelector('.phase-minutes')?.value || '0', 10);
+          const s = parseInt(row.querySelector('.phase-seconds')?.value || '0', 10);
+          for (let i = 0; i < n; i++) classImageSchedule.push({ duration: m * 60 + s, isBreak: false });
+        }
+      });
+      limitMode = 'count';
+      limitValue = classImageSchedule.length;
+    }
+
+    // Boards to use
+    selectedBoards = getActiveBoards();
+    const mode = window.SOURCE_MODE || localStorage.getItem('sourceMode') || 'pinterest';
+    if (mode === 'pinterest' && !selectedBoards.length) {
+      alert('Please choose at least one board.');
+      return;
+    }
+    if (mode === 'sample' && !selectedBoards.length) {
+      selectedBoards = Object.keys(SAMPLE_BOARDS).map((name, i) => ({ id: `sample-${i}`, name }));
+    }
+
+    // Sequence ON if toggle checked and 2+ boards selected
+    SEQ_ON = !!(document.getElementById('sequenceToggle')?.checked && selectedBoards.length > 1);
+
+    if (SEQ_ON) {
+      setLoading?.(true, 'Building simple sequence…');
+      await buildSequence();
+
+      // Prime the first image (for fast first paint)
+      const firstKey = SEQ_ORDER[0];
+      const firstUrl = drawNextFrom(firstKey) || '';
+      slotHistory[0] = firstUrl ? [firstUrl] : [];
+
+      // Session timer totals
+      if (limitMode === 'time')           { sessionRemaining = limitValue * 60; }
+      else if (sessionMode === 'class')   { sessionRemaining = classImageSchedule.reduce((s, p) => s + p.duration, 0); }
+      else                                { sessionRemaining = null; }
+      updateSessionTimer?.();
+
+      if (firstUrl) { await preloadImage?.(safeURL(firstUrl)); }
+      setLoading?.(false);
+    } else {
+      // Mixed (random) mode unchanged
+      setLoading?.(true, 'Loading images…');
+      try {
+        imageList = await fetchPinsForBoards(selectedBoards);
+      } catch (_) { imageList = Object.values(SAMPLE_BOARDS).flat(); }
+      buildDeck?.();
+
+      if (limitMode === 'time')           { sessionRemaining = limitValue * 60; }
+      else if (sessionMode === 'class')   { sessionRemaining = classImageSchedule.reduce((s, p) => s + p.duration, 0); }
+      else                                { sessionRemaining = null; }
+      updateSessionTimer?.();
+      setLoading?.(false);
+    }
+
+    // Enter viewer
+    document.body.classList.remove('at-setup');
+    document.body.classList.add('in-session');
+    document.getElementById('setup').style.display = 'none';
+    document.getElementById('viewer').style.display = 'flex';
+    setUiHidden?.(false);
+
+    showImage();
+  };
+
+  // One showImage that respects sequence ON/OFF
+  window.showImage = function () {
+    if (sessionMode === 'class' && currentIndex >= classImageSchedule.length) return endSession();
+
+    document.getElementById('breakScreen').style.display = 'none';
+    document.getElementById('viewer').style.display = 'flex';
+    document.getElementById('breakNextLabel').style.display = 'none';
+    bellFiredThisImage?.clear?.();
+
+    const img = document.getElementById('currentImage');
+
+    if (sessionMode === 'class') {
+      const s = classImageSchedule[currentIndex];
+      if (s.isBreak) { startBreak(s.duration); return; }
+      remaining = s.duration;
+    } else {
+      remaining = imageDuration;
+    }
+
+    if (SEQ_ON) {
+      const ord = imageOrdinalForIndex(currentIndex);
+      const key = SEQ_ORDER[(ord % SEQ_ORDER.length + SEQ_ORDER.length) % SEQ_ORDER.length];
+
+      let url;
+      if (slotHistory[ord]?.length) {
+        url = slotHistory[ord][slotHistory[ord].length - 1];
+      } else {
+        url = drawNextFrom(key);
+        slotHistory[ord] = url ? [url] : [];
+      }
+
+      setBoardBadge?.(key);
+      img.classList.toggle('fit-contain', !!window.fitToScreen);
+      img.src = safeURL(url || '');
+    } else {
+      // Mixed mode (existing deck)
+      if (!Array.isArray(imageList) || imageList.length === 0) imageList = Object.values(SAMPLE_BOARDS).flat();
+      const prevIdx = (typeof imageDisplayIndex === 'number') ? imageDisplayIndex : null;
+      imageDisplayIndex = dealOne?.(prevIdx);
+      setBoardBadge?.('');
+      img.classList.toggle('fit-contain', !!window.fitToScreen);
+      img.src = safeURL(imageList[imageDisplayIndex] || '');
+    }
+
+    updateTimerDisplay?.();
+    runTimer?.();
+  };
+
+  // Refresh: new image from the SAME board when sequenced
+  const _oldRefresh = window.refreshImage;
+  window.refreshImage = function () {
+    if (inBreak) return;
+    if (!SEQ_ON) return _oldRefresh ? _oldRefresh() : undefined;
+
+    const ord = imageOrdinalForIndex(currentIndex);
+    const key = SEQ_ORDER[(ord % SEQ_ORDER.length + SEQ_ORDER.length) % SEQ_ORDER.length];
+
+    const dur = (sessionMode === 'class')
+      ? (classImageSchedule[currentIndex]?.duration || imageDuration)
+      : imageDuration;
+    const was = remaining; remaining = dur;
+    bellFiredThisImage?.clear?.(); updateTimerDisplay?.();
+    if (sessionRemaining !== null) { sessionRemaining += (remaining - was); updateSessionTimer?.(); }
+
+    const url = drawNextFrom(key);
+    (slotHistory[ord] ||= []).push(url);
+    const img = document.getElementById('currentImage');
+    img.classList.toggle('fit-contain', !!window.fitToScreen);
+    img.src = safeURL(url || '');
+  };
+
+  // Prev: walk slot history in seq mode; fall back to your original otherwise
+  const _oldPrev = window.prevImage;
+  window.prevImage = function () {
+    if (!SEQ_ON) return _oldPrev ? _oldPrev() : undefined;
+
+    const ord = imageOrdinalForIndex(currentIndex);
+    const hist = slotHistory[ord];
+
+    if (hist && hist.length > 1 && !inBreak) {
+      hist.pop();
+      const url = hist[hist.length - 1];
+
+      const dur = (sessionMode === 'class')
+        ? (classImageSchedule[currentIndex]?.duration || imageDuration)
+        : imageDuration;
+      const was = remaining; remaining = dur;
+      bellFiredThisImage?.clear?.(); updateTimerDisplay?.();
+      if (sessionRemaining !== null) { sessionRemaining += (remaining - was); updateSessionTimer?.(); }
+
+      document.getElementById('currentImage').src = safeURL(url || '');
+      return;
+    }
+
+    // Move to previous slot (skip breaks in Class)
+    if (sessionMode === 'class') {
+      let idx = Math.max(0, currentIndex - 1);
+      while (idx > 0 && classImageSchedule[idx]?.isBreak) idx--;
+      currentIndex = idx;
+    } else {
+      currentIndex = Math.max(0, currentIndex - 1);
+    }
+    showImage();
+  };
+})();
+</script>
 
 
 <script>
