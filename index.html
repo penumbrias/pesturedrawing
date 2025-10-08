@@ -2005,7 +2005,6 @@ let classImageSchedule = [];
 let imageDisplayIndex = 0; // images shown
 let sessionRemaining = null; // seconds
 let showImageTimer = true; let showSessionTimer = true;
-let fitToScreen = false;
 let slotHistory = {}; // { [slotIndex]: number[] } remembers image indices shown in each slot
 let deck = []; // indices not yet used this cycle
 
@@ -2384,13 +2383,6 @@ function buildSequenceCycle(boardNames, counts) {
 }
 
 
-function toggleFitToScreen() {
-  fitToScreen = !fitToScreen;
-  const img = document.getElementById('currentImage');
-applyFitState();
-  const btn = document.getElementById('fitToScreenBtn');
-  if (btn) btn.textContent = fitToScreen ? 'FtS: On' : 'FtS: Off';
-}
 
 
 function updateTimerDisplay() {
@@ -4453,17 +4445,15 @@ function safeURL(p) {
 
 <script>
 /* === Fit‑to‑Screen: single source of truth + helpers ==================== */
-window.fitToScreen = (localStorage.getItem('pd_fit') === '1');  // restore last choice
+window.fitToScreen = (localStorage.getItem('pd_fit') === '1');
 
 function applyFitState(){
   const img = document.getElementById('currentImage');
   if (!img) return;
-  // Toggle the CSS that makes the image fill the viewport without cropping
   img.classList.toggle('fit-contain', window.fitToScreen);
 
-  // Sync button label
   const btn = document.getElementById('fitToScreenBtn');
-  if (btn) btn.textContent = window.fitToScreen ? 'FtS On' : 'FtS Off';
+  if (btn) btn.textContent = window.fitToScreen ? 'FtS: On' : 'FtS: Off';  // <- colon
 }
 
 function toggleFitToScreen(){
@@ -4472,9 +4462,23 @@ function toggleFitToScreen(){
   applyFitState();
 }
 
-// Keep UI in sync on first load
 document.addEventListener('DOMContentLoaded', applyFitState);
 </script>
+
+
+<script>
+/* Ensure FtS uses the unified toggler */
+(function rebindFitToScreen(){
+  const btn = document.getElementById('fitToScreenBtn');
+  if (!btn) return;
+  btn.addEventListener('click', function(e){
+    e.preventDefault();
+    e.stopImmediatePropagation();     // cancel any earlier FtS handlers
+    window.toggleFitToScreen();
+  }, true);                           // capture so we run first
+})();
+</script>
+
 
 
 </body>
