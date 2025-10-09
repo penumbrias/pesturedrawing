@@ -4435,6 +4435,145 @@ window.showImage = function showImage() {
 
 
 
+<script>
+/* === SESSION COUNTDOWN (replace x/y with a real timer) ===================== */
+(function SessionCountdownPatch(){
+  const pad2 = (n) => String(n).padStart(2, '0');
+
+  // Compute full planned session seconds (includes breaks where applicable)
+  function computePlannedSessionSeconds(){
+    try{
+      // Class: sum all phase durations (images + breaks)
+      if (window.sessionMode === 'class') {
+        const arr = Array.isArray(window.classImageSchedule) ? window.classImageSchedule : [];
+        return arr.reduce((s, p) => s + (p && p.duration ? p.duration : 0), 0);
+      }
+
+      // Standard + time
+      if (window.limitMode === 'time') {
+        const mins = Number(window.limitValue || 0);
+        return Math.max(0, Math.floor(mins * 60));
+      }
+
+      // Standard + count
+      if (window.limitMode === 'count') {
+        const per = Math.max(0, Number(window.imageDuration || 0)); // sec per image
+        const count = Math.max(0, Number(window.limitValue || 0));
+        const drawing = per * count;
+
+        // If breaks are enabled, include them in the full-session total
+        if (window.breakEnabled) {
+          const afterSec = Math.max(0, Number(window.breakAfter || 0)) * 60;
+          const breakSec = Math.max(0, Number(window.breakDuration || 0)) * 60;
+          if (afterSec > 0 && breakSec > 0) {
+            // Breaks trigger every 'afterSec' of session time; adding breaks can
+            // cause additional breaks. Iterate until stable.
+            let breaks = Math.floor(drawing / afterSec);
+            // iterate to fixed point
+            for (;;) {
+              const total = drawing + breaks * breakSec;
+              const needed = Math.floor(total / afterSec);
+              if (needed <= breaks) break;
+              breaks = needed;
+            }
+            return drawing + breaks * breakSec;
+          }
+        }
+        return drawing;
+      }
+
+      // Endless: no fixed end
+      return null;
+    } catch { return null; }
+  }
+
+  // Always render session timer as mm:ss (or ∞ when endless)
+  window.updateSessionTimer = function(){
+    const el = document.getElementById('sessionTimer');
+    if (!el) return;
+
+    if (window.sessionRemaining == null || !Number.isFinite(window.sessionRemaining)) {
+      el.textContent = '∞';
+      el.style.display = window.showSessionTimer ? 'block' : 'none';
+      return;
+    }
+
+    const sec = Math.max(0, Math.floor(window.sessionRemaining));
+    el.textContent = `${pad2(Math.floor(sec/60))}:${pad2(sec%60)}`;
+    el.style.display = window.showSessionTimer ? 'block' : 'none';
+  };
+
+  // After startSession runs, (re)compute the true full-session total
+  const _start = window.startSession;
+  window.startSession = async function(){
+    const res = (_start && _start.apply) ? await _start.apply(this, arguments) : undefined;
+    const total = computePlannedSessionSeconds();
+    window.sessionRemaining = Number.isFinite(total) ? total : null;
+    window.updateSessionTimer();
+    return res;
+  };
+
+  // Replace runTimer so sessionRemaining counts down during images *and* breaks
+  window.runTimer = function(){
+    clearInterval(window.sessionTimer);
+    window.sessionTimer = setInterval(() => {
+      if (window.isPaused) return;
+
+      // wall-clock session stopwatch (includes breaks)
+      window.elapsedTime = (window.elapsedTime || 0) + 1;
+
+      if (window.sessionRemaining !== null) {
+        window.sessionRemaining--;
+        if (typeof window.updateSessionTimer === 'function') window.updateSessionTimer();
+        if (window.sessionRemaining <= 0) { window.endSession(); return; }
+      }
+
+      // Break scheduling hints/countdown (unchanged)
+      const timeUntilNextBreak =
+        ( (window.breaksTaken + 1) * (window.breakAfter * 60) ) - window.elapsedTime;
+
+      if (!window.inBreak && window.breakEnabled &&
+          timeUntilNextBreak <= window.imageDuration &&
+          window.remaining === window.imageDuration) {
+        const b = document.getElementById("breakNextLabel");
+        if (b) b.style.display = "block";
+      }
+
+      if (!window.inBreak && window.breakEnabled && timeUntilNextBreak <= 0) {
+        window.startBreak(); return;
+      }
+
+      // Break ticking
+      if (window.inBreak) {
+        window.breakTimeRemaining--; 
+        if (typeof window.updateBreakTimer === 'function') window.updateBreakTimer();
+
+        if (Array.isArray(window.bellTimes) &&
+            window.bellTimes.includes(window.breakTimeRemaining) &&
+            !window.bellFiredThisBreak.has(window.breakTimeRemaining)) {
+          if (typeof window.triggerBell === 'function') window.triggerBell(window.breakTimeRemaining);
+          window.bellFiredThisBreak.add(window.breakTimeRemaining);
+        }
+        if (window.breakTimeRemaining <= 0) window.endBreak();
+        return;
+      }
+
+      // Image ticking
+      window.remaining--;
+      if (typeof window.updateTimerDisplay === 'function') window.updateTimerDisplay();
+
+      if (Array.isArray(window.bellTimes) &&
+          window.bellTimes.includes(window.remaining) &&
+          !window.bellFiredThisImage.has(window.remaining)) {
+        if (typeof window.triggerBell === 'function') window.triggerBell(window.remaining);
+        window.bellFiredThisImage.add(window.remaining);
+      }
+
+      if (window.remaining <= 0) window.nextImage();
+    }, 1000);
+  };
+})();
+</script>
 
 
 </body>
