@@ -961,6 +961,10 @@ Have fun!</p>
   <label style="flex:0 0 auto;">Session length:</label>
   <input type="text" id="classTotal" value="00:00" readonly
          style="max-width:9rem; background:#101217; border:1px solid #222430; color:var(--text); border-radius:10px; padding:.45rem .6rem;">
+
+<label style="flex:0 0 auto; margin-left:.5rem;">Total images:</label>
+  <input type="text" id="classImages" value="0" readonly
+         style="max-width:6rem; background:#101217; border:1px solid #222430; color:var(--text); border-radius:10px; padding:.45rem .6rem;">
 </div>
 
   </div>
@@ -3279,12 +3283,12 @@ function formatDuration(totalSec) {
                : `${m}:${String(s).padStart(2,'0')}`;
 }
 
-// Recalculate the total session length and make sure the UI exists
+// Recalculate the total session length AND total images, and ensure the UI exists
 function recalcClassTotal() {
   const settings = document.getElementById('classSettings');
   if (!settings) return;
 
-  // 1) Ensure the UI exists at the bottom of the Class section
+  // Ensure the summary row exists (works whether you kept the HTML or not)
   let totalRow = document.getElementById('classTotalRow');
   if (!totalRow) {
     totalRow = document.createElement('div');
@@ -3292,33 +3296,61 @@ function recalcClassTotal() {
     totalRow.id = 'classTotalRow';
     totalRow.style.marginTop = '.75rem';
     totalRow.style.alignItems = 'center';
+    totalRow.style.gap = '.5rem';
+    totalRow.style.flexWrap = 'wrap';
     totalRow.innerHTML = `
       <label style="flex:0 0 auto;">Session length:</label>
       <input type="text" id="classTotal" value="00:00" readonly
              style="max-width:9rem; background:#101217; border:1px solid #222430; color:var(--text); border-radius:10px; padding:.45rem .6rem;">
+      <label style="flex:0 0 auto; margin-left:.5rem;">Total images:</label>
+      <input type="text" id="classImages" value="0" readonly
+             style="max-width:6rem; background:#101217; border:1px solid #222430; color:var(--text); border-radius:10px; padding:.45rem .6rem;">
     `;
-    // append after all rows in the Class section
     settings.appendChild(totalRow);
+  } else {
+    // If the row exists but the Total images input doesn't, add it once
+    if (!document.getElementById('classImages')) {
+      const label = document.createElement('label');
+      label.style.cssText = 'flex:0 0 auto; margin-left:.5rem;';
+      label.textContent = 'Total images:';
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.id = 'classImages';
+      input.readOnly = true;
+      input.value = '0';
+      input.style.cssText = 'max-width:6rem; background:#101217; border:1px solid #222430; color:var(--text); border-radius:10px; padding:.45rem .6rem;';
+      totalRow.appendChild(label);
+      totalRow.appendChild(input);
+    }
   }
 
-  // 2) Compute the total duration from the class rows
-  let total = 0;
+  // Compute totals
+  let totalSeconds = 0;
+  let totalImages  = 0;
+
   document.querySelectorAll('#classPhases .class-row').forEach(row => {
     if (row.classList.contains('break-row')) {
       const m = parseInt(row.querySelector('.break-minutes')?.value || '0', 10);
       const s = parseInt(row.querySelector('.break-seconds')?.value || '0', 10);
-      total += (m * 60 + s);
-    } else {
-      const n = parseInt(row.querySelector('.phase-count')?.value || '1', 10);
-      const m = parseInt(row.querySelector('.phase-minutes')?.value || '0', 10);
-      const s = parseInt(row.querySelector('.phase-seconds')?.value || '0', 10);
-      total += n * (m * 60 + s);
+      totalSeconds += (m * 60 + s);
+      return; // breaks don’t contribute images
     }
+
+    // Phase row
+    const n = Math.max(0, parseInt(row.querySelector('.phase-count')?.value || '0', 10) || 0);
+    const m = parseInt(row.querySelector('.phase-minutes')?.value || '0', 10) || 0;
+    const s = parseInt(row.querySelector('.phase-seconds')?.value || '0', 10) || 0;
+    const perImage = m * 60 + s;
+
+    totalImages  += n;
+    totalSeconds += n * perImage;
   });
 
-  // 3) Update the read-only field
-  const out = document.getElementById('classTotal');
-  if (out) out.value = formatDuration(total);
+  // Update fields
+  const totalField  = document.getElementById('classTotal');
+  const imagesField = document.getElementById('classImages');
+  if (totalField)  totalField.value  = formatDuration(totalSeconds);
+  if (imagesField) imagesField.value = String(totalImages);
 }
 
 // Wire Up/Down/Remove buttons (event delegation) + react to input changes
