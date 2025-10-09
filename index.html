@@ -1733,6 +1733,12 @@ let bellTimes = [], bellFiredThisImage = new Set(), bellFiredThisBreak = new Set
 let lastBoardBadge = null;
 let sequenceEnabledAtStart = false;
 
+// Expose initial values so the session indicator can read them
+window.imageList = imageList;
+window.currentIndex = currentIndex;
+window.limitMode = limitMode;
+window.limitValue = limitValue;
+
 function setBoardBadge(name){
   const el = document.getElementById('boardBadge');
   if (!el) return;
@@ -2002,8 +2008,13 @@ let classImageSchedule = [];
 let imageDisplayIndex = 0; // images shown
 let sessionRemaining = null; // seconds
 let showImageTimer = true; let showSessionTimer = true;
-// Make FtS state global so code that reads window.fitToScreen stays in sync
-let fitToScreen = false; window.fitToScreen = fitToScreen;
+let fitToScreen = false;
+
+// Mirror to window (the indicator reads window.*)
+window.sessionMode = sessionMode;
+window.sessionRemaining = sessionRemaining;
+window.showSessionTimer = showSessionTimer;
+window.fitToScreen = fitToScreen;
 let slotHistory = {}; // { [slotIndex]: number[] } remembers image indices shown in each slot
 let deck = []; // indices not yet used this cycle
 
@@ -2403,14 +2414,45 @@ function updateTimerDisplay() {
   el.style.display = showImageTimer ? "block" : "none";
 }
 function updateSessionTimer() {
-  if (sessionRemaining === null) { document.getElementById("sessionTimer").style.display = "none"; return; }
-  const m = String(Math.floor(sessionRemaining/60)).padStart(2,'0');
-  const s = String(sessionRemaining%60).padStart(2,'0');
-  const el = document.getElementById("sessionTimer");
-  el.innerText = `${m}:${s}`;
-  el.style.display = showSessionTimer ? "block" : "none";
-}
+  const el = document.getElementById('sessionTimer');
+  if (!el) return;
 
+  // Decide what to show
+  const inStandard = (typeof sessionMode === 'string' ? sessionMode : window.sessionMode) === 'standard';
+  const lm = (typeof limitMode === 'string' ? limitMode : window.limitMode) || 'count';
+  const showCount = inStandard && lm === 'count';
+
+  // Always respect the toggle
+  const showIt = (typeof showSessionTimer === 'boolean') ? showSessionTimer
+               : (typeof window.showSessionTimer === 'boolean') ? window.showSessionTimer
+               : true;
+
+  if (showCount) {
+    // x / total  (fallback to imageList length if needed)
+    const total = Number.isFinite(limitValue) && limitValue > 0
+      ? limitValue
+      : (Array.isArray(imageList) ? imageList.length : 0);
+
+    const idx = Math.min((currentIndex || 0) + 1, total || ((currentIndex || 0) + 1));
+    el.textContent = `${idx}/${total || '—'}`;
+    el.style.display = showIt ? 'block' : 'none';
+    return;
+  }
+
+  // Time‑based indicator (Standard “time” or Class)
+  if (typeof sessionRemaining === 'number') {
+    const m = String(Math.floor(sessionRemaining / 60)).padStart(2, '0');
+    const s = String(sessionRemaining % 60).padStart(2, '0');
+    el.textContent = `${m}:${s}`;
+    el.style.display = showIt ? 'block' : 'none';
+    return;
+  }
+
+  // Endless: x / ∞
+  const idx = (currentIndex || 0) + 1;
+  el.textContent = `${idx}/∞`;
+  el.style.display = showIt ? 'block' : 'none';
+}
 async function checkAuth() {
   const statusEl  = document.getElementById('pinAuthStatus');
   const connectEl = document.getElementById('pinConnectBtn');
@@ -2562,9 +2604,13 @@ function runTimer() {
   sessionTimer = setInterval(() => {
     if (isPaused) return;
     elapsedTime++;
-    if (sessionRemaining !== null && !inBreak) {
-      sessionRemaining--; updateSessionTimer(); if (sessionRemaining <= 0) return endSession();
-    }
+  if (sessionRemaining !== null && !inBreak) {
+  sessionRemaining--;
+  window.sessionRemaining = sessionRemaining;        // keep indicator’s source in sync
+  if (typeof updateSessionTimer === 'function') updateSessionTimer();
+  if (sessionRemaining <= 0) return endSession();
+}
+
 
     if (shouldEndSession()) return endSession();
 
@@ -2598,54 +2644,11 @@ function safeURL(p) {
   return encodeURI(p).replace(/#/g, '%23'); 
 }
 
-function showImage() {
-  if (sessionMode === "class" && currentIndex >= classImageSchedule.length) return endSession();
-
-  document.getElementById("breakScreen").style.display = "none";
-  document.getElementById("viewer").style.display = "flex";
-  document.getElementById("breakNextLabel").style.display = "none";
-  bellFiredThisImage.clear();
-
-  const img = document.getElementById("currentImage");
-  // ✅ Step 6: keep Fit‑to‑Screen in sync on each image
-  img.classList.toggle('fit-contain', fitToScreen);
-
-  if (sessionMode === "class") {
-    const schedule = classImageSchedule[currentIndex];
-    if (schedule.isBreak) { startBreak(schedule.duration); return; }
-    remaining = schedule.duration;
-  } else {
-    remaining = imageDuration;
-  }
-
-  if (!imageList.length) {
-    imageList = Object.values(SAMPLE_BOARDS).flat();
-  }
-
-
-
-
-// Deal an image for this slot if it doesn't already have one
-let hist = slotHistory[currentIndex];
-if (!hist || hist.length === 0) {
-  imageDisplayIndex = dealOne();
-  slotHistory[currentIndex] = [imageDisplayIndex];
-} else {
-  // Reuse the last image assigned to this slot (supports Back button)
-  imageDisplayIndex = hist[hist.length - 1];
-}
-
-// Show it
-img.src = safeURL(imageList[imageDisplayIndex]);
-updateTimerDisplay();
-runTimer();
-
-
-}
 
 function nextImage() {
   currentIndex++;
-  showImage(); // showImage will deal the next unused image for the new slot
+  window.currentIndex = currentIndex;  // sync for x/y display
+  showImage();
 }
 
 function prevImage() {
@@ -2968,6 +2971,11 @@ if (sessionMode === 'class') {
   if (limitMode === 'time') { sessionRemaining = limitValue * 60; }
   else if (sessionMode === 'class') { sessionRemaining = classImageSchedule.reduce((s,p)=>s+p.duration,0); }
   else { sessionRemaining = null; }
+// keep mirrors in sync for the renderer
+window.sessionMode      = sessionMode;
+window.limitMode        = limitMode;
+window.limitValue       = limitValue;
+window.showSessionTimer = (typeof showSessionTimer === 'boolean' ? showSessionTimer : true);
   updateSessionTimer();
 
 // Build a no-repeat deck and deal the first image
@@ -4286,51 +4294,82 @@ function safeURL(p) {
 
   // --- Render per-slot image respecting the plan/order ---------------------
   const _origShow = window.showImage;
-  window.showImage = function(){
-    if (sessionMode === 'class' && currentIndex >= classImageSchedule.length) return endSession();
+// Inside the "Sequencing (customizable counts & order)" block:
+window.showImage = function showImage() {
+  // 1) End if we’ve reached the end of a Class schedule
+  if (sessionMode === 'class' && currentIndex >= classImageSchedule.length) {
+    return endSession();
+  }
 
-    document.getElementById('breakScreen').style.display = 'none';
-    document.getElementById('viewer').style.display = 'flex';
-    document.getElementById('breakNextLabel').style.display = 'none';
-    bellFiredThisImage.clear();
+  // 2) Prep UI for an image (not break)
+  const viewer     = document.getElementById('viewer');
+  const breakScreen= document.getElementById('breakScreen');
+  const breakNext  = document.getElementById('breakNextLabel');
+  const img        = document.getElementById('currentImage');
 
-    const img = document.getElementById('currentImage');
+  breakScreen.style.display = 'none';
+  viewer.style.display      = 'flex';
+  if (breakNext) breakNext.style.display = 'none';
+  bellFiredThisImage.clear();
 
-    if (sessionMode === 'class') {
-      const s = classImageSchedule[currentIndex];
-      if (s.isBreak) { startBreak(s.duration); return; }
-      remaining = s.duration;
-    } else {
-      remaining = imageDuration;
-    }
+  // 3) Per‑slot timing
+  if (sessionMode === 'class') {
+    const s = classImageSchedule[currentIndex];
+    if (s.isBreak) { startBreak(s.duration); return; }
+    remaining = s.duration;
+  } else {
+    remaining = imageDuration;
+  }
 
-    if (window.sequenceEnabledAtStart && window.PD_sequencePlan.length) {
-      const ord = imageOrdinalForIndex(currentIndex);
-      const key = window.PD_sequencePlan[ord % window.PD_sequencePlan.length];
-      let url;
-      if (slotHistory[ord]?.length) {
-        url = slotHistory[ord][slotHistory[ord].length - 1];
-      } else {
-        url = window.drawFromKey(key);
-        slotHistory[ord] = url ? [url] : [];
+  // 4) Pick the URL
+  let url = '';
+
+  // If a sequence plan exists, keep exactly to it (supports groups "A||B")
+  if (window.sequenceEnabledAtStart && Array.isArray(window.PD_sequencePlan) && window.PD_sequencePlan.length) {
+    // Map schedule index (which includes breaks) to image-only ordinal
+    const ord = (function imageOrdinalForIndex(idx){
+      if (sessionMode !== 'class') return idx;
+      let count = 0;
+      for (let i = 0; i <= idx && i < classImageSchedule.length; i++) {
+        if (!classImageSchedule[i]?.isBreak) count++;
       }
-      setBoardBadge(labelForKey(key));
-      img.classList.toggle('fit-contain', !!window.fitToScreen);
-      img.src = safeURL(url || '');
+      return Math.max(0, count - 1);
+    })(currentIndex);
+
+    const key = window.PD_sequencePlan[ord % window.PD_sequencePlan.length];
+
+    if (slotHistory[ord]?.length) {
+      // Reuse the last image chosen for this slot (supports Back button)
+      url = slotHistory[ord][slotHistory[ord].length - 1];
     } else {
-      // Mixed mode (deck)
-      if (!imageList.length) imageList = Object.values(SAMPLE_BOARDS).flat();
-      const prevIdx = (typeof imageDisplayIndex === 'number') ? imageDisplayIndex : null;
-      imageDisplayIndex = dealOne(prevIdx);
-      setBoardBadge('');
-      img.classList.toggle('fit-contain', !!window.fitToScreen);
-      img.src = safeURL(imageList[imageDisplayIndex] || '');
+      // Draw a new one from the correct bag (single board or group)
+      url = window.drawFromKey(key) || '';
+      slotHistory[ord] = url ? [url] : [];
     }
 
-    updateTimerDisplay();
-if (typeof updateSessionTimer === 'function') updateSessionTimer();
-    runTimer();
-  };
+    // Board badge
+    setBoardBadge(key.includes('||') ? key.replace(/\|\|/g, ' + ') : key);
+
+  } else {
+    // Mixed mode: random from selected boards, no repeats per deck pass
+    if (!Array.isArray(imageList) || imageList.length === 0) {
+      imageList = Object.values(SAMPLE_BOARDS).flat();
+    }
+    const prevIdx = Number.isFinite(imageDisplayIndex) ? imageDisplayIndex : null;
+    imageDisplayIndex = dealOne(prevIdx);
+    url = imageList[imageDisplayIndex] || '';
+    setBoardBadge('');
+  }
+
+  // 5) Render the image
+  img.classList.toggle('fit-contain', !!window.fitToScreen);
+  img.src = safeURL(url);
+
+  // 6) Timers
+  updateTimerDisplay();
+  if (typeof updateSessionTimer === 'function') updateSessionTimer();
+  runTimer();
+};
 
   // --- Refresh = new image from the same plan entry (same board/group) ----
   const _origRefresh = window.refreshImage;
