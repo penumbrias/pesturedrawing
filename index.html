@@ -4037,19 +4037,19 @@ function safeURL(p) {
     const viewer = document.getElementById('viewer');
     const inViewer = viewer && viewer.style.display === 'flex';
 
-    const timed   = (typeof window.sessionRemaining === 'number' && window.sessionRemaining !== null);
-    const endless = (window.limitMode === 'endless');
+    const timed   = (typeof sessionRemaining === 'number' && sessionRemaining !== null);
+    const endless = (limitMode === 'endless');
 
     if (!inViewer || !timed || endless) {
       el.style.display = 'none';
       return;
     }
 
-    const sec = Math.max(0, Math.floor(window.sessionRemaining));
+    const sec = Math.max(0, Math.floor(sessionRemaining));
     const m = String(Math.floor(sec / 60)).padStart(2, '0');
     const s = String(sec % 60).padStart(2, '0');
     el.textContent = `${m}:${s}`;
-    el.style.display = (window.showSessionTimer !== false) ? 'block' : 'none';
+    el.style.display = (showSessionTimer !== false) ? 'block' : 'none';
   }
 
   // Make this the canonical updater
@@ -4433,7 +4433,7 @@ function safeURL(p) {
       currentIndex = Math.max(0, currentIndex - 1);
     }
     showImage();
-  };a
+  };
 })();
 </script>
 
@@ -4451,7 +4451,7 @@ function safeURL(p) {
       if (window.sessionMode === 'standard' && window.limitMode === 'count') {
         const per = Number(window.imageDuration) || 0;  // seconds per image
         const n   = Number(window.limitValue)   || 0;   // image count
-        window.sessionRemaining = per * n;              // include breaks implicitly (it ticks during breaks)
+        sessionRemaining = per * n;              // include breaks implicitly (it ticks during breaks)
         if (window.sessionRemaining === 0) window.sessionRemaining = null; // nothing to show
         if (typeof window.updateSessionTimer === 'function') window.updateSessionTimer();
       }
@@ -4468,10 +4468,10 @@ function safeURL(p) {
     try {
       const nonTimeBased = (window.limitMode !== 'time');
       const isStandardCount = (window.sessionMode === 'standard' && window.limitMode === 'count');
-      if (!window.inBreak && isStandardCount && window.sessionRemaining != null && window.remaining > 0 && nonTimeBased) {
-        window.sessionRemaining = Math.max(0, window.sessionRemaining - window.remaining);
+      if (!inBreak && isStandardCount && sessionRemaining != null && remaining > 0 && nonTimeBased) {
+         sessionRemaining = Math.max(0, sessionRemaining - remaining);
         if (typeof window.updateSessionTimer === 'function') window.updateSessionTimer();
-        if (window.sessionRemaining <= 0) { return window.endSession?.(); }
+        if (sessionRemaining <= 0) { return endSession?.(); }
       }
     } catch (_) { /* no-op */ }
     return __origNext?.apply(this, arguments);
