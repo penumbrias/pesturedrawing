@@ -2583,9 +2583,14 @@ function updateBreakTimer() {
   document.getElementById("breakTimer").innerText = `${m}:${s}`;
 }
 function endBreak() {
+  // If the user ends the break early, remove the remaining break seconds from the session (Class only).
+  if (sessionMode === 'class' && sessionRemaining !== null && breakTimeRemaining > 0) {
+    sessionRemaining = Math.max(0, sessionRemaining - breakTimeRemaining);
+    updateSessionTimer();
+  }
   inBreak = false;
   document.getElementById("breakScreen").style.display = "none";
-  if (sessionMode === 'class') { currentIndex++; }  // advance only for Class schedule rows
+  if (sessionMode === 'class') { currentIndex++; }
   showImage();
 }
 function runTimer() {
@@ -2593,7 +2598,7 @@ function runTimer() {
   sessionTimer = setInterval(() => {
     if (isPaused) return;
     elapsedTime++;
-    if (sessionRemaining !== null && !inBreak) {
+if (sessionRemaining !== null) {
       sessionRemaining--; updateSessionTimer(); if (sessionRemaining <= 0) return endSession();
     }
 
@@ -2675,8 +2680,15 @@ runTimer();
 }
 
 function nextImage() {
+  // If the user manually advances before the image timer hits 0,
+  // remove those leftover seconds from the overall session (Class only).
+  if (!inBreak && sessionMode === 'class' && sessionRemaining !== null && remaining > 0) {
+    sessionRemaining = Math.max(0, sessionRemaining - remaining);
+    updateSessionTimer();
+    if (sessionRemaining <= 0) { endSession(); return; }
+  }
   currentIndex++;
-  showImage(); // showImage will deal the next unused image for the new slot
+  showImage();
 }
 
 function prevImage() {
@@ -4015,74 +4027,48 @@ function safeURL(p) {
 </script>
 
 <script>
-/* === Session indicator (x/y) when "Number of images" is selected ========== */
+/* === Session countdown (mm:ss) — show only for timed sessions ============ */
 (function () {
-  // Replace the session-timer updater so it can render either time OR x/y.
-  function renderSessionIndicator() {
+  function renderSessionCountdown(){
     const el = document.getElementById('sessionTimer');
     if (!el) return;
 
-    // Show x/y only for Standard + Number of images (count) sessions.
-    if (window.sessionMode === 'standard' && window.limitMode === 'count') {
-      const total = (Number.isFinite(window.limitValue) && window.limitValue > 0)
-        ? window.limitValue
-        : (Array.isArray(window.imageList) ? window.imageList.length : 0);
+    // Only render while the viewer is visible
+    const viewer = document.getElementById('viewer');
+    const inViewer = viewer && viewer.style.display === 'flex';
 
-      // 1-based index for humans; clamp to total if we’ve reached/passed the end.
-      const idx = Math.min((window.currentIndex || 0) + 1, total || ((window.currentIndex || 0) + 1));
+    const timed   = (typeof window.sessionRemaining === 'number' && window.sessionRemaining !== null);
+    const endless = (window.limitMode === 'endless');
 
-      el.textContent = `${idx}/${total || '—'}`;
-      el.style.display = window.showSessionTimer ? 'block' : 'none';
+    if (!inViewer || !timed || endless) {
+      el.style.display = 'none';
       return;
     }
 
-    // Otherwise fall back to time display (used by Class and time-limited sessions).
-    if (typeof window.sessionRemaining === 'number' && window.sessionRemaining !== null) {
-      const m = String(Math.floor(window.sessionRemaining / 60)).padStart(2, '0');
-      const s = String(window.sessionRemaining % 60).padStart(2, '0');
-      el.textContent = `${m}:${s}`;
-      el.style.display = window.showSessionTimer ? 'block' : 'none';
-    } else {
-      el.style.display = 'none';
-    }
+    const sec = Math.max(0, Math.floor(window.sessionRemaining));
+    const m = String(Math.floor(sec / 60)).padStart(2, '0');
+    const s = String(sec % 60).padStart(2, '0');
+    el.textContent = `${m}:${s}`;
+    el.style.display = (window.showSessionTimer !== false) ? 'block' : 'none';
   }
 
-  // Make our renderer the new session-timer updater.
-  window.updateSessionTimer = renderSessionIndicator;
+  // Make this the canonical updater
+  window.updateSessionTimer = renderSessionCountdown;
 
-  // Ensure the indicator refreshes whenever the current image slot changes.
+  // Keep it in sync on navigation
   const _show = window.showImage;
-  window.showImage = function () {
-    const r = _show ? _show.apply(this, arguments) : undefined;
-    renderSessionIndicator();
-    return r;
-  };
-
+  window.showImage = function(){ const r = _show?.apply(this, arguments); renderSessionCountdown(); return r; };
   const _next = window.nextImage;
-  window.nextImage = function () {
-    const r = _next ? _next.apply(this, arguments) : undefined;
-    renderSessionIndicator();
-    return r;
-  };
-
+  window.nextImage = function(){ const r = _next?.apply(this, arguments); renderSessionCountdown(); return r; };
   const _prev = window.prevImage;
-  window.prevImage = function () {
-    const r = _prev ? _prev.apply(this, arguments) : undefined;
-    renderSessionIndicator();
-    return r;
-  };
+  window.prevImage = function(){ const r = _prev?.apply(this, arguments); renderSessionCountdown(); return r; };
 
-  // Also re-render immediately if someone toggles visibility.
-  const _toggleSess = window.toggleSessionTimer;
-  window.toggleSessionTimer = function () {
-    if (typeof window.showSessionTimer === 'boolean') {
-      window.showSessionTimer = !window.showSessionTimer;
-    }
-    renderSessionIndicator();
-    if (_toggleSess && _toggleSess !== window.toggleSessionTimer) {
-      // In case prior logic needs to run (safe no-op if unchanged).
-      try { _toggleSess(); } catch (_) {}
-    }
+  // Respect the toggle button
+  const _toggle = window.toggleSessionTimer;
+  window.toggleSessionTimer = function(){
+    window.showSessionTimer = !window.showSessionTimer;
+    renderSessionCountdown();
+    if (_toggle && _toggle !== window.toggleSessionTimer) { try{ _toggle(); }catch(_){} }
   };
 })();
 </script>
