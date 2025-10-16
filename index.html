@@ -2639,6 +2639,7 @@ function showImage() {
 
   document.getElementById("breakScreen").style.display = "none";
   document.getElementById("viewer").style.display = "flex";
+if (typeof updateSessionTimer === 'function') updateSessionTimer(); // no 1s wait on resume
   document.getElementById("breakNextLabel").style.display = "none";
   bellFiredThisImage.clear();
 
@@ -4324,6 +4325,7 @@ function safeURL(p) {
     document.getElementById('setup').style.display = 'none';
     document.getElementById('viewer').style.display = 'flex';
     setUiHidden(false);
+updateSessionTimer();   // render the session timer immediately once the viewer is visible
     setLoading(false);
 
     showImage();
