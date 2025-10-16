@@ -3,6 +3,8 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+
+<meta name="p:domain_verify" content="cad47892ea9c23f001861f0c81624b82"/>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Pesture Drawing</title>
@@ -817,6 +819,18 @@ body:not(.at-setup) .dev-banner{ display: none !important; }
   }
 }
 
+/* X/Y counter next to the image timer */
+#imageCounter {
+  position: absolute;
+  top: 1.1rem;                    /* aligns nicely with the big timer */
+  left: calc(1rem + 7.4ch);       /* "00:00" width + a small gap */
+  font-size: 1.15rem;
+  color: #fff;
+  opacity: .9;
+}
+
+/* If you ever hide the chrome, match the timer’s behavior */
+#viewer.chrome-hidden #imageCounter { opacity: .5; }
 
   </style>
   <audio id="bellSound" src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" preload="auto"></audio>
@@ -1269,192 +1283,107 @@ case 'E': case 'e':
 
 // Sample images per board (always available)
 const SAMPLE_BOARDS = {
-  "environments": [
-    "mock_boards/environments board/1. .jpg",
-    "mock_boards/environments board/10. .jpg",
-    "mock_boards/environments board/11. .jpg",
-    "mock_boards/environments board/12. .jpg",
-    "mock_boards/environments board/13. .jpg",
-    "mock_boards/environments board/14. Discover Australia's.png",
-    "mock_boards/environments board/15. .jpg",
-    "mock_boards/environments board/2. .jpg",
-    "mock_boards/environments board/3. .jpg",
-    "mock_boards/environments board/4. .jpg",
-    "mock_boards/environments board/5. .png",
-    "mock_boards/environments board/6. .jpg",
-    "mock_boards/environments board/7. Discover Australia's.png",
-    "mock_boards/environments board/8. .jpg",
-    "mock_boards/environments board/9. .jpg"
+  "fundamentals - basic form": [
+	"mock_boards/fundamentals - basic form/1.jpg"
+	"mock_boards/fundamentals - basic form/2.jpg"
+	"mock_boards/fundamentals - basic form/3.jpg"
+	"mock_boards/fundamentals - basic form/4.jpg"
+	"mock_boards/fundamentals - basic form/5.jpg"
+	"mock_boards/fundamentals - basic form/6.jpg"
+	"mock_boards/fundamentals - basic form/7.jpg"
+	"mock_boards/fundamentals - basic form/8.jpg"
+	"mock_boards/fundamentals - basic form/9.jpg"
+	"mock_boards/fundamentals - basic form/10.jpg"
+	"mock_boards/fundamentals - basic form/11.jpg"
+	"mock_boards/fundamentals - basic form/12.jpg"
+	"mock_boards/fundamentals - basic form/13.jpg"
+	"mock_boards/fundamentals - basic form/14.jpg"
+	"mock_boards/fundamentals - basic form/15.jpg"
+	],
+  "fundamentals - cloth/drapery": [
+	"mock_boards/fundamentals - cloth!drapery/1. .jpg"
+	"mock_boards/fundamentals - cloth!drapery/2. .jpg"
+	"mock_boards/fundamentals - cloth!drapery/3. .jpg"
+	"mock_boards/fundamentals - cloth!drapery/4. .jpg"
+	"mock_boards/fundamentals - cloth!drapery/5. .jpg"
+	"mock_boards/fundamentals - cloth!drapery/6. .jpg"
+	"mock_boards/fundamentals - cloth!drapery/7. .jpg"
+	"mock_boards/fundamentals - cloth!drapery/8. .jpg"
+	"mock_boards/fundamentals - cloth!drapery/9. .jpg"
+	"mock_boards/fundamentals - cloth!drapery/10. .jpg"
+	"mock_boards/fundamentals - cloth!drapery/11. .jpg"
+	"mock_boards/fundamentals - cloth!drapery/12. .jpg"
+	"mock_boards/fundamentals - cloth!drapery/13. .jpg"
+	"mock_boards/fundamentals - cloth!drapery/14. .jpg"
+	"mock_boards/fundamentals - cloth!drapery/15. .jpg"
+	],
+  "fundamentals - still life": [
+	"mock_boards/fundamentals - still life/1. .jpg"
+	"mock_boards/fundamentals - still life/2. .jpg"
+	"mock_boards/fundamentals - still life/3. .jpg"
+	"mock_boards/fundamentals - still life/4. .jpg"
+	"mock_boards/fundamentals - still life/5. .jpg"
+	"mock_boards/fundamentals - still life/6. .jpg"
+	"mock_boards/fundamentals - still life/7. .jpg"
+	"mock_boards/fundamentals - still life/8. .jpg"
+	"mock_boards/fundamentals - still life/9. .jpg"
+	"mock_boards/fundamentals - still life/10. .jpg"
+	"mock_boards/fundamentals - still life/11. .jpg"
+	"mock_boards/fundamentals - still life/12. .jpg"
+	"mock_boards/fundamentals - still life/13. .jpg"
+	"mock_boards/fundamentals - still life/14. .jpg"
+	"mock_boards/fundamentals - still life/15. .jpg"
+	],
+  "fundamentals - anatomy/complex form": [
+	"mock_boards/fundamentals - anatomy!complex form/1. .jpg"
+	"mock_boards/fundamentals - anatomy!complex form/2. .jpg"
+	"mock_boards/fundamentals - anatomy!complex form/3. .jpg"
+	"mock_boards/fundamentals - anatomy!complex form/4. .jpg"
+	"mock_boards/fundamentals - anatomy!complex form/5. .jpg"
+	"mock_boards/fundamentals - anatomy!complex form/6. .jpg"
+	"mock_boards/fundamentals - anatomy!complex form/7. .jpg"
+	"mock_boards/fundamentals - anatomy!complex form/8. .jpg"
+	"mock_boards/fundamentals - anatomy!complex form/9. .jpg"
+	"mock_boards/fundamentals - anatomy!complex form/10. .jpg"
+	"mock_boards/fundamentals - anatomy!complex form/11. .jpg"
+	"mock_boards/fundamentals - anatomy!complex form/12. .jpg"
+	"mock_boards/fundamentals - anatomy!complex form/13. .jpg"
+	"mock_boards/fundamentals - anatomy!complex form/14. .jpg"
+	"mock_boards/fundamentals - anatomy!complex form/15. .jpg"
+	],
+  "portrait": [
+    "mock_boards/portrait board/1. City Twists.jpg",
+    "mock_boards/portrait board/10. 🌙.jpg",
+    "mock_boards/portrait board/11. .jpg",
+    "mock_boards/portrait board/12. Sān child,.jpg",
+    "mock_boards/portrait board/13. .jpg",
+    "mock_boards/portrait board/14. .jpg",
+    "mock_boards/portrait board/15. .jpg",
+    "mock_boards/portrait board/2. .jpg",
+    "mock_boards/portrait board/3. .jpg",
+    "mock_boards/portrait board/4. .jpg",
+    "mock_boards/portrait board/5. How Beyoncé.jpg",
+    "mock_boards/portrait board/6. .jpg",
+    "mock_boards/portrait board/7. .jpg",
+    "mock_boards/portrait board/8. .jpg",
+    "mock_boards/portrait board/9. .jpg"
   ],
-  "medievalfantasy weapons": [
-    "mock_boards/medieval!fantasy weapons board/1. Bow tool sling.jpg",
-    "mock_boards/medieval!fantasy weapons board/10. .jpg",
-    "mock_boards/medieval!fantasy weapons board/11. Highly decorated.jpg",
-    "mock_boards/medieval!fantasy weapons board/12. Weapons  Morning.jpg",
-    "mock_boards/medieval!fantasy weapons board/13. .jpg",
-    "mock_boards/medieval!fantasy weapons board/14. Silver work.png",
-    "mock_boards/medieval!fantasy weapons board/15. .jpg",
-    "mock_boards/medieval!fantasy weapons board/2. .jpg",
-    "mock_boards/medieval!fantasy weapons board/3. .jpg",
-    "mock_boards/medieval!fantasy weapons board/4. .jpg",
-    "mock_boards/medieval!fantasy weapons board/5. .jpg",
-    "mock_boards/medieval!fantasy weapons board/6. .jpg",
-    "mock_boards/medieval!fantasy weapons board/7. .jpg",
-    "mock_boards/medieval!fantasy weapons board/8. .jpg",
-    "mock_boards/medieval!fantasy weapons board/9. .jpg"
-  ],
-  "fashion": [
-    "mock_boards/fashion board/1. .png",
-    "mock_boards/fashion board/10. .jpg",
-    "mock_boards/fashion board/11. .jpg",
-    "mock_boards/fashion board/12. .jpg",
-    "mock_boards/fashion board/13. On location,.jpg",
-    "mock_boards/fashion board/14. .jpg",
-    "mock_boards/fashion board/15. .png",
-    "mock_boards/fashion board/2. .jpg",
-    "mock_boards/fashion board/3. .jpg",
-    "mock_boards/fashion board/4. .jpg",
-    "mock_boards/fashion board/5. .jpg",
-    "mock_boards/fashion board/6. .jpg",
-    "mock_boards/fashion board/7. .jpg",
-    "mock_boards/fashion board/8. .jpg",
-    "mock_boards/fashion board/9. .png"
-  ],
-  "mushrooms plants and flowers": [
-    "mock_boards/mushrooms, plants and flowers board/1. .jpg",
-    "mock_boards/mushrooms, plants and flowers board/10. untitled-5.jpg.jpg",
-    "mock_boards/mushrooms, plants and flowers board/11. .png",
-    "mock_boards/mushrooms, plants and flowers board/12. .jpg",
-    "mock_boards/mushrooms, plants and flowers board/13. .png",
-    "mock_boards/mushrooms, plants and flowers board/14. Red and.jpg",
-    "mock_boards/mushrooms, plants and flowers board/15. .jpg",
-    "mock_boards/mushrooms, plants and flowers board/2. .jpg",
-    "mock_boards/mushrooms, plants and flowers board/3. .jpg",
-    "mock_boards/mushrooms, plants and flowers board/4. .jpg",
-    "mock_boards/mushrooms, plants and flowers board/5. .jpg",
-    "mock_boards/mushrooms, plants and flowers board/6. Big Bang.jpg",
-    "mock_boards/mushrooms, plants and flowers board/7. .jpg",
-    "mock_boards/mushrooms, plants and flowers board/8. This is.jpg",
-    "mock_boards/mushrooms, plants and flowers board/9. .jpg"
-  ],
-  "trees": [
-    "mock_boards/trees board/1. .jpg",
-    "mock_boards/trees board/10. .jpg",
-    "mock_boards/trees board/11. .png",
-    "mock_boards/trees board/12. How to.jpg",
-    "mock_boards/trees board/13. .jpg",
-    "mock_boards/trees board/14. .jpg",
-    "mock_boards/trees board/15. .jpg",
-    "mock_boards/trees board/2. .jpg",
-    "mock_boards/trees board/3. .jpg",
-    "mock_boards/trees board/4. .jpg",
-    "mock_boards/trees board/5. .jpg",
-    "mock_boards/trees board/6. .jpg",
-    "mock_boards/trees board/7. .jpg",
-    "mock_boards/trees board/8. .jpg",
-    "mock_boards/trees board/9. .jpg"
-  ],
-  "caninecanidae": [
-    "mock_boards/canine!canidae board/1. .jpg",
-    "mock_boards/canine!canidae board/10. Saluki Welpen.jpg",
-    "mock_boards/canine!canidae board/11. .jpg",
-    "mock_boards/canine!canidae board/12. Spanish Sighthound.jpg",
-    "mock_boards/canine!canidae board/13. borzoi.png",
-    "mock_boards/canine!canidae board/14. .png",
-    "mock_boards/canine!canidae board/15. .jpg",
-    "mock_boards/canine!canidae board/2. .jpg",
-    "mock_boards/canine!canidae board/3. .jpg",
-    "mock_boards/canine!canidae board/4. .jpg",
-    "mock_boards/canine!canidae board/5. .jpg",
-    "mock_boards/canine!canidae board/6. .jpg",
-    "mock_boards/canine!canidae board/7. Tangkhul Hui.jpg",
-    "mock_boards/canine!canidae board/8. Cirneco Dell'Etna-.jpg",
-    "mock_boards/canine!canidae board/9. Dog.jpg"
-  ],
-  "sea animals": [
-    "mock_boards/sea animals board/1. .jpg",
-    "mock_boards/sea animals board/10. Decorator crabs.png",
-    "mock_boards/sea animals board/11. .jpg",
-    "mock_boards/sea animals board/12. PixieWinks.jpg",
-    "mock_boards/sea animals board/13. Giant box.png",
-    "mock_boards/sea animals board/14. .jpg",
-    "mock_boards/sea animals board/15. New ‘Galaxy’.jpg",
-    "mock_boards/sea animals board/2. .jpg",
-    "mock_boards/sea animals board/3. It's Dive.jpg",
-    "mock_boards/sea animals board/4. Come brighten.jpg",
-    "mock_boards/sea animals board/5. .jpg",
-    "mock_boards/sea animals board/6. .jpg",
-    "mock_boards/sea animals board/7. .jpg",
-    "mock_boards/sea animals board/8. 🔥 East.jpg",
-    "mock_boards/sea animals board/9. Spiny monster.jpg"
-  ],
-  "ungulates": [
-    "mock_boards/ungulates board/1. .png",
-    "mock_boards/ungulates board/10. .jpg",
-    "mock_boards/ungulates board/11. Sichuan Takin.jpg",
-    "mock_boards/ungulates board/12. .jpg",
-    "mock_boards/ungulates board/13. Черная антилопа.jpg",
-    "mock_boards/ungulates board/14. .jpg",
-    "mock_boards/ungulates board/15. Scythian horse.jpg",
-    "mock_boards/ungulates board/2. .jpg",
-    "mock_boards/ungulates board/3. .jpg",
-    "mock_boards/ungulates board/4. Bull Okapi.jpg",
-    "mock_boards/ungulates board/5. Jentink’s Duiker.jpg",
-    "mock_boards/ungulates board/6. Hemitragus jemlahicus.jpg",
-    "mock_boards/ungulates board/7. .jpg",
-    "mock_boards/ungulates board/8. Saiga Antelope.jpg",
-    "mock_boards/ungulates board/9. Kafue Lechwe.jpg"
-  ],
-  "mustelidsrodentiamarsupials": [
-    "mock_boards/mustelids!rodentia!marsupials board/1. Lumholtz’s Tree.jpg",
-    "mock_boards/mustelids!rodentia!marsupials board/10. The Finnish.jpg",
-    "mock_boards/mustelids!rodentia!marsupials board/11. Kowari (Dasyuroides.png",
-    "mock_boards/mustelids!rodentia!marsupials board/12. I like.png",
-    "mock_boards/mustelids!rodentia!marsupials board/13. Stoat.jpg",
-    "mock_boards/mustelids!rodentia!marsupials board/14. Magical Nature.jpg",
-    "mock_boards/mustelids!rodentia!marsupials board/15. 🔥 European.png",
-    "mock_boards/mustelids!rodentia!marsupials board/2. .jpg",
-    "mock_boards/mustelids!rodentia!marsupials board/3. .jpg",
-    "mock_boards/mustelids!rodentia!marsupials board/4. .jpg",
-    "mock_boards/mustelids!rodentia!marsupials board/5. .jpg",
-    "mock_boards/mustelids!rodentia!marsupials board/6. .jpg",
-    "mock_boards/mustelids!rodentia!marsupials board/7. .jpg",
-    "mock_boards/mustelids!rodentia!marsupials board/8. ُ.jpg",
-    "mock_boards/mustelids!rodentia!marsupials board/9. .jpg"
-  ],
-  "mammals": [
-    "mock_boards/mammals board/1. .jpg",
-    "mock_boards/mammals board/10. Armadillo.jpg",
-    "mock_boards/mammals board/11. Tenrecs!.jpg",
-    "mock_boards/mammals board/12. Matschie's Tree.jpg",
-    "mock_boards/mammals board/13. .jpg",
-    "mock_boards/mammals board/14. .png",
-    "mock_boards/mammals board/15. I Capture.jpg",
-    "mock_boards/mammals board/2. Mara &.jpg",
-    "mock_boards/mammals board/3. Patagonian Mara.jpg",
-    "mock_boards/mammals board/4. Greater Hog.jpg",
-    "mock_boards/mammals board/5. .jpg",
-    "mock_boards/mammals board/6. .jpg",
-    "mock_boards/mammals board/7. .jpg",
-    "mock_boards/mammals board/8. Dingiso Tree.jpg",
-    "mock_boards/mammals board/9. .jpg"
-  ],
-  "reptilesamphibians": [
-    "mock_boards/reptiles!amphibians board/1. .jpg",
-    "mock_boards/reptiles!amphibians board/10. .jpg",
-    "mock_boards/reptiles!amphibians board/11. .jpg",
-    "mock_boards/reptiles!amphibians board/12. .jpg",
-    "mock_boards/reptiles!amphibians board/13. .jpg",
-    "mock_boards/reptiles!amphibians board/14. .jpg",
-    "mock_boards/reptiles!amphibians board/15. Duckbill Tree.jpg",
-    "mock_boards/reptiles!amphibians board/2. .jpg",
-    "mock_boards/reptiles!amphibians board/3. Tuatara.jpg",
-    "mock_boards/reptiles!amphibians board/4. .jpg",
-    "mock_boards/reptiles!amphibians board/5. Giant Armadillo.jpg",
-    "mock_boards/reptiles!amphibians board/6. .jpg",
-    "mock_boards/reptiles!amphibians board/7. Bornean Horned.jpg",
-    "mock_boards/reptiles!amphibians board/8. .jpg",
-    "mock_boards/reptiles!amphibians board/9. .jpg"
+  "misc. poses": [
+    "mock_boards/misc. poses board/1. .jpg",
+    "mock_boards/misc. poses board/10. .jpg",
+    "mock_boards/misc. poses board/11. .jpg",
+    "mock_boards/misc. poses board/12. Female Models.jpg",
+    "mock_boards/misc. poses board/13. .jpg",
+    "mock_boards/misc. poses board/14. .jpg",
+    "mock_boards/misc. poses board/15. .jpg",
+    "mock_boards/misc. poses board/2. 🕸️.jpg",
+    "mock_boards/misc. poses board/3. .jpg",
+    "mock_boards/misc. poses board/4. .jpg",
+    "mock_boards/misc. poses board/5. Dynamic Posing.jpg",
+    "mock_boards/misc. poses board/6. .jpg",
+    "mock_boards/misc. poses board/7. .jpg",
+    "mock_boards/misc. poses board/8. How To.jpg",
+    "mock_boards/misc. poses board/9. .jpg"
   ],
   "statuary": [
     "mock_boards/statuary board/1. .jpg",
@@ -1473,124 +1402,22 @@ const SAMPLE_BOARDS = {
     "mock_boards/statuary board/8. Joan of.jpg",
     "mock_boards/statuary board/9. .jpg"
   ],
-  "fish": [
-    "mock_boards/fish board/1. .jpg",
-    "mock_boards/fish board/10. Threadfin butterflyfish,.jpg",
-    "mock_boards/fish board/11. .jpg",
-    "mock_boards/fish board/12. 45 Beautiful.jpg",
-    "mock_boards/fish board/13. 9 Amazing.jpg",
-    "mock_boards/fish board/14. Picasso Triggerfish.jpg",
-    "mock_boards/fish board/15. Passer Angelfish.jpg",
-    "mock_boards/fish board/2. .jpg",
-    "mock_boards/fish board/3. .jpg",
-    "mock_boards/fish board/4. .jpg",
-    "mock_boards/fish board/5. .jpg",
-    "mock_boards/fish board/6. Longspine squirrelfish,.jpg",
-    "mock_boards/fish board/7. .jpg",
-    "mock_boards/fish board/8. Large Ocean.png",
-    "mock_boards/fish board/9. .jpg"
-  ],
-  "portrait": [
-    "mock_boards/portrait board/1. City Twists.jpg",
-    "mock_boards/portrait board/10. 🌙.jpg",
-    "mock_boards/portrait board/11. .jpg",
-    "mock_boards/portrait board/12. Sān child,.jpg",
-    "mock_boards/portrait board/13. .jpg",
-    "mock_boards/portrait board/14. .jpg",
-    "mock_boards/portrait board/15. .jpg",
-    "mock_boards/portrait board/2. .jpg",
-    "mock_boards/portrait board/3. .jpg",
-    "mock_boards/portrait board/4. .jpg",
-    "mock_boards/portrait board/5. How Beyoncé.jpg",
-    "mock_boards/portrait board/6. .jpg",
-    "mock_boards/portrait board/7. .jpg",
-    "mock_boards/portrait board/8. .jpg",
-    "mock_boards/portrait board/9. .jpg"
-  ],
-  "vehilcles": [
-    "mock_boards/vehilcles board/1. 1962 Mazda.jpg",
-    "mock_boards/vehilcles board/10. .jpg",
-    "mock_boards/vehilcles board/11. .jpg",
-    "mock_boards/vehilcles board/12. .jpg",
-    "mock_boards/vehilcles board/13. .jpg",
-    "mock_boards/vehilcles board/14. .jpg",
-    "mock_boards/vehilcles board/15. Ride the.jpg",
-    "mock_boards/vehilcles board/2. .jpg",
-    "mock_boards/vehilcles board/3. Comeng at.jpg",
-    "mock_boards/vehilcles board/4. .jpg",
-    "mock_boards/vehilcles board/5. Shikon® Embroidered.jpg",
-    "mock_boards/vehilcles board/6. .jpg",
-    "mock_boards/vehilcles board/7. .jpg",
-    "mock_boards/vehilcles board/8. .jpg",
-    "mock_boards/vehilcles board/9. .jpg"
-  ],
-  "birds": [
-    "mock_boards/birds board/1. .jpg",
-    "mock_boards/birds board/10. Mergansers,mother &.jpg",
-    "mock_boards/birds board/11. .jpg",
-    "mock_boards/birds board/12. .jpg",
-    "mock_boards/birds board/13. .jpg",
-    "mock_boards/birds board/14. Comb Duck.jpg",
-    "mock_boards/birds board/15. .jpg",
-    "mock_boards/birds board/2. .jpg",
-    "mock_boards/birds board/3. Vulture.jpg",
-    "mock_boards/birds board/4. .jpg",
-    "mock_boards/birds board/5. .jpg",
-    "mock_boards/birds board/6. .jpg",
-    "mock_boards/birds board/7. .jpg",
-    "mock_boards/birds board/8. .jpg",
-    "mock_boards/birds board/9. .jpg"
-  ],
-  "felines": [
-    "mock_boards/felines board/1. .jpg",
-    "mock_boards/felines board/10. .jpg",
-    "mock_boards/felines board/11. .jpg",
-    "mock_boards/felines board/12. .jpg",
-    "mock_boards/felines board/13. .jpg",
-    "mock_boards/felines board/14. PaleCoat.jpg",
-    "mock_boards/felines board/15. .jpg",
-    "mock_boards/felines board/2. .jpg",
-    "mock_boards/felines board/3. Peterbald Cat.jpg",
-    "mock_boards/felines board/4. .jpg",
-    "mock_boards/felines board/5. .jpg",
-    "mock_boards/felines board/6. .jpg",
-    "mock_boards/felines board/7. .jpg",
-    "mock_boards/felines board/8. LeapingStar.jpg",
-    "mock_boards/felines board/9. .jpg"
-  ],
-  "primates": [
-    "mock_boards/primates board/1. Hanuman Langur.jpg",
-    "mock_boards/primates board/10. .jpg",
-    "mock_boards/primates board/11. .jpg",
-    "mock_boards/primates board/12. These Intense.jpg",
-    "mock_boards/primates board/13. The independent.jpg",
-    "mock_boards/primates board/14. .jpg",
-    "mock_boards/primates board/15. .jpg",
-    "mock_boards/primates board/2. .jpg",
-    "mock_boards/primates board/3. .jpg",
-    "mock_boards/primates board/4. Red Ruffed.jpg",
-    "mock_boards/primates board/5. .jpg",
-    "mock_boards/primates board/6. .jpg",
-    "mock_boards/primates board/7. .jpg",
-    "mock_boards/primates board/8. .jpg",
-    "mock_boards/primates board/9. .jpg"
-  ],
-  "misc. poses": [
-    "mock_boards/misc. poses board/1. .jpg",
-    "mock_boards/misc. poses board/10. .jpg",
-    "mock_boards/misc. poses board/11. .jpg",
-    "mock_boards/misc. poses board/12. Female Models.jpg",
-    "mock_boards/misc. poses board/13. .jpg",
-    "mock_boards/misc. poses board/14. .jpg",
-    "mock_boards/misc. poses board/15. .jpg",
-    "mock_boards/misc. poses board/2. 🕸️.jpg",
-    "mock_boards/misc. poses board/3. .jpg",
-    "mock_boards/misc. poses board/4. .jpg",
-    "mock_boards/misc. poses board/5. Dynamic Posing.jpg",
-    "mock_boards/misc. poses board/6. .jpg",
-    "mock_boards/misc. poses board/7. .jpg",
-    "mock_boards/misc. poses board/8. How To.jpg",
-    "mock_boards/misc. poses board/9. .jpg"
+  "fashion": [
+    "mock_boards/fashion board/1. .png",
+    "mock_boards/fashion board/10. .jpg",
+    "mock_boards/fashion board/11. .jpg",
+    "mock_boards/fashion board/12. .jpg",
+    "mock_boards/fashion board/13. On location,.jpg",
+    "mock_boards/fashion board/14. .jpg",
+    "mock_boards/fashion board/15. .png",
+    "mock_boards/fashion board/2. .jpg",
+    "mock_boards/fashion board/3. .jpg",
+    "mock_boards/fashion board/4. .jpg",
+    "mock_boards/fashion board/5. .jpg",
+    "mock_boards/fashion board/6. .jpg",
+    "mock_boards/fashion board/7. .jpg",
+    "mock_boards/fashion board/8. .jpg",
+    "mock_boards/fashion board/9. .png"
   ],
   "action poses": [
     "mock_boards/action poses board/1. PHOTOS  Rafael.jpg",
@@ -1626,6 +1453,125 @@ const SAMPLE_BOARDS = {
     "mock_boards/hands and extremities board/8. .jpg",
     "mock_boards/hands and extremities board/9. .jpg"
   ],
+  "environments": [
+    "mock_boards/environments board/1. .jpg",
+    "mock_boards/environments board/10. .jpg",
+    "mock_boards/environments board/11. .jpg",
+    "mock_boards/environments board/12. .jpg",
+    "mock_boards/environments board/13. .jpg",
+    "mock_boards/environments board/14. Discover Australia's.png",
+    "mock_boards/environments board/15. .jpg",
+    "mock_boards/environments board/2. .jpg",
+    "mock_boards/environments board/3. .jpg",
+    "mock_boards/environments board/4. .jpg",
+    "mock_boards/environments board/5. .png",
+    "mock_boards/environments board/6. .jpg",
+    "mock_boards/environments board/7. Discover Australia's.png",
+    "mock_boards/environments board/8. .jpg",
+    "mock_boards/environments board/9. .jpg"
+  ],
+  "trees": [
+    "mock_boards/trees board/1. .jpg",
+    "mock_boards/trees board/10. .jpg",
+    "mock_boards/trees board/11. .png",
+    "mock_boards/trees board/12. How to.jpg",
+    "mock_boards/trees board/13. .jpg",
+    "mock_boards/trees board/14. .jpg",
+    "mock_boards/trees board/15. .jpg",
+    "mock_boards/trees board/2. .jpg",
+    "mock_boards/trees board/3. .jpg",
+    "mock_boards/trees board/4. .jpg",
+    "mock_boards/trees board/5. .jpg",
+    "mock_boards/trees board/6. .jpg",
+    "mock_boards/trees board/7. .jpg",
+    "mock_boards/trees board/8. .jpg",
+    "mock_boards/trees board/9. .jpg"
+  ],
+  "mushrooms plants and flowers": [
+    "mock_boards/mushrooms, plants and flowers board/1. .jpg",
+    "mock_boards/mushrooms, plants and flowers board/10. untitled-5.jpg.jpg",
+    "mock_boards/mushrooms, plants and flowers board/11. .png",
+    "mock_boards/mushrooms, plants and flowers board/12. .jpg",
+    "mock_boards/mushrooms, plants and flowers board/13. .png",
+    "mock_boards/mushrooms, plants and flowers board/14. Red and.jpg",
+    "mock_boards/mushrooms, plants and flowers board/15. .jpg",
+    "mock_boards/mushrooms, plants and flowers board/2. .jpg",
+    "mock_boards/mushrooms, plants and flowers board/3. .jpg",
+    "mock_boards/mushrooms, plants and flowers board/4. .jpg",
+    "mock_boards/mushrooms, plants and flowers board/5. .jpg",
+    "mock_boards/mushrooms, plants and flowers board/6. Big Bang.jpg",
+    "mock_boards/mushrooms, plants and flowers board/7. .jpg",
+    "mock_boards/mushrooms, plants and flowers board/8. This is.jpg",
+    "mock_boards/mushrooms, plants and flowers board/9. .jpg"
+  ],
+  "birds": [
+    "mock_boards/birds board/1. .jpg",
+    "mock_boards/birds board/10. Mergansers,mother &.jpg",
+    "mock_boards/birds board/11. .jpg",
+    "mock_boards/birds board/12. .jpg",
+    "mock_boards/birds board/13. .jpg",
+    "mock_boards/birds board/14. Comb Duck.jpg",
+    "mock_boards/birds board/15. .jpg",
+    "mock_boards/birds board/2. .jpg",
+    "mock_boards/birds board/3. Vulture.jpg",
+    "mock_boards/birds board/4. .jpg",
+    "mock_boards/birds board/5. .jpg",
+    "mock_boards/birds board/6. .jpg",
+    "mock_boards/birds board/7. .jpg",
+    "mock_boards/birds board/8. .jpg",
+    "mock_boards/birds board/9. .jpg"
+  ],
+  "caninecanidae": [
+    "mock_boards/canine!canidae board/1. .jpg",
+    "mock_boards/canine!canidae board/10. Saluki Welpen.jpg",
+    "mock_boards/canine!canidae board/11. .jpg",
+    "mock_boards/canine!canidae board/12. Spanish Sighthound.jpg",
+    "mock_boards/canine!canidae board/13. borzoi.png",
+    "mock_boards/canine!canidae board/14. .png",
+    "mock_boards/canine!canidae board/15. .jpg",
+    "mock_boards/canine!canidae board/2. .jpg",
+    "mock_boards/canine!canidae board/3. .jpg",
+    "mock_boards/canine!canidae board/4. .jpg",
+    "mock_boards/canine!canidae board/5. .jpg",
+    "mock_boards/canine!canidae board/6. .jpg",
+    "mock_boards/canine!canidae board/7. Tangkhul Hui.jpg",
+    "mock_boards/canine!canidae board/8. Cirneco Dell'Etna-.jpg",
+    "mock_boards/canine!canidae board/9. Dog.jpg"
+  ],
+  "felines": [
+    "mock_boards/felines board/1. .jpg",
+    "mock_boards/felines board/10. .jpg",
+    "mock_boards/felines board/11. .jpg",
+    "mock_boards/felines board/12. .jpg",
+    "mock_boards/felines board/13. .jpg",
+    "mock_boards/felines board/14. PaleCoat.jpg",
+    "mock_boards/felines board/15. .jpg",
+    "mock_boards/felines board/2. .jpg",
+    "mock_boards/felines board/3. Peterbald Cat.jpg",
+    "mock_boards/felines board/4. .jpg",
+    "mock_boards/felines board/5. .jpg",
+    "mock_boards/felines board/6. .jpg",
+    "mock_boards/felines board/7. .jpg",
+    "mock_boards/felines board/8. LeapingStar.jpg",
+    "mock_boards/felines board/9. .jpg"
+  ],
+  "fish": [
+    "mock_boards/fish board/1. .jpg",
+    "mock_boards/fish board/10. Threadfin butterflyfish,.jpg",
+    "mock_boards/fish board/11. .jpg",
+    "mock_boards/fish board/12. 45 Beautiful.jpg",
+    "mock_boards/fish board/13. 9 Amazing.jpg",
+    "mock_boards/fish board/14. Picasso Triggerfish.jpg",
+    "mock_boards/fish board/15. Passer Angelfish.jpg",
+    "mock_boards/fish board/2. .jpg",
+    "mock_boards/fish board/3. .jpg",
+    "mock_boards/fish board/4. .jpg",
+    "mock_boards/fish board/5. .jpg",
+    "mock_boards/fish board/6. Longspine squirrelfish,.jpg",
+    "mock_boards/fish board/7. .jpg",
+    "mock_boards/fish board/8. Large Ocean.png",
+    "mock_boards/fish board/9. .jpg"
+  ],
   "insects": [
     "mock_boards/insects board/1. .jpg",
     "mock_boards/insects board/10. fly.jpg",
@@ -1643,6 +1589,142 @@ const SAMPLE_BOARDS = {
     "mock_boards/insects board/8. Trilobite beetle.jpg",
     "mock_boards/insects board/9. Perfectly Timed.jpg"
   ]
+  "mammals": [
+    "mock_boards/mammals board/1. .jpg",
+    "mock_boards/mammals board/10. Armadillo.jpg",
+    "mock_boards/mammals board/11. Tenrecs!.jpg",
+    "mock_boards/mammals board/12. Matschie's Tree.jpg",
+    "mock_boards/mammals board/13. .jpg",
+    "mock_boards/mammals board/14. .png",
+    "mock_boards/mammals board/15. I Capture.jpg",
+    "mock_boards/mammals board/2. Mara &.jpg",
+    "mock_boards/mammals board/3. Patagonian Mara.jpg",
+    "mock_boards/mammals board/4. Greater Hog.jpg",
+    "mock_boards/mammals board/5. .jpg",
+    "mock_boards/mammals board/6. .jpg",
+    "mock_boards/mammals board/7. .jpg",
+    "mock_boards/mammals board/8. Dingiso Tree.jpg",
+    "mock_boards/mammals board/9. .jpg"
+  ],
+  "mustelidsrodentiamarsupials": [
+    "mock_boards/mustelids!rodentia!marsupials board/1. Lumholtz’s Tree.jpg",
+    "mock_boards/mustelids!rodentia!marsupials board/10. The Finnish.jpg",
+    "mock_boards/mustelids!rodentia!marsupials board/11. Kowari (Dasyuroides.png",
+    "mock_boards/mustelids!rodentia!marsupials board/12. I like.png",
+    "mock_boards/mustelids!rodentia!marsupials board/13. Stoat.jpg",
+    "mock_boards/mustelids!rodentia!marsupials board/14. Magical Nature.jpg",
+    "mock_boards/mustelids!rodentia!marsupials board/15. 🔥 European.png",
+    "mock_boards/mustelids!rodentia!marsupials board/2. .jpg",
+    "mock_boards/mustelids!rodentia!marsupials board/3. .jpg",
+    "mock_boards/mustelids!rodentia!marsupials board/4. .jpg",
+    "mock_boards/mustelids!rodentia!marsupials board/5. .jpg",
+    "mock_boards/mustelids!rodentia!marsupials board/6. .jpg",
+    "mock_boards/mustelids!rodentia!marsupials board/7. .jpg",
+    "mock_boards/mustelids!rodentia!marsupials board/8. ُ.jpg",
+    "mock_boards/mustelids!rodentia!marsupials board/9. .jpg"
+  ],
+  "primates": [
+    "mock_boards/primates board/1. Hanuman Langur.jpg",
+    "mock_boards/primates board/10. .jpg",
+    "mock_boards/primates board/11. .jpg",
+    "mock_boards/primates board/12. These Intense.jpg",
+    "mock_boards/primates board/13. The independent.jpg",
+    "mock_boards/primates board/14. .jpg",
+    "mock_boards/primates board/15. .jpg",
+    "mock_boards/primates board/2. .jpg",
+    "mock_boards/primates board/3. .jpg",
+    "mock_boards/primates board/4. Red Ruffed.jpg",
+    "mock_boards/primates board/5. .jpg",
+    "mock_boards/primates board/6. .jpg",
+    "mock_boards/primates board/7. .jpg",
+    "mock_boards/primates board/8. .jpg",
+    "mock_boards/primates board/9. .jpg"
+  ],
+  "reptilesamphibians": [
+    "mock_boards/reptiles!amphibians board/1. .jpg",
+    "mock_boards/reptiles!amphibians board/10. .jpg",
+    "mock_boards/reptiles!amphibians board/11. .jpg",
+    "mock_boards/reptiles!amphibians board/12. .jpg",
+    "mock_boards/reptiles!amphibians board/13. .jpg",
+    "mock_boards/reptiles!amphibians board/14. .jpg",
+    "mock_boards/reptiles!amphibians board/15. Duckbill Tree.jpg",
+    "mock_boards/reptiles!amphibians board/2. .jpg",
+    "mock_boards/reptiles!amphibians board/3. Tuatara.jpg",
+    "mock_boards/reptiles!amphibians board/4. .jpg",
+    "mock_boards/reptiles!amphibians board/5. Giant Armadillo.jpg",
+    "mock_boards/reptiles!amphibians board/6. .jpg",
+    "mock_boards/reptiles!amphibians board/7. Bornean Horned.jpg",
+    "mock_boards/reptiles!amphibians board/8. .jpg",
+    "mock_boards/reptiles!amphibians board/9. .jpg"
+  ],
+  "sea animals": [
+    "mock_boards/sea animals board/1. .jpg",
+    "mock_boards/sea animals board/10. Decorator crabs.png",
+    "mock_boards/sea animals board/11. .jpg",
+    "mock_boards/sea animals board/12. PixieWinks.jpg",
+    "mock_boards/sea animals board/13. Giant box.png",
+    "mock_boards/sea animals board/14. .jpg",
+    "mock_boards/sea animals board/15. New ‘Galaxy’.jpg",
+    "mock_boards/sea animals board/2. .jpg",
+    "mock_boards/sea animals board/3. It's Dive.jpg",
+    "mock_boards/sea animals board/4. Come brighten.jpg",
+    "mock_boards/sea animals board/5. .jpg",
+    "mock_boards/sea animals board/6. .jpg",
+    "mock_boards/sea animals board/7. .jpg",
+    "mock_boards/sea animals board/8. 🔥 East.jpg",
+    "mock_boards/sea animals board/9. Spiny monster.jpg"
+  ],
+  "ungulates": [
+    "mock_boards/ungulates board/1. .png",
+    "mock_boards/ungulates board/10. .jpg",
+    "mock_boards/ungulates board/11. Sichuan Takin.jpg",
+    "mock_boards/ungulates board/12. .jpg",
+    "mock_boards/ungulates board/13. Черная антилопа.jpg",
+    "mock_boards/ungulates board/14. .jpg",
+    "mock_boards/ungulates board/15. Scythian horse.jpg",
+    "mock_boards/ungulates board/2. .jpg",
+    "mock_boards/ungulates board/3. .jpg",
+    "mock_boards/ungulates board/4. Bull Okapi.jpg",
+    "mock_boards/ungulates board/5. Jentink’s Duiker.jpg",
+    "mock_boards/ungulates board/6. Hemitragus jemlahicus.jpg",
+    "mock_boards/ungulates board/7. .jpg",
+    "mock_boards/ungulates board/8. Saiga Antelope.jpg",
+    "mock_boards/ungulates board/9. Kafue Lechwe.jpg"
+  ],
+  "vehilcles": [
+    "mock_boards/vehilcles board/1. 1962 Mazda.jpg",
+    "mock_boards/vehilcles board/10. .jpg",
+    "mock_boards/vehilcles board/11. .jpg",
+    "mock_boards/vehilcles board/12. .jpg",
+    "mock_boards/vehilcles board/13. .jpg",
+    "mock_boards/vehilcles board/14. .jpg",
+    "mock_boards/vehilcles board/15. Ride the.jpg",
+    "mock_boards/vehilcles board/2. .jpg",
+    "mock_boards/vehilcles board/3. Comeng at.jpg",
+    "mock_boards/vehilcles board/4. .jpg",
+    "mock_boards/vehilcles board/5. Shikon® Embroidered.jpg",
+    "mock_boards/vehilcles board/6. .jpg",
+    "mock_boards/vehilcles board/7. .jpg",
+    "mock_boards/vehilcles board/8. .jpg",
+    "mock_boards/vehilcles board/9. .jpg"
+  ],
+  "medievalfantasy weapons": [
+    "mock_boards/medieval!fantasy weapons board/1. Bow tool sling.jpg",
+    "mock_boards/medieval!fantasy weapons board/10. .jpg",
+    "mock_boards/medieval!fantasy weapons board/11. Highly decorated.jpg",
+    "mock_boards/medieval!fantasy weapons board/12. Weapons  Morning.jpg",
+    "mock_boards/medieval!fantasy weapons board/13. .jpg",
+    "mock_boards/medieval!fantasy weapons board/14. Silver work.png",
+    "mock_boards/medieval!fantasy weapons board/15. .jpg",
+    "mock_boards/medieval!fantasy weapons board/2. .jpg",
+    "mock_boards/medieval!fantasy weapons board/3. .jpg",
+    "mock_boards/medieval!fantasy weapons board/4. .jpg",
+    "mock_boards/medieval!fantasy weapons board/5. .jpg",
+    "mock_boards/medieval!fantasy weapons board/6. .jpg",
+    "mock_boards/medieval!fantasy weapons board/7. .jpg",
+    "mock_boards/medieval!fantasy weapons board/8. .jpg",
+    "mock_boards/medieval!fantasy weapons board/9. .jpg"
+  ],
 };
 
 
@@ -4481,6 +4563,148 @@ updateSessionTimer();   // render the session timer immediately once the viewer 
 })();
 </script>
 
+<script>
+/* === Image X/Y counter (next to the image timer) ======================== */
+(function addImageXYCounter(){
+  // 1) Create the node on first run if it doesn't exist
+  (function ensureCounterNode(){
+    var el = document.getElementById('imageCounter');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'imageCounter';
+      el.className = 'timer';
+      el.setAttribute('aria-live','polite');
+      // Reasonable defaults even if CSS didn’t load yet
+      el.style.position = 'absolute';
+      el.style.top = '1.1rem';
+      el.style.left = 'calc(1rem + 7.4ch)';
+      el.style.fontSize = '1.15rem';
+      el.style.color = '#fff';
+      el.style.opacity = '.9';
+      var viewer = document.getElementById('viewer');
+      if (viewer) viewer.appendChild(el);
+    }
+  })();
+
+  // 2) Helpers to figure out X and Y
+  function imagesPlannedAtStart(){
+    // Prefer the helper already in your app, then fall back if needed.
+    try {
+      var v = (typeof window.plannedImageTotalAtStart === 'function')
+        ? window.plannedImageTotalAtStart()
+        : Infinity;
+      return Number.isFinite(v) ? v : Infinity;
+    } catch (_) { /* fall through */ }
+
+    // Fallbacks (mirror your session semantics)
+    try {
+      if (window.sessionMode === 'class') {
+        return (window.classImageSchedule || []).filter(p => !p.isBreak).length || Infinity;
+      }
+      if (window.limitMode === 'count') return Number(window.limitValue) || 0;
+      if (window.limitMode === 'time') {
+        var per = Number(window.imageDuration) || 0;
+        var totalMin = Number(window.limitValue) || 0;
+        return per > 0 ? Math.floor((totalMin * 60) / per) : Infinity;
+      }
+      return Infinity;
+    } catch (_) { return Infinity; }
+  }
+
+  // Map current schedule index → 0‑based image ordinal (ignores breaks)
+  function currentImageOrdinal(){
+    try {
+      if (window.sessionMode === 'class') {
+        var sched = window.classImageSchedule || [];
+        var n = 0;
+        for (var i = 0; i <= window.currentIndex && i < sched.length; i++){
+          if (!sched[i] || !sched[i].isBreak) n++;
+        }
+        return Math.max(0, n - 1);
+      }
+      return Math.max(0, Number(window.currentIndex) || 0);
+    } catch (_) { return 0; }
+  }
+
+  // 3) Public updater (we call this from key lifecycle points)
+  window.totalImagesPlanned = Infinity;   // set at start; used thereafter
+
+  window.updateImageCounterDisplay = function updateImageCounterDisplay(){
+    var el = document.getElementById('imageCounter');
+    if (!el) return;
+
+    // Hide while not in viewer or during breaks
+    var viewer = document.getElementById('viewer');
+    var inViewer = viewer && viewer.style.display === 'flex';
+    if (!inViewer || window.inBreak) { el.style.display = 'none'; return; }
+
+    var total = window.totalImagesPlanned;
+    var totalText = Number.isFinite(total) ? String(total) : '∞';
+    var x = currentImageOrdinal() + 1;
+
+    el.textContent = x + '/' + totalText;
+
+    // Follow the Image Time toggle
+    var show = (window.showImageTimer !== false);
+    el.style.display = show ? 'block' : 'none';
+  };
+
+  // 4) Hook into your existing app lifecycle (no need to rewrite anything)
+  //    - after a session starts, compute Y once
+  //    - after any image navigation or refresh, recompute X
+  //    - hide during breaks; reshow on image
+
+  // startSession → set Y then render
+  (function wrapStart(){
+    var orig = window.startSession;
+    window.startSession = async function(){
+      var ret = await (orig && orig.apply(this, arguments));
+      try {
+        window.totalImagesPlanned = imagesPlannedAtStart();
+        window.updateImageCounterDisplay();
+      } catch (_) {}
+      return ret;
+    };
+  })();
+
+  // showImage / nextImage / prevImage / refreshImage / endBreak → update X
+  ;['showImage','nextImage','prevImage','refreshImage','endBreak'].forEach(function(fn){
+    var orig = window[fn];
+    if (typeof orig === 'function') {
+      window[fn] = function(){
+        var r = orig.apply(this, arguments);
+        try { window.updateImageCounterDisplay(); } catch(_) {}
+        return r;
+      };
+    }
+  });
+
+  // startBreak → hide it explicitly
+  (function wrapStartBreak(){
+    var orig = window.startBreak;
+    if (typeof orig === 'function') {
+      window.startBreak = function(){
+        var r = orig.apply(this, arguments);
+        var el = document.getElementById('imageCounter');
+        if (el) el.style.display = 'none';
+        return r;
+      };
+    }
+  })();
+
+  // Image Time toggle should also affect the counter
+  (function wrapToggleImageTimer(){
+    var orig = window.toggleImageTimer;
+    if (typeof orig === 'function') {
+      window.toggleImageTimer = function(){
+        var r = orig.apply(this, arguments);
+        try { window.updateImageCounterDisplay(); } catch(_) {}
+        return r;
+      };
+    }
+  })();
+})();
+</script>
 
 
 </body>
