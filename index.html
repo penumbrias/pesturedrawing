@@ -1123,7 +1123,7 @@ If you do not want a countdown bell, clear the "Bell Times" section.
                <button class="btn" id="refreshBtn" title="Reshuffle image">∾</button>
     </div>
     <div id="viewerToggles" style="position:absolute; bottom:1rem; left:1rem; display:flex; gap:.5rem;">
-
+<button class="btn" id="toggleImgCounterBtn" type="button">Image Count</button>
   <button class="btn" id="fitToScreenBtn" type="button">FtS Off</button>
   <button class="btn" id="toggleImgTimerBtn">Image Time</button>
   <button class="btn" id="toggleSessTimerBtn">Session Time</button>
@@ -2115,6 +2115,7 @@ let classImageSchedule = [];
 let imageDisplayIndex = 0; // images shown
 let sessionRemaining = null; // seconds
 let showImageTimer = true; let showSessionTimer = true;
+let showImageCounter = true;
 // Make FtS state global so code that reads window.fitToScreen stays in sync
 let fitToScreen = false; window.fitToScreen = fitToScreen;
 let slotHistory = {}; // { [slotIndex]: number[] } remembers image indices shown in each slot
@@ -3175,6 +3176,15 @@ document.body.classList.add('at-setup');
 function skipBreak(){ endBreak(); }
 function toggleImageTimer(){ showImageTimer = !showImageTimer; updateTimerDisplay(); }
 function toggleSessionTimer(){ showSessionTimer = !showSessionTimer; updateSessionTimer(); }
+function toggleImageCounter(){
+  showImageCounter = !showImageCounter;
+  // keep the global used by the counter’s updater in sync
+  window.showImageCounter = showImageCounter;
+  if (typeof window.updateImageCounterDisplay === 'function') {
+    window.updateImageCounterDisplay();
+  }
+}
+
 
 /**********************
  *  DOM Listeners     *
@@ -3191,6 +3201,9 @@ document.getElementById('toggleSessTimerBtn').addEventListener('click', toggleSe
 document.getElementById('fitToScreenBtn').addEventListener('click', toggleFitToScreen);
 document.getElementById('skipBreakBtn').addEventListener('click', skipBreak);
 document.getElementById('backToSetupBtn').addEventListener('click', backToSetup);
+document.getElementById('toggleImgCounterBtn')
+  ?.addEventListener('click', toggleImageCounter);
+
 
 document.getElementById('loadBoardsBtn').addEventListener('click', loadUserBoards);
 document.getElementById('pinConnectBtn').addEventListener('click', connectPinterest);
