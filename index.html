@@ -792,6 +792,32 @@ body:not(.at-setup) .dev-banner{ display: none !important; }
 #sequenceRows.link-mode::before   { content: 'Link mode: click rows to select'; }
 #sequenceRows.unlink-mode::before { content: 'Unlink mode: click a member name to remove'; }
 
+/* === Mobile: keep Session length + Total images compact =================== */
+@media (max-width: 560px){
+  /* Let the row wrap and stop its children from flexing to fill */
+  #classTotalRow{
+    flex-wrap: wrap;
+    gap: .35rem .5rem;
+  }
+  #classTotalRow > *{
+    flex: 0 0 auto !important;      /* override .row > * { flex:1 } */
+  }
+
+  /* Inputs should size to content, not 100% */
+  #classTotal,
+  #classImages{
+    width: auto !important;         /* override global input width */
+    max-width: none !important;     /* beat inline max-width */
+    min-width: 0 !important;
+  }
+
+  /* Avoid leftover left-margin when the line wraps */
+  #classTotalRow label{
+    margin-left: 0 !important;
+  }
+}
+
+
   </style>
   <audio id="bellSound" src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" preload="auto"></audio>
 </head>
@@ -4421,7 +4447,7 @@ function safeURL(p) {
       currentIndex = Math.max(0, currentIndex - 1);
     }
     showImage();
-  };
+  };a
 })();
 </script>
 
