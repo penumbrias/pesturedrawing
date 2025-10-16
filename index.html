@@ -4439,6 +4439,45 @@ function safeURL(p) {
 
 
 
+<script>
+/* Session timer: enable for Standard+Count and make it adapt on skip. */
+(function () {
+  // 1) After your unified startSession runs, compute sessionRemaining for Standard+Count.
+  const __origStart = window.startSession;
+  window.startSession = async function () {
+    const ret = await (__origStart?.apply(this, arguments));
+    try {
+      // Standard + Number of images → total planned image time
+      if (window.sessionMode === 'standard' && window.limitMode === 'count') {
+        const per = Number(window.imageDuration) || 0;  // seconds per image
+        const n   = Number(window.limitValue)   || 0;   // image count
+        window.sessionRemaining = per * n;              // include breaks implicitly (it ticks during breaks)
+        if (window.sessionRemaining === 0) window.sessionRemaining = null; // nothing to show
+        if (typeof window.updateSessionTimer === 'function') window.updateSessionTimer();
+      }
+    } catch (e) {
+      console.warn('Session timer init patch:', e);
+    }
+    return ret;
+  };
+
+  // 2) When the user skips early, subtract leftover image time for any non-time-based session.
+  //    (Class was already handled in your original nextImage; we only handle Standard+Count here.)
+  const __origNext = window.nextImage;
+  window.nextImage = function () {
+    try {
+      const nonTimeBased = (window.limitMode !== 'time');
+      const isStandardCount = (window.sessionMode === 'standard' && window.limitMode === 'count');
+      if (!window.inBreak && isStandardCount && window.sessionRemaining != null && window.remaining > 0 && nonTimeBased) {
+        window.sessionRemaining = Math.max(0, window.sessionRemaining - window.remaining);
+        if (typeof window.updateSessionTimer === 'function') window.updateSessionTimer();
+        if (window.sessionRemaining <= 0) { return window.endSession?.(); }
+      }
+    } catch (_) { /* no-op */ }
+    return __origNext?.apply(this, arguments);
+  };
+})();
+</script>
 
 
 
