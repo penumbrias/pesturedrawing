@@ -4564,9 +4564,9 @@ updateSessionTimer();   // render the session timer immediately once the viewer 
 </script>
 
 <script>
-/* === Image X/Y counter (next to the image timer) ======================== */
+/* === Image X/Y counter — FIX: read real globals, not window.* ============ */
 (function addImageXYCounter(){
-  // 1) Create the node on first run if it doesn't exist
+  // 1) Create the node if it doesn't exist
   (function ensureCounterNode(){
     var el = document.getElementById('imageCounter');
     if (!el) {
@@ -4574,137 +4574,115 @@ updateSessionTimer();   // render the session timer immediately once the viewer 
       el.id = 'imageCounter';
       el.className = 'timer';
       el.setAttribute('aria-live','polite');
-      // Reasonable defaults even if CSS didn’t load yet
       el.style.position = 'absolute';
       el.style.top = '1.1rem';
-      el.style.left = 'calc(1rem + 7.4ch)';
+      el.style.left = 'calc(1rem + 7.4ch)';  // next to the image timer
       el.style.fontSize = '1.15rem';
       el.style.color = '#fff';
       el.style.opacity = '.9';
-      var viewer = document.getElementById('viewer');
-      if (viewer) viewer.appendChild(el);
+      document.getElementById('viewer')?.appendChild(el);
     }
   })();
 
-  // 2) Helpers to figure out X and Y
+  // Helpers that read the real globals (not just window.*)
+  function getSessionMode(){ try{ return (typeof sessionMode !== 'undefined') ? sessionMode : window.sessionMode; }catch(_){ return window.sessionMode; } }
+  function getSchedule(){    try{ return (typeof classImageSchedule !== 'undefined') ? classImageSchedule : (window.classImageSchedule || []); }catch(_){ return window.classImageSchedule || []; } }
+  function getCurrentIndex(){try{ return (typeof currentIndex !== 'undefined') ? currentIndex : (window.currentIndex || 0); }catch(_){ return window.currentIndex || 0; } }
+  function getLimitMode(){   try{ return (typeof limitMode !== 'undefined') ? limitMode : window.limitMode; }catch(_){ return window.limitMode; } }
+  function getLimitValue(){  try{ return (typeof limitValue !== 'undefined') ? limitValue : window.limitValue; }catch(_){ return window.limitValue; } }
+  function getImageDuration(){try{ return (typeof imageDuration !== 'undefined') ? imageDuration : window.imageDuration; }catch(_){ return window.imageDuration; } }
+  function getInBreak(){     try{ return (typeof inBreak !== 'undefined') ? inBreak : window.inBreak; }catch(_){ return window.inBreak; } }
+  function getShowImageTimer(){ try{ return (typeof showImageTimer !== 'undefined') ? showImageTimer : window.showImageTimer; }catch(_){ return window.showImageTimer; } }
+
+  // Y: total planned images at session start
   function imagesPlannedAtStart(){
-    // Prefer the helper already in your app, then fall back if needed.
-    try {
-      var v = (typeof window.plannedImageTotalAtStart === 'function')
-        ? window.plannedImageTotalAtStart()
-        : Infinity;
-      return Number.isFinite(v) ? v : Infinity;
-    } catch (_) { /* fall through */ }
-
-    // Fallbacks (mirror your session semantics)
-    try {
-      if (window.sessionMode === 'class') {
-        return (window.classImageSchedule || []).filter(p => !p.isBreak).length || Infinity;
-      }
-      if (window.limitMode === 'count') return Number(window.limitValue) || 0;
-      if (window.limitMode === 'time') {
-        var per = Number(window.imageDuration) || 0;
-        var totalMin = Number(window.limitValue) || 0;
-        return per > 0 ? Math.floor((totalMin * 60) / per) : Infinity;
-      }
-      return Infinity;
-    } catch (_) { return Infinity; }
+    if (typeof plannedImageTotalAtStart === 'function') return plannedImageTotalAtStart();
+    var mode = getSessionMode(), lm = getLimitMode();
+    if (mode === 'class') return getSchedule().filter(p => !p.isBreak).length || Infinity;
+    if (lm === 'count')   return Number(getLimitValue()) || 0;
+    if (lm === 'time') {
+      var per = Number(getImageDuration()) || 0, mins = Number(getLimitValue()) || 0;
+      return per > 0 ? Math.floor((mins * 60) / per) : Infinity;
+    }
+    return Infinity; // endless
   }
 
-  // Map current schedule index → 0‑based image ordinal (ignores breaks)
+  // X: current image ordinal (ignore breaks in Class)
   function currentImageOrdinal(){
-    try {
-      if (window.sessionMode === 'class') {
-        var sched = window.classImageSchedule || [];
-        var n = 0;
-        for (var i = 0; i <= window.currentIndex && i < sched.length; i++){
-          if (!sched[i] || !sched[i].isBreak) n++;
-        }
-        return Math.max(0, n - 1);
+    if (getSessionMode() === 'class') {
+      var sched = getSchedule(), idx = getCurrentIndex(), n = 0;
+      for (var i = 0; i <= idx && i < sched.length; i++) {
+        if (!sched[i]?.isBreak) n++;
       }
-      return Math.max(0, Number(window.currentIndex) || 0);
-    } catch (_) { return 0; }
+      return Math.max(0, n - 1);
+    }
+    return Math.max(0, getCurrentIndex());
   }
 
-  // 3) Public updater (we call this from key lifecycle points)
-  window.totalImagesPlanned = Infinity;   // set at start; used thereafter
-
-  window.updateImageCounterDisplay = function updateImageCounterDisplay(){
-    var el = document.getElementById('imageCounter');
-    if (!el) return;
-
-    // Hide while not in viewer or during breaks
+  // Public render function
+  window.updateImageCounterDisplay = function(){
+    var el = document.getElementById('imageCounter'); if (!el) return;
     var viewer = document.getElementById('viewer');
     var inViewer = viewer && viewer.style.display === 'flex';
-    if (!inViewer || window.inBreak) { el.style.display = 'none'; return; }
+    if (!inViewer || getInBreak()) { el.style.display = 'none'; return; }
 
     var total = window.totalImagesPlanned;
     var totalText = Number.isFinite(total) ? String(total) : '∞';
     var x = currentImageOrdinal() + 1;
 
     el.textContent = x + '/' + totalText;
-
-    // Follow the Image Time toggle
-    var show = (window.showImageTimer !== false);
-    el.style.display = show ? 'block' : 'none';
+    el.style.display = getShowImageTimer() ? 'block' : 'none'; // follows Image Time toggle
   };
 
-  // 4) Hook into your existing app lifecycle (no need to rewrite anything)
-  //    - after a session starts, compute Y once
-  //    - after any image navigation or refresh, recompute X
-  //    - hide during breaks; reshow on image
-
-  // startSession → set Y then render
+  // Compute Y at session start; draw once
   (function wrapStart(){
     var orig = window.startSession;
     window.startSession = async function(){
       var ret = await (orig && orig.apply(this, arguments));
-      try {
-        window.totalImagesPlanned = imagesPlannedAtStart();
-        window.updateImageCounterDisplay();
-      } catch (_) {}
+      window.totalImagesPlanned = imagesPlannedAtStart();
+      window.updateImageCounterDisplay();
       return ret;
     };
   })();
 
-  // showImage / nextImage / prevImage / refreshImage / endBreak → update X
-  ;['showImage','nextImage','prevImage','refreshImage','endBreak'].forEach(function(fn){
-    var orig = window[fn];
+  // Recompute X on every progression action
+  ['showImage','nextImage','prevImage','refreshImage','endBreak'].forEach(function(name){
+    var orig = window[name];
     if (typeof orig === 'function') {
-      window[fn] = function(){
+      window[name] = function(){
         var r = orig.apply(this, arguments);
-        try { window.updateImageCounterDisplay(); } catch(_) {}
+        window.updateImageCounterDisplay();
         return r;
       };
     }
   });
 
-  // startBreak → hide it explicitly
+  // Hide during breaks
   (function wrapStartBreak(){
     var orig = window.startBreak;
     if (typeof orig === 'function') {
       window.startBreak = function(){
         var r = orig.apply(this, arguments);
-        var el = document.getElementById('imageCounter');
-        if (el) el.style.display = 'none';
+        var el = document.getElementById('imageCounter'); if (el) el.style.display = 'none';
         return r;
       };
     }
   })();
 
-  // Image Time toggle should also affect the counter
-  (function wrapToggleImageTimer(){
+  // Respect the Image Time toggle
+  (function wrapToggle(){
     var orig = window.toggleImageTimer;
     if (typeof orig === 'function') {
       window.toggleImageTimer = function(){
         var r = orig.apply(this, arguments);
-        try { window.updateImageCounterDisplay(); } catch(_) {}
+        window.updateImageCounterDisplay();
         return r;
       };
     }
   })();
 })();
 </script>
+
 
 
 </body>
