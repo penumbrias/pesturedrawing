@@ -4209,17 +4209,21 @@ function safeURL(p) {
 
   // Make the → key use the same logic; don’t interfere while typing
   document.addEventListener('keydown', function (e) {
-    if (e.key !== 'ArrowRight') return;
-    var el = e.target;
-    if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) return;
+  if (e.key !== 'ArrowRight') return;
 
-    var viewer = document.getElementById('viewer');
-    var inViewer = viewer && viewer.style.display === 'flex';
-    if (!inViewer) return;
+  var el = e.target;
+  if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) return;
 
-    e.preventDefault();
-    advanceSlot();
-  }, true);
+  var viewer = document.getElementById('viewer');
+  var inViewer = viewer && viewer.style.display === 'flex';
+  if (!inViewer) return;
+
+  e.preventDefault();
+  e.stopPropagation();            // ✅ block bubble-phase handler
+  e.stopImmediatePropagation();   // ✅ belt-and-suspenders
+  advanceSlot();
+}, true); // capture
+
 })();
 </script>
 
