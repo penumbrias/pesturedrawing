@@ -4696,6 +4696,123 @@ updateSessionTimer();   // render the session timer immediately once the viewer 
 })();
 </script>
 
+<script>
+/* HOTFIX: make the “Previous image” button truly go back */
+(function hotfixPrev() {
+  function imageOrdinalForIndex(idx){
+    if (window.sessionMode !== 'class') return Math.max(0, Number(idx) || 0);
+    let n = 0;
+    for (let i = 0; i <= idx && i < (window.classImageSchedule?.length || 0); i++){
+      if (!window.classImageSchedule[i]?.isBreak) n++;
+    }
+    return Math.max(0, n - 1);
+  }
+  function labelForKey(k){ return k?.includes('||') ? k.replace(/\|\|/g,' + ') : (k || ''); }
+
+  function goBackOne() {
+    try {
+      // If on a break, “previous” should go to the last image before the break.
+      if (window.inBreak) {
+        // Jump back to the previous non-break slot
+        let idx = Math.max(0, (window.currentIndex || 0) - 1);
+        if (window.sessionMode === 'class') {
+          while (idx > 0 && window.classImageSchedule[idx]?.isBreak) idx--;
+        }
+        window.currentIndex = idx;
+        window.inBreak = false;
+        document.getElementById('breakScreen').style.display = 'none';
+      } else {
+        // Normal prev: step back one slot (skip breaks in Class)
+        let idx = Math.max(0, (window.currentIndex || 0) - 1);
+        if (window.sessionMode === 'class') {
+          while (idx > 0 && window.classImageSchedule[idx]?.isBreak) idx--;
+        }
+        window.currentIndex = idx;
+      }
+
+      // Reset the slot timer and keep the session timer consistent
+      const duration = (window.sessionMode === 'class')
+        ? (window.classImageSchedule[window.currentIndex]?.duration || window.imageDuration || 0)
+        : (window.imageDuration || 0);
+      const was = (window.remaining || 0);
+      window.remaining = duration;
+      window.bellFiredThisImage?.clear?.();
+      if (typeof window.updateTimerDisplay === 'function') window.updateTimerDisplay();
+      if (window.sessionRemaining != null) {
+        window.sessionRemaining = Math.max(0, window.sessionRemaining + (window.remaining - was));
+        if (typeof window.updateSessionTimer === 'function') window.updateSessionTimer();
+      }
+
+      const img = document.getElementById('currentImage');
+
+      if (window.sequenceEnabledAtStart && Array.isArray(window.PD_sequencePlan) && window.PD_sequencePlan.length) {
+        // --- Sequenced path: reuse the last URL shown for that ordinal
+        const ord = imageOrdinalForIndex(window.currentIndex);
+        const key = window.PD_sequencePlan[ord % window.PD_sequencePlan.length];
+        let hist = window.slotHistory?.[ord];
+
+        let url;
+        if (hist && hist.length) {
+          url = hist[hist.length - 1];           // the exact url you saw last time on this slot
+        } else {
+          // Safety: if there is no history for this slot (e.g., very first time back),
+          // draw once and seed history so future prev works perfectly.
+          url = (typeof window.drawFromKey === 'function') ? window.drawFromKey(key) : '';
+          if (!window.slotHistory) window.slotHistory = {};
+          window.slotHistory[ord] = url ? [url] : [];
+        }
+
+        if (typeof window.setBoardBadge === 'function') window.setBoardBadge(labelForKey(key));
+        img.classList.toggle('fit-contain', !!window.fitToScreen);
+        img.src = (typeof window.safeURL === 'function') ? window.safeURL(url || '') : (url || '');
+
+      } else {
+        // --- Mixed path: reuse the stored index for that slot if we have it
+        const hist = window.slotHistory?.[window.currentIndex];
+        const idx = (hist && hist.length) ? hist[hist.length - 1] : null;
+        if (idx != null && window.imageList && window.imageList[idx]) {
+          img.classList.toggle('fit-contain', !!window.fitToScreen);
+          const src = window.imageList[idx];
+          img.src = (typeof window.safeURL === 'function') ? window.safeURL(src) : src;
+        } else {
+          // Last resort: fall back to normal renderer
+          if (typeof window.showImage === 'function') window.showImage();
+        }
+      }
+
+      // Keep the X/Y counter correct immediately
+      if (typeof window.updateImageCounterDisplay === 'function') window.updateImageCounterDisplay();
+
+    } catch (err) {
+      console.error('Prev hotfix failed:', err);
+      // Fallback
+      if (typeof window.showImage === 'function') window.showImage();
+    }
+  }
+
+  // Rebind the Prev button (capture phase so we win over earlier handlers)
+  var btn = document.getElementById('prevBtn');
+  if (btn) {
+    btn.addEventListener('click', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      goBackOne();
+    }, true);
+  }
+
+  // Make the ← key use the same logic and don’t interfere while typing
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'ArrowLeft') return;
+    var el = e.target;
+    if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) return;
+    var viewer = document.getElementById('viewer');
+    var inViewer = viewer && viewer.style.display === 'flex';
+    if (!inViewer) return;
+    e.preventDefault();
+    goBackOne();
+  }, true);
+})();
+</script>
 
 
 </body>
