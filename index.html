@@ -4697,120 +4697,159 @@ updateSessionTimer();   // render the session timer immediately once the viewer 
 </script>
 
 <script>
-/* HOTFIX: make the “Previous image” button truly go back */
-(function hotfixPrev() {
-  function imageOrdinalForIndex(idx){
-    if (window.sessionMode !== 'class') return Math.max(0, Number(idx) || 0);
-    let n = 0;
-    for (let i = 0; i <= idx && i < (window.classImageSchedule?.length || 0); i++){
-      if (!window.classImageSchedule[i]?.isBreak) n++;
+/* === Prev fix + per-slot history for mixed mode =========================== */
+(function fixPrevAndHistory(){
+  // Map class index (includes breaks) -> image ordinal (ignores breaks)
+  function imageOrdinalForIndexLocal(idx){
+    if (sessionMode !== 'class') return idx;
+    let c = 0;
+    for (let i = 0; i <= idx && i < (classImageSchedule?.length||0); i++){
+      if (!classImageSchedule[i]?.isBreak) c++;
     }
-    return Math.max(0, n - 1);
+    return Math.max(0, c - 1);
   }
-  function labelForKey(k){ return k?.includes('||') ? k.replace(/\|\|/g,' + ') : (k || ''); }
 
-  function goBackOne() {
-    try {
-      // If on a break, “previous” should go to the last image before the break.
-      if (window.inBreak) {
-        // Jump back to the previous non-break slot
-        let idx = Math.max(0, (window.currentIndex || 0) - 1);
-        if (window.sessionMode === 'class') {
-          while (idx > 0 && window.classImageSchedule[idx]?.isBreak) idx--;
-        }
-        window.currentIndex = idx;
-        window.inBreak = false;
-        document.getElementById('breakScreen').style.display = 'none';
-      } else {
-        // Normal prev: step back one slot (skip breaks in Class)
-        let idx = Math.max(0, (window.currentIndex || 0) - 1);
-        if (window.sessionMode === 'class') {
-          while (idx > 0 && window.classImageSchedule[idx]?.isBreak) idx--;
-        }
-        window.currentIndex = idx;
-      }
+  const originalRunTimer = window.runTimer; // reuse your existing timer loop
 
-      // Reset the slot timer and keep the session timer consistent
-      const duration = (window.sessionMode === 'class')
-        ? (window.classImageSchedule[window.currentIndex]?.duration || window.imageDuration || 0)
-        : (window.imageDuration || 0);
-      const was = (window.remaining || 0);
-      window.remaining = duration;
-      window.bellFiredThisImage?.clear?.();
-      if (typeof window.updateTimerDisplay === 'function') window.updateTimerDisplay();
-      if (window.sessionRemaining != null) {
-        window.sessionRemaining = Math.max(0, window.sessionRemaining + (window.remaining - was));
-        if (typeof window.updateSessionTimer === 'function') window.updateSessionTimer();
-      }
+  // Re-implement showImage so mixed mode uses per-slot history (Prev-friendly)
+  window.showImage = function(){
+    // Finish if we're past the end of a class schedule
+    if (sessionMode === 'class' && currentIndex >= (classImageSchedule?.length || 0)) return endSession();
 
-      const img = document.getElementById('currentImage');
+    // Common prep
+    document.getElementById("breakScreen").style.display = "none";
+    document.getElementById("viewer").style.display = "flex";
+    document.getElementById("breakNextLabel").style.display = "none";
+    bellFiredThisImage.clear();
 
-      if (window.sequenceEnabledAtStart && Array.isArray(window.PD_sequencePlan) && window.PD_sequencePlan.length) {
-        // --- Sequenced path: reuse the last URL shown for that ordinal
-        const ord = imageOrdinalForIndex(window.currentIndex);
-        const key = window.PD_sequencePlan[ord % window.PD_sequencePlan.length];
-        let hist = window.slotHistory?.[ord];
+    const img = document.getElementById("currentImage");
 
-        let url;
-        if (hist && hist.length) {
-          url = hist[hist.length - 1];           // the exact url you saw last time on this slot
-        } else {
-          // Safety: if there is no history for this slot (e.g., very first time back),
-          // draw once and seed history so future prev works perfectly.
-          url = (typeof window.drawFromKey === 'function') ? window.drawFromKey(key) : '';
-          if (!window.slotHistory) window.slotHistory = {};
-          window.slotHistory[ord] = url ? [url] : [];
-        }
-
-        if (typeof window.setBoardBadge === 'function') window.setBoardBadge(labelForKey(key));
-        img.classList.toggle('fit-contain', !!window.fitToScreen);
-        img.src = (typeof window.safeURL === 'function') ? window.safeURL(url || '') : (url || '');
-
-      } else {
-        // --- Mixed path: reuse the stored index for that slot if we have it
-        const hist = window.slotHistory?.[window.currentIndex];
-        const idx = (hist && hist.length) ? hist[hist.length - 1] : null;
-        if (idx != null && window.imageList && window.imageList[idx]) {
-          img.classList.toggle('fit-contain', !!window.fitToScreen);
-          const src = window.imageList[idx];
-          img.src = (typeof window.safeURL === 'function') ? window.safeURL(src) : src;
-        } else {
-          // Last resort: fall back to normal renderer
-          if (typeof window.showImage === 'function') window.showImage();
-        }
-      }
-
-      // Keep the X/Y counter correct immediately
-      if (typeof window.updateImageCounterDisplay === 'function') window.updateImageCounterDisplay();
-
-    } catch (err) {
-      console.error('Prev hotfix failed:', err);
-      // Fallback
-      if (typeof window.showImage === 'function') window.showImage();
+    // Per-slot duration
+    if (sessionMode === 'class') {
+      const s = classImageSchedule[currentIndex];
+      if (s?.isBreak) { startBreak(s.duration); return; }
+      remaining = s?.duration ?? imageDuration;
+    } else {
+      remaining = imageDuration;
     }
-  }
 
-  // Rebind the Prev button (capture phase so we win over earlier handlers)
-  var btn = document.getElementById('prevBtn');
-  if (btn) {
-    btn.addEventListener('click', function (e) {
-      e.preventDefault();
-      e.stopPropagation();
-      goBackOne();
-    }, true);
-  }
+    const seqOn = !!(window.sequenceEnabledAtStart && window.PD_sequencePlan && window.PD_sequencePlan.length);
 
-  // Make the ← key use the same logic and don’t interfere while typing
-  document.addEventListener('keydown', function (e) {
-    if (e.key !== 'ArrowLeft') return;
-    var el = e.target;
-    if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) return;
-    var viewer = document.getElementById('viewer');
-    var inViewer = viewer && viewer.style.display === 'flex';
-    if (!inViewer) return;
-    e.preventDefault();
-    goBackOne();
-  }, true);
+    if (seqOn) {
+      // === Sequenced mode: unchanged (already uses history) ===
+      const ord = imageOrdinalForIndexLocal(currentIndex);
+      const key = window.PD_sequencePlan[ord % window.PD_sequencePlan.length];
+      let url = (slotHistory[ord]?.length) ? slotHistory[ord][slotHistory[ord].length - 1] : null;
+      if (!url) {
+        url = window.drawFromKey(key) || '';
+        slotHistory[ord] = url ? [url] : [];
+      }
+      setBoardBadge(key?.includes('||') ? key.replace(/\|\|/g,' + ') : key);
+      img.classList.toggle('fit-contain', !!window.fitToScreen);
+      img.src = safeURL(url);
+    } else {
+      // === Mixed mode (random) — now with per-slot history so Prev works ===
+      const slotKey = (sessionMode === 'class') ? imageOrdinalForIndexLocal(currentIndex) : currentIndex;
+      let url = (slotHistory[slotKey]?.length) ? slotHistory[slotKey][slotHistory[slotKey].length - 1] : null;
+      if (!url) {
+        if (!Array.isArray(imageList) || imageList.length === 0) imageList = Object.values(SAMPLE_BOARDS).flat();
+        const prevIdx = (typeof imageDisplayIndex === 'number') ? imageDisplayIndex : null;
+        imageDisplayIndex = dealOne(prevIdx);
+        url = imageList[imageDisplayIndex] || '';
+        slotHistory[slotKey] = url ? [url] : [];
+      }
+      setBoardBadge('');
+      img.classList.toggle('fit-contain', !!window.fitToScreen);
+      img.src = safeURL(url);
+    }
+
+    // Timers + UI updates
+    updateTimerDisplay();
+    if (typeof originalRunTimer === 'function') originalRunTimer();
+    if (typeof updateSessionTimer === 'function') updateSessionTimer();
+    if (typeof updateImageCounterDisplay === 'function') updateImageCounterDisplay();
+  };
+
+  // Make mixed-mode refresh also push into the slot’s history (so Prev can undo it)
+  const prevRefresh = window.refreshImage;
+  window.refreshImage = function(){
+    if (inBreak) return;
+
+    // Reset this slot’s timer but keep session timer consistent
+    const per = (sessionMode === 'class')
+      ? (classImageSchedule[currentIndex]?.duration || imageDuration)
+      : imageDuration;
+    const was = remaining;
+    remaining = per;
+    bellFiredThisImage.clear();
+    updateTimerDisplay();
+    if (sessionRemaining !== null) {
+      sessionRemaining += (remaining - was);
+      if (typeof updateSessionTimer === 'function') updateSessionTimer();
+    }
+
+    const seqOn = !!(window.sequenceEnabledAtStart && window.PD_sequencePlan && window.PD_sequencePlan.length);
+    if (seqOn) {
+      // Your sequence-aware refresh already maintains history — delegate.
+      return prevRefresh ? prevRefresh() : undefined;
+    }
+
+    // Mixed mode: draw a new URL and remember it for *this slot*
+    const img = document.getElementById('currentImage');
+    const prevIdx = (typeof imageDisplayIndex === 'number') ? imageDisplayIndex : null;
+    let idx = dealOne(prevIdx);
+    if (!imageList[idx]) { buildDeck(); idx = dealOne(prevIdx); }
+    imageDisplayIndex = idx;
+
+    const slotKey = (sessionMode === 'class') ? imageOrdinalForIndexLocal(currentIndex) : currentIndex;
+    const url = imageList[idx] || '';
+    (slotHistory[slotKey] ||= []).push(url);
+
+    setBoardBadge('');
+    img.classList.toggle('fit-contain', !!window.fitToScreen);
+    img.src = safeURL(url);
+    if (typeof updateImageCounterDisplay === 'function') updateImageCounterDisplay();
+  };
+
+  // Prev: handle both sequence and mixed using slot history
+  window.prevImage = function(){
+    // If you’re on a break, treat Prev as “return to last image”
+    if (inBreak && typeof endBreak === 'function') { endBreak(); return; }
+
+    const isClass = (sessionMode === 'class');
+    const ord = imageOrdinalForIndexLocal(currentIndex);
+    const seqOn = !!(window.sequenceEnabledAtStart && window.PD_sequencePlan && window.PD_sequencePlan.length);
+    const keyNow = (seqOn || isClass) ? ord : currentIndex;
+    const histNow = slotHistory[keyNow];
+
+    // Step back within the same slot if we refreshed at least once
+    if (histNow && histNow.length > 1) {
+      histNow.pop();
+      const url = histNow[histNow.length - 1] || '';
+      const per = isClass ? (classImageSchedule[currentIndex]?.duration || imageDuration) : imageDuration;
+      const was = remaining;
+      remaining = per;
+      bellFiredThisImage.clear();
+      updateTimerDisplay();
+      if (sessionRemaining !== null) {
+        sessionRemaining += (remaining - was);
+        if (typeof updateSessionTimer === 'function') updateSessionTimer();
+      }
+      document.getElementById('currentImage').src = safeURL(url);
+      if (typeof updateImageCounterDisplay === 'function') updateImageCounterDisplay();
+      return;
+    }
+
+    // Otherwise go to the previous *slot* (skip breaks in Class) and show what was there
+    if (isClass) {
+      let idx = Math.max(0, currentIndex - 1);
+      while (idx > 0 && classImageSchedule[idx]?.isBreak) idx--;
+      currentIndex = idx;
+    } else {
+      currentIndex = Math.max(0, currentIndex - 1);
+    }
+    showImage();
+  };
 })();
 </script>
 
