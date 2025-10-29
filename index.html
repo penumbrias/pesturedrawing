@@ -831,6 +831,20 @@ body:not(.at-setup) .dev-banner{ display: none !important; }
 
 /* If you ever hide the chrome, match the timer’s behavior */
 #viewer.chrome-hidden #imageCounter { opacity: .5; }
+#userBoardsGrid img {
+  width: 100%;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+#userBoardsGrid img:hover {
+  transform: scale(1.05);
+}
+.btn.mini {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.9rem;
+}
+
 
   </style>
   <audio id="bellSound" src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" preload="auto"></audio>
@@ -896,8 +910,16 @@ Have fun!</p>
         <button class="btn" id="loadBoardsBtn" type="button" disabled>Load my boards</button>
       </div>
     </div>
-    <label style="margin-top:.5rem;">Choose Board(s)</label>
-    <select id="userBoards" multiple style="min-height:140px;"></select>
+<div style="display:flex; align-items:center; justify-content:space-between; margin-top:.5rem;">
+  <label>Choose Board(s)</label>
+  <div id="boardViewToggle" style="display:flex; gap:.25rem;">
+    <button id="listViewBtn" class="btn mini" title="List view">☰☰</button>
+    <button id="gridViewBtn" class="btn mini" title="Grid view">▦</button>
+  </div>
+</div>
+<select id="userBoards" multiple style="min-height:140px;"></select>
+<div id="userBoardsGrid" style="display:none; grid-template-columns:repeat(auto-fill, minmax(100px,1fr)); gap:.5rem; margin-top:.5rem;"></div>
+
     <div class="hint" style="margin-top:.25rem">Tip: Ctrl/Cmd-click to select multiple.</div>
   </div>
 </div><!-- /#pinterestSource -->
@@ -3155,12 +3177,33 @@ setHint('Fetching your boards…');
     opt.value = b.id;
     opt.textContent = b.name;
     select.appendChild(opt);
+
   });
+
+  renderBoardsGrid(boards);
+
 
 btn.disabled = false;
 btn.textContent = ok ? 'Reload my boards' : 'Loaded samples';
 setHint(ok ? 'Select one or more boards below' : 'Could not reach Pinterest — showing samples');
 }
+
+
+let boardViewMode = "list"; // default
+
+document.getElementById("listViewBtn").addEventListener("click", () => {
+  boardViewMode = "list";
+  document.getElementById("userBoards").style.display = "block";
+  document.getElementById("userBoardsGrid").style.display = "none";
+});
+
+document.getElementById("gridViewBtn").addEventListener("click", () => {
+  boardViewMode = "grid";
+  document.getElementById("userBoards").style.display = "none";
+  document.getElementById("userBoardsGrid").style.display = "grid";
+});
+
+
 
 
 // Basic helpers
@@ -3183,6 +3226,21 @@ function toggleImageCounter(){
   if (typeof window.updateImageCounterDisplay === 'function') {
     window.updateImageCounterDisplay();
   }
+}
+
+function renderBoardsGrid(boards) {
+  const grid = document.getElementById("userBoardsGrid");
+  grid.innerHTML = "";
+  boards.forEach(board => {
+    const img = document.createElement("img");
+    img.src = `https://picsum.photos/seed/${board}/200`; // placeholder preview
+    img.title = board;
+    img.addEventListener("click", () => {
+      img.classList.toggle("selected");
+      // optionally sync with list selection if needed
+    });
+    grid.appendChild(img);
+  });
 }
 
 
