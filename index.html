@@ -1160,33 +1160,10 @@ If you do not want a countdown bell, clear the "Bell Times" section.
 
 
 <script>
-(() => {
-  const u = new URL(window.location.href);
-  const t = u.searchParams.get('pd_token');
-  if (t) {
-    try {
-      const b64 = t.replace(/-/g, '+').replace(/_/g, '/');
-      const pad = '='.repeat((4 - (b64.length % 4)) % 4);
-      const token = atob(b64 + pad);
-      localStorage.setItem('pd_pin_token', token);
-      u.searchParams.delete('pd_token');
-      history.replaceState({}, '', u.toString());
-    } catch (e) {
-      console.warn('Failed to store pd_token', e);
-    }
-  }
-})();
-
 /******************************
  *  Pinterest + Fallback Core *
  ******************************/
 const BACKEND_BASE = window.PD_BACKEND || "https://pesture-oauth-backend.vercel.app";
-
-function pdAuthHeaders() {
-  const t = localStorage.getItem('pd_pin_token') || '';
-  return t ? { Authorization: `Bearer ${t}` } : {};
-}
-
 
 // --- Image source mode toggle ---
 let SOURCE_MODE = localStorage.getItem('sourceMode') || 'pinterest';
@@ -1790,10 +1767,7 @@ function preloadImage(src, timeoutMs = 10000) {
 async function fetchUserBoards() {
   const url = `${BACKEND_BASE}/api/pinterest/boards?all=1&page_size=250`;
   try {
-    const res = await fetch(url, {
-  credentials: "include",
-  headers: pdAuthHeaders()
-});
+    const res = await fetch(url, { credentials: "include" });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     const boards = (data?.boards || data || []).map(b => ({
@@ -1829,10 +1803,7 @@ async function fetchPinsForBoards(boardObjs) {
   for (const b of boardObjs) {
     const pinsUrl = `${BACKEND_BASE}/api/pinterest/boards/${encodeURIComponent(b.id)}/pins?all=1&page_size=250`;
     try {
-      const res = await fetch(pinsUrl, {
-  credentials: "include",
-  headers: pdAuthHeaders()
-});
+      const res = await fetch(pinsUrl, { credentials: "include" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
 const urls = (data?.pins || data || [])
@@ -2290,11 +2261,7 @@ async function fetchPinsByBoard(boardObjs) {
   for (const b of boardObjs) {
     const pinsUrl = `${BACKEND_BASE}/api/pinterest/boards/${encodeURIComponent(b.id)}/pins?all=1&page_size=250`;
     try {
-      const res = await fetch(pinsUrl, {
-  credentials: 'include',
-  headers: pdAuthHeaders()
-});
-
+      const res = await fetch(pinsUrl, { credentials: 'include' });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       const urls = (data?.pins || data || [])
@@ -2568,7 +2535,6 @@ async function checkAuth() {
     const res  = await fetch(`${BACKEND_BASE}/api/auth/status`, {
       credentials: 'include',
       cache: 'no-store'
-	headers: pdAuthHeaders()
     });
     const data = await res.json().catch(() => ({}));
     const authed = !!(data && (data.authorized || data.logged_in || data.ok));
@@ -4891,28 +4857,6 @@ updateSessionTimer();   // render the session timer immediately once the viewer 
 })();
 </script>
 
-<script>
-(() => {
-  const u = new URL(window.location.href);
-  const t = u.searchParams.get('pd_token');
-  if (t) {
-    try {
-      // decode base64url
-      const b64 = t.replace(/-/g, '+').replace(/_/g, '/');
-      const pad = '='.repeat((4 - (b64.length % 4)) % 4);
-      const token = atob(b64 + pad);
-
-      localStorage.setItem('pd_pin_token', token);
-
-      // remove pd_token from URL
-      u.searchParams.delete('pd_token');
-      history.replaceState({}, '', u.toString());
-    } catch (e) {
-      console.warn('Failed to store pd_token', e);
-    }
-  }
-})();
-</script>
 
 
 </body>
