@@ -54,39 +54,6 @@
 }
 
 
-/* === THEME (single source of truth) ===================================== */
-/* Warm dark greys + wine/maroon accent, lighter/clearer panels */
-:root{
-  --bg: #0f0e0d;
-  --text: #eceae6;
-  --muted: #b9b3aa;
-
-  /* accent (wine / maroon) */
-  --accent: #911d1d;              /* deep maroon */
-  --accent-ink: #b02c2c;       /* text on accent */
-  --ring: rgba(178, 67, 84, .35);
-
-  /* surfaces */
-  --panel: rgba(22,22,24,.34); /* setup wrapper */
-  --card:  rgba(24,25,27,.42); /* inner cards (Image Source, Session Type, etc.) */
-  --ui:    #262524;            /* neutral button/nav chip bg */
-  --ui-border: rgba(255,255,255,.11);
-}
-
-/* Background photo: clearer, almost no tint; no blur */
-body::before{
-  content:"";
-  position: fixed; inset: 0; z-index: -1;
-  background-image:
-    linear-gradient(to bottom, rgba(12,12,13,.10), rgba(12,12,13,.10)),
-    var(--bg-image);
-  background-size: cover, cover;
-  background-position: center, center;
-  background-repeat: no-repeat, no-repeat;
-  background-attachment: fixed, fixed;
-  opacity: 1;
-}
-
 /* Panels / chips (lighter, less blur) */
 .setup{
   background: var(--panel);
@@ -114,29 +81,16 @@ a{ color: var(--accent); }
   border-color: rgba(178,67,84,.45);
   color: var(--accent-ink);
 }
-/* Subtle warm focus/glow on the floating start button */
-#startBtn{
-  box-shadow:
-    0 12px 32px rgba(0,0,0,.35),
-    0 0 0 1px var(--ui-border),
-    0 0 0 6px var(--ring);
-}
-
-/* Class editor inputs keep the neutral feel (unchanged behavior) */
-.class-row .field input[type="number"]{
+/* Class/break editor inputs keep the neutral feel */
+.class-row .field input[type="number"],
+.break-row .field input[type="number"]{
   background: #151515;
   border: 1px solid var(--ui-border);
   color: var(--text);
 }
 
-/* If you want cards even lighter while you’re on the setup screen only: */
-body.at-setup .card{ background: rgba(24,25,27,.38); }
-
-/* iOS/low-power devices: avoid jank from fixed backgrounds */
-@media (max-width: 768px){
-  body::before{ background-attachment: scroll, scroll; }
-}
-
+/* Cards a touch lighter while on the setup screen */
+body.at-setup .card{ background: rgba(24,25,27,.36); }
 
 /* ----- Background art layer (hidden during sessions) ----- */
 :root { --bg-image: none; }
@@ -146,15 +100,15 @@ body::before{
   position: fixed;
   inset: 0;
   z-index: -1;
-  /* gradient on top of the image for contrast */
+  /* very light tint over the background image */
   background-image:
-    linear-gradient(to bottom, rgba(7,8,10,.65), rgba(7,8,10,.65)),
+    linear-gradient(to bottom, rgba(12,12,13,.10), rgba(12,12,13,.10)),
     var(--bg-image);
   background-size: cover, cover;
   background-position: center, center;
   background-repeat: no-repeat, no-repeat;
   background-attachment: fixed, fixed;
-  opacity: .95;
+  opacity: 1;
   transition: opacity .25s ease;
 }
 
@@ -412,80 +366,6 @@ body.in-session::before { opacity: 0; pointer-events: none; }
   #tipsLink { font-size: .85rem; padding: .32rem .5rem; }
 }
 
-/* === FINAL THEME OVERRIDES (paste this at the very end of <style>) === */
-:root{
-  /* warm dark greys + wine accent */
-  --bg: #0f0e0d;
-  --text: #eceae6;
-  --muted: #b9b3aa;
-
-  --accent: #911d1d;              /* deep maroon */
-  --accent-ink: #b02c2c;      /* text on primary */
-  --ring: rgba(165,59,77,.35);
-
-  /* translucent surfaces */
-  --panel: rgba(22,22,24,.34);   /* outer wrapper */
-  --card:  rgba(24,25,27,.42);   /* inner cards */
-  --ui:    #262524;              /* neutral chip/button */
-  --ui-border: rgba(255,255,255,.11);
-}
-
-/* Background art: very light tint, no extra dim or blue */
-body::before{
-  background-image:
-    linear-gradient(to bottom, rgba(12,12,13,.10), rgba(12,12,13,.10)),
-    var(--bg-image) !important;
-  opacity: 1 !important;
-  filter: none !important;
-}
-/* Still hide the art while a session runs */
-body.in-session::before { opacity: 0 !important; pointer-events: none !important; }
-
-/* Panels/chips: translucent glass, not blue, not opaque */
-.setup{
-  background: var(--panel) !important;
-  border: 1px solid var(--ui-border) !important;
-  backdrop-filter: blur(2px) saturate(1.02) !important;
-  -webkit-backdrop-filter: blur(2px) saturate(1.02) !important;
-}
-.card,
-.site-nav a{
-  background: var(--card) !important;
-  border: 1px solid var(--ui-border) !important;
-  backdrop-filter: blur(2px) saturate(1.02) !important;
-  -webkit-backdrop-filter: blur(2px) saturate(1.02) !important;
-}
-/* a touch lighter while on the setup screen */
-body.at-setup .card{ background: rgba(24,25,27,.36) !important; }
-
-/* Neutral UI + wine accent */
-a{ color: var(--accent) !important; }
-.btn{
-  background: var(--ui) !important;
-  border: 1px solid var(--ui-border) !important;
-  color: var(--text) !important;
-}
-.btn.primary{
-  background: var(--accent) !important;
-  border-color: rgba(165,59,77,.45) !important;
-  color: var(--accent-ink) !important;
-}
-/* warm ring on the floating CTA */
-#startBtn{
-  box-shadow:
-    0 12px 32px rgba(0,0,0,.35),
-    0 0 0 1px var(--ui-border),
-    0 0 0 6px var(--ring) !important;
-}
-
-/* Inputs in phase/break rows match the neutral theme */
-.class-row .field input[type="number"],
-.break-row .field input[type="number"]{
-  background: #151515 !important;
-  border: 1px solid var(--ui-border) !important;
-  color: var(--text) !important;
-}
-
 /* === Fix: Tips/Guidance chip should float above panels === */
 .site-nav{ z-index: 9500; }                    /* above .setup and #startBtn (9000) but below loader (10000) */
 body:not(.at-setup) .site-nav{ display:none; } /* hide on session + finished screens */
@@ -493,27 +373,14 @@ body:not(.at-setup) .site-nav{ display:none; } /* hide on session + finished scr
 /* === Hide CTA during sessions === */
 body.in-session #startBtn{ display:none !important; }
 
-/* === Deeper maroon accent === */
-:root{
-  --accent: #911d1d;              /* deep maroon */
-  --accent-ink: #b02c2c;           /* readable text on dark maroon */
-  --ring: rgba(139,30,63,.35);    /* focus ring that matches the new accent */
-}
-
 /* Show the CTA only while we're on the setup screen */
 #startBtn { display: none; }
 body.at-setup #startBtn { display: inline-flex; }
 
-/* (You can keep your existing `body.in-session #startBtn{display:none}`; 
-   this rule just makes it future‑proof for the finished screen too.) */
-
-/* Stronger ink color for text on primary buttons */
-:root { --accent-ink: #d6d6d6; } /* near-black, desaturated */
-
 /* Belt-and-suspenders: force the start button text specifically */
 #startBtn.btn.primary { color: #0b0c0d !important; }
 
-/* Final theme tokens */
+/* === THEME (single source of truth) === */
 :root{
   --bg: #0f0e0d;
   --text: #eceae6;
@@ -3035,7 +2902,7 @@ if (sessionMode === 'class') {
 
   if (sequenceEnabled) {
     // Maintain order first
-    reconcileSequenceOrder(selectedBoards); // seeds/keeps sequenceOrder
+    reconcileSequenceSlots(selectedBoards); // seeds/keeps sequence slots
 
     // Prepare per‑board bags
     try {
