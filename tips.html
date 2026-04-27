@@ -13,30 +13,31 @@
 <meta name="theme-color" content="#0f0e0d">
 
   <style>
-
-/* === THEME (single source of truth) ===================================== */
-/* Warm dark greys + wine/maroon accent, lighter/clearer panels */
 :root{
   --bg: #0f0e0d;
   --text: #eceae6;
   --muted: #b9b3aa;
-
-  /* accent (wine / maroon) */
-  --accent: #911d1d;              /* deep maroon */
-  --accent-ink: #b02c2c; ;       /* text on accent */
-  --ring: rgba(178, 67, 84, .35);
-
-  /* surfaces */
-  --panel: rgba(22,22,24,.34); /* setup wrapper */
-  --card:  rgba(24,25,27,.42); /* inner cards (Image Source, Session Type, etc.) */
-  --ui:    #262524;            /* neutral button/nav chip bg */
+  --accent: #d6d6d6;
+  --accent-ink: #0b0c0d;
+  --card: rgba(24,25,27,.42);
+  --ui: #262524;
   --ui-border: rgba(255,255,255,.11);
+  --bg-image: none;
 }
 
-/* Background photo: clearer, almost no tint; no blur */
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Ubuntu, Cantarell, "Noto Sans", "Helvetica Neue", Arial;
+  background: var(--bg);
+  color: var(--text);
+}
+
 body::before{
-  content:"";
-  position: fixed; inset: 0; z-index: -1;
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
   background-image:
     linear-gradient(to bottom, rgba(12,12,13,.10), rgba(12,12,13,.10)),
     var(--bg-image);
@@ -47,226 +48,60 @@ body::before{
   opacity: 1;
 }
 
-/* Panels / chips (lighter, less blur) */
-.setup{
-  background: var(--panel);
-  border: 1px solid var(--ui-border);
-  backdrop-filter: blur(2px) saturate(1.02);
-  -webkit-backdrop-filter: blur(2px) saturate(1.02);
-}
-.card,
-.site-nav a{
-  background: var(--card);
-  border: 1px solid var(--ui-border);
-  backdrop-filter: blur(2px) saturate(1.02);
-  -webkit-backdrop-filter: blur(2px) saturate(1.02);
-}
-
-/* Links + buttons on the neutral UI, accent for primary */
-a{ color: var(--accent); }
-.btn{
-  background: var(--ui);
-  border: 1px solid var(--ui-border);
-  color: var(--text);
-}
-.btn.primary{
-  background: var(--accent);
-  border-color: rgba(178,67,84,.45);
-  color: var(--accent-ink);
-}
-/* Subtle warm focus/glow on the floating start button */
-#startBtn{
-  box-shadow:
-    0 12px 32px rgba(0,0,0,.35),
-    0 0 0 1px var(--ui-border),
-    0 0 0 6px var(--ring);
-}
-
-/* Class editor inputs keep the neutral feel (unchanged behavior) */
-.class-row .field input[type="number"]{
-  background: #151515;
-  border: 1px solid var(--ui-border);
-  color: var(--text);
-}
-
-/* If you want cards even lighter while you’re on the setup screen only: */
-body.at-setup .card{ background: rgba(24,25,27,.38); }
-
-/* iOS/low-power devices: avoid jank from fixed backgrounds */
-@media (max-width: 768px){
-  body::before{ background-attachment: scroll, scroll; }
-}
-
-
-/* ----- Background art layer (hidden during sessions) ----- */
-:root { --bg-image: none; }
-
-body::before{
-  content:"";
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  /* gradient on top of the image for contrast */
-  background-image:
-    linear-gradient(to bottom, rgba(7,8,10,.65), rgba(7,8,10,.65)),
-    var(--bg-image);
-  background-size: cover, cover;
-  background-position: center, center;
-  background-repeat: no-repeat, no-repeat;
-  background-attachment: fixed, fixed;
-  opacity: .95;
-  transition: opacity .25s ease;
-}
-
-/* When a drawing session is active, hide the background art */
-body.in-session::before { opacity: 0; pointer-events: none; }
-
-/* ----- Translucent panels for legibility ----- */
-
-
-/* iOS/low-power devices: avoid jank from fixed backgrounds */
 @media (max-width: 768px){
   body::before { background-attachment: scroll, scroll; }
 }
 
+a { color: var(--accent); }
 
+.wrap { max-width: 880px; margin: 2rem auto 4rem; padding: 0 1rem; }
+.topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+.title { font-size: 1.75rem; margin: 0; }
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  padding: .55rem .85rem;
+  border-radius: 10px;
+  background: var(--ui);
+  border: 1px solid var(--ui-border);
+  color: var(--text);
+  font-weight: 600;
+  text-decoration: none;
+}
+.btn:hover { filter: brightness(1.08); }
+
+.card {
+  background: var(--card);
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 12px;
+  padding: 1rem;
+  margin: .9rem 0;
+  backdrop-filter: blur(3px) saturate(1.04);
+  -webkit-backdrop-filter: blur(3px) saturate(1.04);
+}
+.card h2 {
+  margin: .1rem 0 .5rem;
+  font-size: 1.15rem;
+  color: var(--muted);
+  letter-spacing: .02em;
+  text-transform: uppercase;
+}
 .card p, .card li { line-height: 1.6; }
-    :root {
-      --bg: #0b0b0c; --panel:#111216; --card:#181a20; --text:#e7e7ea; --muted:#a1a1ac; --accent:#7aa2ff;
-    }
-    * { box-sizing:border-box; }
-    body { margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica Neue, Arial;
-           background:var(--bg); color:var(--text); }
-    a { color: var(--accent); }
-    .wrap { max-width: 880px; margin: 2rem auto 4rem; padding: 0 1rem; }
-    .topbar { display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; }
-    .title { font-size: 1.75rem; margin: 0; }
-    .btn { display:inline-flex; align-items:center; gap:.4rem; padding:.55rem .85rem; border-radius:10px;
-           background:#1e293b; border:1px solid #2b3750; color:var(--text); font-weight:600; text-decoration:none; }
-    .btn:hover { filter:brightness(1.08); }
-    .card { background:var(--card); border:1px solid #20222b; border-radius:12px; padding:1rem; margin:.9rem 0; }
-    .card h2 { margin:.1rem 0 .5rem; font-size:1.15rem; color:var(--muted); letter-spacing:.02em; text-transform:uppercase; }
-    .toc a { display:block; padding:.35rem 0; text-decoration:none; }
-    .small { color:var(--muted); font-size:.95rem; }
-    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:.95em; }
-    ul { margin:.5rem 0 .75rem 1.25rem; }
-    code { background:#101217; border:1px solid #222430; border-radius:6px; padding:.12rem .3rem; }
 
-
-/* === FINAL THEME OVERRIDES (paste this at the very end of <style>) === */
-:root{
-  /* warm dark greys + wine accent */
-  --bg: #0f0e0d;
-  --text: #eceae6;
-  --muted: #b9b3aa;
-
-  --accent: #911d1d;              /* deep maroon */
-  --accent-ink: #b02c2c;      /* text on primary */
-  --ring: rgba(165,59,77,.35);
-
-  /* translucent surfaces */
-  --panel: rgba(22,22,24,.34);   /* outer wrapper */
-  --card:  rgba(24,25,27,.42);   /* inner cards */
-  --ui:    #262524;              /* neutral chip/button */
-  --ui-border: rgba(255,255,255,.11);
-}
-
-/* Background art: very light tint, no extra dim or blue */
-body::before{
-  background-image:
-    linear-gradient(to bottom, rgba(12,12,13,.10), rgba(12,12,13,.10)),
-    var(--bg-image) !important;
-  opacity: 1 !important;
-  filter: none !important;
-}
-/* Still hide the art while a session runs */
-body.in-session::before { opacity: 0 !important; pointer-events: none !important; }
-
-/* Panels/chips: translucent glass, not blue, not opaque */
-.setup{
-  background: var(--panel) !important;
-  border: 1px solid var(--ui-border) !important;
-  backdrop-filter: blur(2px) saturate(1.02) !important;
-  -webkit-backdrop-filter: blur(2px) saturate(1.02) !important;
-}
-.card,
-.site-nav a{
-  background: var(--card) !important;
-  border: 1px solid var(--ui-border) !important;
-  backdrop-filter: blur(2px) saturate(1.02) !important;
-  -webkit-backdrop-filter: blur(2px) saturate(1.02) !important;
-}
-/* a touch lighter while on the setup screen */
-body.at-setup .card{ background: rgba(24,25,27,.36) !important; }
-
-/* Neutral UI + wine accent */
-a{ color: var(--accent) !important; }
-.btn{
-  background: var(--ui) !important;
-  border: 1px solid var(--ui-border) !important;
-  color: var(--text) !important;
-}
-.btn.primary{
-  background: var(--accent) !important;
-  border-color: rgba(165,59,77,.45) !important;
-  color: var(--accent-ink) !important;
-}
-/* warm ring on the floating CTA */
-#startBtn{
-  box-shadow:
-    0 12px 32px rgba(0,0,0,.35),
-    0 0 0 1px var(--ui-border),
-    0 0 0 6px var(--ring) !important;
-}
-
-/* Inputs in phase/break rows match the neutral theme */
-.class-row .field input[type="number"],
-.break-row .field input[type="number"]{
-  background: #151515 !important;
-  border: 1px solid var(--ui-border) !important;
-  color: var(--text) !important;
-}
-
-/* === Tips page legibility: make cards less translucent === */
-:root{
-  --card: rgba(24,25,27,.64); /* was ~.42 — this is a bit more solid but still “glass” */
-}
-/* slightly firmer edge and blur for legibility */
-.card{
-  border-color: rgba(255,255,255,.12) !important;
-  backdrop-filter: blur(3px) saturate(1.04) !important;
-  -webkit-backdrop-filter: blur(3px) saturate(1.04) !important;
-}
-
-/* === Deeper maroon accent === */
-:root{
-  --accent: #911d1d;              /* deep maroon */
-  --accent-ink: #b02c2c;           /* readable text on dark maroon */
-  --ring: rgba(139,30,63,.35);    /* focus ring that matches the new accent */
-}
-
-/* Cherry red for the table-of-contents links */
-:root { --cherry: #d6d6d6; }       /* cherry-ish red */
-.toc a { color: var(--cherry) !important; }
+.toc a { display: block; padding: .35rem 0; text-decoration: none; color: var(--accent); }
 .toc a:hover { filter: brightness(1.1); }
 
-/* Final theme tokens */
-:root{
-  --bg: #0f0e0d;
-  --text: #eceae6;
-  --muted: #b9b3aa;
-
-  --accent: #d6d6d6;  /* deep maroon */
-  --accent-ink: #0b0c0d; /* near-black text on accent */
-  --ring: rgba(145,29,29,.35);
-
-  --panel: rgba(22,22,24,.82);
-  --card:  rgba(24,25,27,.42);
-  --ui:    #262524;
-  --ui-border: rgba(255,255,255,.11);
+.small { color: var(--muted); font-size: .95rem; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .95em; }
+ul { margin: .5rem 0 .75rem 1.25rem; }
+code {
+  background: #101217;
+  border: 1px solid #222430;
+  border-radius: 6px;
+  padding: .12rem .3rem;
 }
-
-
   </style>
 </head>
 <body>
