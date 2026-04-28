@@ -2432,7 +2432,7 @@ function connectPinterest() {
   (async () => {
     // Try /api/* first, then /* (covers hosting differences)
     const bases = ['/api/auth', '/auth'];
-    let chosen = bases[0];
+    let chosen = null;
     let debugInfo = null;
 
     for (const base of bases) {
@@ -2449,7 +2449,16 @@ function connectPinterest() {
       } catch { /* keep trying */ }
     }
 
-    // Surface a clear message if backend is misconfigured, instead of landing on a Pinterest 404
+    // Backend unreachable or both /debug paths returned non-OK: don't blind-redirect into a 404.
+    if (!chosen) {
+      alert(
+        'Could not reach the Pinterest OAuth backend at ' + BACKEND_BASE + '.'
+        + '\nThe backend may be down, redeployed without env vars, or its OAuth app may have been revoked.'
+        + '\nCheck ' + BACKEND_BASE + '/api/auth/debug in a browser to confirm.'
+      );
+      return;
+    }
+
     if (debugInfo && debugInfo.client_id_present === false) {
       alert(
         'Pinterest OAuth isn’t configured on the backend (missing PINTEREST_CLIENT_ID and/or PINTEREST_REDIRECT_URI).'
