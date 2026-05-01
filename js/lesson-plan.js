@@ -176,6 +176,7 @@
       planState.enabled = toggleCheckbox.checked;
       persistEnabled();
       applyVisibility();
+      renderSteps(); // refresh dropdowns when re-entering beta
     });
 
     editorContainer.querySelector('#lessonPlanLoadBtn')  .addEventListener('click', loadSelectedPreset);
@@ -290,6 +291,33 @@
     });
   }
 
+  function buildSourceOptions(selectEl, currentValue) {
+    selectEl.innerHTML = '';
+
+    const mixOpt = document.createElement('option');
+    mixOpt.value = MIX_SOURCE;
+    mixOpt.textContent = 'Mix from selected boards';
+    selectEl.appendChild(mixOpt);
+
+    const boardNames = activeBoardNames();
+    boardNames.forEach(function (name) {
+      const opt = document.createElement('option');
+      opt.value = name;
+      opt.textContent = name;
+      selectEl.appendChild(opt);
+    });
+
+    // Stale source — kept so the user can still see what they had picked.
+    if (currentValue !== MIX_SOURCE && boardNames.indexOf(currentValue) === -1 && currentValue) {
+      const stale = document.createElement('option');
+      stale.value = currentValue;
+      stale.textContent = currentValue + ' (not in current selection)';
+      selectEl.appendChild(stale);
+    }
+
+    selectEl.value = currentValue;
+  }
+
   function renderStepRow(step, idx) {
     const row = document.createElement('div');
     row.className = 'lesson-step';
@@ -305,30 +333,18 @@
 
     if (step.type === 'images') {
       const sourceSelect = document.createElement('select');
+      sourceSelect.className = 'lesson-source-select';
       sourceSelect.style.cssText = 'min-width:9rem; flex:1; max-width:16rem;';
+      buildSourceOptions(sourceSelect, step.source);
 
-      const mixOpt = document.createElement('option');
-      mixOpt.value = MIX_SOURCE;
-      mixOpt.textContent = 'Mix from selected boards';
-      sourceSelect.appendChild(mixOpt);
+      // Rebuild options every time the user opens the dropdown so it
+      // always reflects the current board selection — covers any
+      // change paths we don't have an explicit listener for.
+      const refresh = function () { buildSourceOptions(sourceSelect, sourceSelect.value || step.source); };
+      sourceSelect.addEventListener('mousedown', refresh);
+      sourceSelect.addEventListener('focus', refresh);
+      sourceSelect.addEventListener('keydown', refresh);
 
-      const boardNames = activeBoardNames();
-      boardNames.forEach(function (name) {
-        const opt = document.createElement('option');
-        opt.value = name;
-        opt.textContent = name;
-        sourceSelect.appendChild(opt);
-      });
-
-      // Show stale source as a placeholder so the user knows it's a problem.
-      if (step.source !== MIX_SOURCE && boardNames.indexOf(step.source) === -1) {
-        const stale = document.createElement('option');
-        stale.value = step.source;
-        stale.textContent = step.source + ' (not in current selection)';
-        sourceSelect.appendChild(stale);
-      }
-
-      sourceSelect.value = step.source;
       sourceSelect.addEventListener('change', function () {
         updateStep(step.id, { source: sourceSelect.value });
       });
@@ -627,9 +643,6 @@
       return { name: step.source, count: step.count || 1 };
     });
 
-    // sequenceSlots / sequenceEnabled are top-level let bindings in the
-    // index.html script scope. From this script we can re-assign them by
-    // name; the existing engine reads them when starting.
     try {
       // eslint-disable-next-line no-undef
       sequenceSlots = slots;
@@ -658,14 +671,26 @@
         e.preventDefault();
         e.stopImmediatePropagation();
       }
-      // If ok, let the click continue — existing handlers read the form.
-    }, true); // capture phase: runs before existing listeners
+    }, true);
   }
 
-  // Refresh source dropdowns whenever the active board selection might
-  // have changed. handleSequenceVisibility is called from many places
-  // that mutate selection — patching it gives us a reliable hook.
+  // Refresh source dropdowns when board selection changes. We listen
+  // broadly to any change inside the setup card — sample checkboxes,
+  // user-board <select>, source-mode radios, local-folder checkboxes —
+  // since the engine uses different code paths for each.
   function watchBoardChanges() {
+    const setup = document.getElementById('setup');
+    if (setup) {
+      setup.addEventListener('change', function (e) {
+        if (!planState.enabled) return;
+        const t = e.target;
+        if (!t) return;
+        // Ignore changes to our own editor inputs (number boxes, source select).
+        if (editorContainer && editorContainer.contains(t)) return;
+        renderSteps();
+      });
+    }
+
     if (typeof window.handleSequenceVisibility === 'function') {
       const orig = window.handleSequenceVisibility;
       window.handleSequenceVisibility = function () {
