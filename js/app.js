@@ -27,7 +27,7 @@
     const viewer = document.getElementById('viewer');
     if (!viewer || viewer.style.display !== 'flex') return;
 
-    e.preventDefault(); // stop the page from scrolling
+    e.preventDefault();
     if (typeof togglePause === 'function') togglePause();
   });
 
@@ -54,18 +54,9 @@
   }
 
   // ===========================================================
-  // Feature: Local folders / files as a third image source
+  // Local folders / files state (used by multi-source picker
+  // below; defined first so multi-source patches can reference it).
   // ===========================================================
-  // The user picks one or more folders. Each subfolder, at any depth,
-  // becomes a selectable "virtual board" — checkable like the bundled
-  // sample boards or Pinterest boards. Multiple boards can be picked
-  // and sequenced together. Selecting a parent folder includes every
-  // image in that folder *and* its descendants. Files never leave
-  // the browser; they're loaded as object URLs.
-  //
-  // Limitation: file pickers cannot persist selections across page
-  // reloads (browser security), so users re-pick folders each visit.
-
   const LOCAL_PREFIX = 'local-';
 
   const localState = {
@@ -203,21 +194,122 @@
     return out;
   }
 
-  function injectLocalFilesUI() {
+  // ===========================================================
+  // Multi-source picker
+  // ===========================================================
+  // The original UI was a radio toggle: pick exactly one of
+  // Pinterest / Sample / Local. We replace it with checkboxes so
+  // any combination can be enabled at once and their boards are
+  // merged into one pool. This is also the foundation for adding
+  // future sources (Google Drive, etc.) without redesigning.
+
+  const ENABLED_SOURCES_KEY = 'pd:enabledSources';
+  const SOURCE_DEFS = [
+    { value: 'pinterest', label: 'Pinterest' },
+    { value: 'sample',    label: 'Quick sample boards' },
+    { value: 'local',     label: 'Local files' }
+  ];
+
+  function loadEnabledSources() {
+    try {
+      const raw = localStorage.getItem(ENABLED_SOURCES_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length) {
+          return new Set(parsed.filter(function (v) {
+            return SOURCE_DEFS.some(function (d) { return d.value === v; });
+          }));
+        }
+      }
+    } catch (_) {}
+    // Migrate from the legacy single-mode setting.
+    const legacy = localStorage.getItem('sourceMode');
+    if (legacy && SOURCE_DEFS.some(function (d) { return d.value === legacy; })) {
+      return new Set([legacy]);
+    }
+    return new Set(['pinterest']);
+  }
+
+  const enabledSources = loadEnabledSources();
+
+  function persistEnabledSources() {
+    try {
+      localStorage.setItem(ENABLED_SOURCES_KEY, JSON.stringify(Array.from(enabledSources)));
+    } catch (_) {}
+  }
+
+  function refreshSourceSectionVisibility() {
+    document.querySelectorAll('[data-source-section]').forEach(function (el) {
+      el.hidden = !enabledSources.has(el.dataset.sourceSection);
+    });
+  }
+
+  function rebuildSourceToggle() {
     const toggle = document.getElementById('sourceModeToggle');
     if (!toggle) return;
-    if (toggle.querySelector('input[name="sourceMode"][value="local"]')) return;
 
-    const radioLabel = document.createElement('label');
-    radioLabel.style.marginLeft = '0.25rem';
-    radioLabel.innerHTML =
-      '<input type="radio" name="sourceMode" value="local"> Local files';
-    toggle.appendChild(radioLabel);
+    // Replace all radio inputs (and our previously-injected radio,
+    // if a stale build of this script ran) with checkboxes.
+    toggle.innerHTML = '';
+    toggle.setAttribute('aria-label', 'Image sources (multiple allowed)');
+
+    SOURCE_DEFS.forEach(function (s) {
+      const lbl = document.createElement('label');
+      lbl.style.marginRight = '0.75rem';
+
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.value = s.value;
+      cb.checked = enabledSources.has(s.value);
+
+      cb.addEventListener('change', function () {
+        if (cb.checked) enabledSources.add(s.value);
+        else enabledSources.delete(s.value);
+        persistEnabledSources();
+        refreshSourceSectionVisibility();
+        if (typeof handleSequenceVisibility === 'function') {
+          handleSequenceVisibility();
+        }
+      });
+
+      lbl.appendChild(cb);
+      lbl.appendChild(document.createTextNode(' ' + s.label));
+      toggle.appendChild(lbl);
+    });
+
+    refreshSourceSectionVisibility();
+  }
+
+  // Replace the original applySourceMode so any latent caller (or our
+  // own legacy code paths) can't reset everything to a single source.
+  // We treat any incoming mode as "ensure this source is enabled".
+  window.applySourceMode = function (mode) {
+    if (!mode) return;
+    if (!SOURCE_DEFS.some(function (d) { return d.value === mode; })) return;
+    if (!enabledSources.has(mode)) {
+      enabledSources.add(mode);
+      persistEnabledSources();
+    }
+    const cb = document.querySelector(
+      '#sourceModeToggle input[type="checkbox"][value="' + mode + '"]'
+    );
+    if (cb) cb.checked = true;
+    refreshSourceSectionVisibility();
+  };
+
+  // ===========================================================
+  // Local folders / files: section UI (unchanged behaviour;
+  // visibility now driven by the multi-source toggle above).
+  // ===========================================================
+  function injectLocalFilesUI() {
+    const setup = document.getElementById('setup');
+    if (!setup) return;
+    if (document.getElementById('localFilesSource')) return;
 
     const section = document.createElement('div');
     section.id = 'localFilesSource';
     section.dataset.sourceSection = 'local';
-    section.hidden = true;
+    section.hidden = !enabledSources.has('local');
     section.style.marginTop = '0.5rem';
     section.innerHTML =
       '<h3>Local Folders</h3>' +
@@ -382,78 +474,126 @@
       notifySequenceChanged();
     });
 
-    const localRadio = radioLabel.querySelector('input');
-    localRadio.addEventListener('change', function (e) {
-      if (typeof applySourceMode === 'function') {
-        applySourceMode(e.target.value);
-      }
-    });
-
-    if (localStorage.getItem('sourceMode') === 'local') {
-      localRadio.checked = true;
-      if (typeof applySourceMode === 'function') applySourceMode('local');
-    }
-
     renderList();
   }
 
-  const _origGetActiveBoards = window.getActiveBoards;
-  window.getActiveBoards = function () {
-    const checked = document.querySelector('input[name="sourceMode"]:checked');
-    if (checked && checked.value === 'local') {
-      return localState.boards
-        .filter(function (b) { return localState.selectedIds.has(b.id); })
-        .map(function (b) { return { id: b.id, name: b.displayName }; });
-    }
-    return typeof _origGetActiveBoards === 'function'
-      ? _origGetActiveBoards.apply(this, arguments)
-      : [];
-  };
+  // ===========================================================
+  // Multi-source aware monkeypatches
+  // ===========================================================
+  // The session engine reads board lists via getActiveBoards() and
+  // image URLs via fetchPinsForBoards / fetchPinsByBoard. We replace
+  // all three so the engine can transparently consume mixed
+  // Pinterest + sample + local board sets.
 
-  function isAllLocal(boardObjs) {
-    return boardObjs && boardObjs.length > 0 && boardObjs.every(function (b) {
-      return String(b.id).startsWith(LOCAL_PREFIX);
+  function isSampleId(id) { return String(id).startsWith('sample-'); }
+  function isLocalId(id)  { return String(id).startsWith(LOCAL_PREFIX); }
+
+  function pinterestActiveBoards() {
+    const sel = document.getElementById('userBoards');
+    if (!sel) return [];
+    return Array.from(sel.selectedOptions || []).map(function (o) {
+      return { id: o.value, name: o.textContent };
     });
   }
 
-  const _origFetchPinsForBoards = window.fetchPinsForBoards;
-  window.fetchPinsForBoards = async function (boardObjs) {
-    if (isAllLocal(boardObjs)) {
-      const urls = [];
-      boardObjs.forEach(function (boardObj) {
-        const board = localState.boards.find(function (b) { return b.id === boardObj.id; });
-        if (board) urls.push.apply(urls, urlsInFolder(board.folderPath));
-      });
-      return typeof shuffleArray === 'function' ? shuffleArray(urls) : urls;
-    }
-    return typeof _origFetchPinsForBoards === 'function'
-      ? _origFetchPinsForBoards.apply(this, arguments)
-      : [];
-  };
-
-  if (typeof window.fetchPinsByBoard === 'function') {
-    const _origFetchPinsByBoard = window.fetchPinsByBoard;
-    window.fetchPinsByBoard = async function (boardObjs) {
-      if (isAllLocal(boardObjs)) {
-        const out = {};
-        boardObjs.forEach(function (boardObj) {
-          const board = localState.boards.find(function (b) { return b.id === boardObj.id; });
-          if (board) out[board.displayName] = urlsInFolder(board.folderPath);
-        });
-        return out;
-      }
-      return _origFetchPinsByBoard.apply(this, arguments);
-    };
+  function sampleActiveBoards() {
+    return Array.from(document.querySelectorAll(
+      '#sampleBoardList input[type="checkbox"]:checked'
+    )).map(function (cb) {
+      return {
+        id: 'sample-' + cb.value.replace(/[^a-z0-9]+/gi, '_'),
+        name: cb.value
+      };
+    });
   }
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', injectLocalFilesUI);
-  } else {
+  function localActiveBoards() {
+    return localState.boards
+      .filter(function (b) { return localState.selectedIds.has(b.id); })
+      .map(function (b) { return { id: b.id, name: b.displayName }; });
+  }
+
+  window.getActiveBoards = function () {
+    const out = [];
+    if (enabledSources.has('pinterest')) out.push.apply(out, pinterestActiveBoards());
+    if (enabledSources.has('sample'))    out.push.apply(out, sampleActiveBoards());
+    if (enabledSources.has('local'))     out.push.apply(out, localActiveBoards());
+    return out;
+  };
+
+  async function urlsForSampleBoard(b) {
+    if (typeof SAMPLE_BOARDS === 'undefined') return [];
+    const name = (b.name in SAMPLE_BOARDS) ? b.name : null;
+    return name ? (SAMPLE_BOARDS[name] || []).slice() : [];
+  }
+
+  async function urlsForLocalBoard(b) {
+    const board = localState.boards.find(function (lb) { return lb.id === b.id; });
+    return board ? urlsInFolder(board.folderPath) : [];
+  }
+
+  async function urlsForPinterestBoard(b) {
+    if (typeof BACKEND_BASE === 'undefined') return [];
+    const url = BACKEND_BASE + '/api/pinterest/boards/' +
+      encodeURIComponent(b.id) + '/pins?all=1&page_size=250';
+    try {
+      const res = await fetch(url, { credentials: 'include' });
+      if (!res.ok) return [];
+      const data = await res.json();
+      return (data && (data.pins || data) || [])
+        .map(function (p) {
+          if (typeof p === 'string') return p;
+          return p.image_url || p.link ||
+            (p.media && p.media.images && p.media.images.orig && p.media.images.orig.url);
+        })
+        .filter(function (u) { return typeof u === 'string' && /^https?:\/\//i.test(u); });
+    } catch (_) {
+      return [];
+    }
+  }
+
+  async function urlsForBoard(b) {
+    if (isSampleId(b.id)) return urlsForSampleBoard(b);
+    if (isLocalId(b.id))  return urlsForLocalBoard(b);
+    return urlsForPinterestBoard(b);
+  }
+
+  window.fetchPinsForBoards = async function (boardObjs) {
+    const arr = boardObjs || [];
+    const all = [];
+    for (const b of arr) {
+      const urls = await urlsForBoard(b);
+      all.push.apply(all, urls);
+    }
+    return typeof shuffleArray === 'function' ? shuffleArray(all) : all;
+  };
+
+  window.fetchPinsByBoard = async function (boardObjs) {
+    const arr = boardObjs || [];
+    const out = {};
+    for (const b of arr) {
+      const urls = await urlsForBoard(b);
+      out[b.name] = typeof shuffleArray === 'function' ? shuffleArray(urls) : urls;
+    }
+    return out;
+  };
+
+  // ===========================================================
+  // Init
+  // ===========================================================
+  function init() {
+    rebuildSourceToggle();
     injectLocalFilesUI();
   }
 
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+
   // Dynamically load the Lesson Plan editor (beta). Kept in a separate
-  // file so app.js stays focused on bug fixes + the local files source.
+  // file so app.js stays focused on the source picker + bug fixes.
   const planScript = document.createElement('script');
   planScript.src = 'js/lesson-plan.js';
   planScript.async = false;
