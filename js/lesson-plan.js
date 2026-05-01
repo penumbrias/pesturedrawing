@@ -3,14 +3,13 @@
 // steps (image phases + breaks). Each images-step picks one or more
 // boards as its source: empty list = mix from all currently-selected
 // boards, one board = pull from that board, multiple boards = an
-// ad-hoc linked group for that step (same as the "Link boards"
-// feature in the existing Sequence Boards menu).
+// ad-hoc linked group for that step.
 //
-// When enabled, the editor replaces the existing Session Type /
-// Class / Sequence sections in the setup screen and hijacks the
-// Start button: on click, the plan is translated into the existing
-// Class phases + Sequence slots and the original startSession runs
-// unchanged.
+// When enabled the editor replaces the existing Session Type / Class
+// / Sequence sections in the setup screen. On Start it (a) populates
+// the Class phases form to match the plan and (b) feeds the engine
+// the right "selected boards" so it engages sequence mode and plays
+// images in the order the plan defines.
 
 (function () {
   'use strict';
@@ -18,7 +17,6 @@
   const PLAN_BETA_KEY    = 'pd:lessonPlan:beta';
   const PLAN_CURRENT_KEY = 'pd:lessonPlan:current';
   const PLAN_SAVED_KEY   = 'pd:lessonPlan:saved';
-  // Legacy single-source sentinel used in v1 of the editor.
   const LEGACY_MIX = '__mix__';
 
   let stepCounter = 1;
@@ -26,8 +24,6 @@
     return 's' + Date.now().toString(36) + '_' + (stepCounter++);
   }
 
-  // Migrate v1 step shape ({ source: 'name' | '__mix__' }) to the v2
-  // shape with a `boards` array. Empty array = mix from all selected.
   function migrateStep(s) {
     if (!s || typeof s !== 'object') return s;
     if (Array.isArray(s.boards)) return s;
@@ -44,7 +40,7 @@
     return [{
       id: makeStepId(),
       type: 'images',
-      boards: [], // empty = mix from all currently selected boards
+      boards: [],
       count: 5,
       durationSec: 30
     }];
@@ -87,12 +83,10 @@
     try { localStorage.setItem(PLAN_CURRENT_KEY, JSON.stringify(planState.steps)); }
     catch (_) {}
   }
-
   function persistSavedPresets() {
     try { localStorage.setItem(PLAN_SAVED_KEY, JSON.stringify(planState.saved)); }
     catch (_) {}
   }
-
   function persistEnabled() {
     localStorage.setItem(PLAN_BETA_KEY, planState.enabled ? '1' : '0');
   }
@@ -102,7 +96,6 @@
       .filter(function (s) { return s.type === 'images'; })
       .reduce(function (sum, s) { return sum + (parseInt(s.count) || 0); }, 0);
   }
-
   function totalSeconds() {
     return planState.steps.reduce(function (sum, s) {
       if (s.type === 'images')
@@ -112,28 +105,77 @@
       return sum;
     }, 0);
   }
-
   function fmtTotalDuration(seconds) {
     if (seconds < 0) seconds = 0;
     const h = Math.floor(seconds / 3600);
     const m = Math.floor((seconds % 3600) / 60);
     const s = Math.floor(seconds % 60);
-    if (h > 0) {
-      return h + 'h ' + String(m).padStart(2, '0') + 'm ' + String(s).padStart(2, '0') + 's';
-    }
+    if (h > 0) return h + 'h ' + String(m).padStart(2,'0') + 'm ' + String(s).padStart(2,'0') + 's';
     return m + ':' + String(s).padStart(2, '0');
   }
 
-  function activeBoards() {
-    if (typeof window.getActiveBoards !== 'function') return [];
-    try { return window.getActiveBoards() || []; }
+  // ---- Source picker vs lesson-plan view of "active boards" ----
+  //
+  // When the plan is OFF, the engine reads getActiveBoards() to decide
+  // the pool of boards for the session — that's whatever the user has
+  // checked in the Image Source picker (Pinterest / Sample / Local).
+  //
+  // When the plan is ON, the *plan* dictates which boards the session
+  // actually uses. The source picker still defines the available pool
+  // (so Mix steps can expand to it), but only the boards referenced by
+  // the plan should be considered "active for this session" — that's
+  // what we feed the engine, which lets its
+  //     sequenceEnabled = checked && selectedBoards.length > 1
+  // gate engage whenever the plan touches ≥2 distinct boards, even if
+  // the user only checked a single board in the picker.
+  //
+  // We split the responsibilities:
+  //   - sourcePickerBoards()   — the universe (used by editor + Mix).
+  //   - window.getActiveBoards — what the engine sees at start time
+  //                              (plan-derived when beta is on).
+
+  const _origGetActiveBoards = window.getActiveBoards;
+
+  function sourcePickerBoards() {
+    if (typeof _origGetActiveBoards !== 'function') return [];
+    try { return _origGetActiveBoards.apply(null, arguments) || []; }
     catch (_) { return []; }
   }
 
-  function activeBoardNames() {
-    return activeBoards().map(function (b) { return b.name; });
+  function planReferencedBoards() {
+    const pool = sourcePickerBoards();
+    const byName = new Map(pool.map(function (b) { return [b.name, b]; }));
+    const used = new Set();
+
+    planState.steps.forEach(function (step) {
+      if (step.type !== 'images') return;
+      const boards = step.boards || [];
+      if (boards.length === 0) {
+        // Mix: every picker board contributes to this step.
+        pool.forEach(function (b) { used.add(b.name); });
+      } else {
+        boards.forEach(function (n) { used.add(n); });
+      }
+    });
+
+    const out = [];
+    used.forEach(function (name) {
+      const b = byName.get(name);
+      if (b) out.push(b);
+    });
+    return out;
   }
 
+  window.getActiveBoards = function () {
+    if (planState.enabled) return planReferencedBoards();
+    return sourcePickerBoards();
+  };
+
+  function activeBoardNames() {
+    return sourcePickerBoards().map(function (b) { return b.name; });
+  }
+
+  // ---- UI injection (unchanged from previous version) ----
   let editorContainer = null;
   let editorContent   = null;
   let toggleCheckbox  = null;
@@ -200,7 +242,7 @@
       planState.enabled = toggleCheckbox.checked;
       persistEnabled();
       applyVisibility();
-      renderSteps(); // refresh dropdowns / chips when re-entering beta
+      renderSteps();
     });
 
     editorContainer.querySelector('#lessonPlanLoadBtn')  .addEventListener('click', loadSelectedPreset);
@@ -236,7 +278,6 @@
     if (seq)   seq.style.display   = planState.enabled ? 'none' : '';
   }
 
-  // ---- Step manipulation ----
   function addImagesStep() {
     planState.steps.push({
       id: makeStepId(),
@@ -299,7 +340,6 @@
     setValidation('');
   }
 
-  // ---- Rendering ----
   function renderSteps() {
     if (!stepsList) return;
     stepsList.innerHTML = '';
@@ -428,8 +468,6 @@
     picker.style.top  = (rect.bottom + window.scrollY + 4) + 'px';
     picker.style.left = (rect.left + window.scrollX) + 'px';
 
-    // Close on outside click. Defer attaching the listener so the
-    // current click that opened the picker doesn't immediately close it.
     setTimeout(function () {
       function dismiss(e) {
         if (!picker.contains(e.target)) {
@@ -571,7 +609,6 @@
     if (validationEl) validationEl.textContent = msg || '';
   }
 
-  // ---- Presets ----
   function makePresetId() {
     return 'p_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6);
   }
@@ -692,22 +729,22 @@
       setValidation('Each images step needs a count of at least 1.');
       return false;
     }
-    const boards = activeBoards();
-    if (!boards.length) {
+
+    // Validate against the source picker (the universe of available
+    // boards), not getActiveBoards (which is plan-derived now).
+    const pickerBoards = sourcePickerBoards();
+    if (!pickerBoards.length) {
       setValidation('Select at least one board in the Image Source section above.');
       return false;
     }
-    const boardNames = boards.map(function (b) { return b.name; });
-
-    // Detect any chip referring to a board no longer in the source picker.
-    let staleStep = null;
+    const pickerNames = pickerBoards.map(function (b) { return b.name; });
     let staleBoard = null;
     for (const s of imageSteps) {
       const stepBoards = s.boards || [];
-      const bad = stepBoards.find(function (n) { return boardNames.indexOf(n) === -1; });
-      if (bad) { staleStep = s; staleBoard = bad; break; }
+      const bad = stepBoards.find(function (n) { return pickerNames.indexOf(n) === -1; });
+      if (bad) { staleBoard = bad; break; }
     }
-    if (staleStep) {
+    if (staleBoard) {
       setValidation('Step references a board not in your current selection: "' + staleBoard + '"');
       return false;
     }
@@ -744,8 +781,10 @@
     }
 
     // 3) Sequence: enable + build slots from images-steps only.
-    //    Empty boards on a step → mix from all currently-selected boards.
-    //    One board → single-source slot. Multiple → linked group slot.
+    //    Mix steps expand to the source picker pool. Single board
+    //    steps map to a single-name slot. Multi-board steps map to a
+    //    group slot (matches the engine's existing { names: [...] }
+    //    shape for linked rows).
     const seqToggle = document.getElementById('sequenceToggle');
     if (seqToggle) {
       seqToggle.checked = true;
@@ -755,16 +794,17 @@
     const slots = imageSteps.map(function (step) {
       const stepBoards = (step.boards && step.boards.length > 0)
         ? step.boards.slice()
-        : boardNames.slice();
+        : pickerNames.slice();
       if (stepBoards.length === 1) {
         return { name: stepBoards[0], count: step.count || 1 };
       }
       return { names: stepBoards, count: step.count || 1 };
     });
 
-    // sequenceSlots / sequenceEnabled are top-level let bindings in the
-    // index.html script scope. From this script we can re-assign them
-    // by name; the existing engine reads them when starting.
+    // sequenceSlots / sequenceEnabled are top-level let bindings in
+    // the index.html script scope; this assignment reaches them by
+    // name from this script. They're re-read by the engine's
+    // startSession after this hook returns.
     try {
       // eslint-disable-next-line no-undef
       sequenceSlots = slots;
@@ -793,14 +833,9 @@
         e.preventDefault();
         e.stopImmediatePropagation();
       }
-    }, true); // capture phase: runs before existing listeners
+    }, true);
   }
 
-  // Refresh the editor when the user changes board selection in the
-  // Image Source section. Listens broadly because each source mode has
-  // its own change-handling code path: the userBoards <select>, the
-  // sample-board checkboxes, the local-folder checkboxes, and the
-  // source-mode radios all pass through a 'change' event here.
   function watchBoardChanges() {
     const setup = document.getElementById('setup');
     if (setup) {
@@ -808,8 +843,6 @@
         if (!planState.enabled) return;
         const t = e.target;
         if (!t) return;
-        // Don't re-render mid-edit when the user changes a value
-        // inside our editor (count, duration, source select etc.).
         if (editorContainer && editorContainer.contains(t)) return;
         renderSteps();
       });
