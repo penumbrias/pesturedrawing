@@ -69,14 +69,9 @@
   const LOCAL_PREFIX = 'local-';
 
   const localState = {
-    // Top-level folders the user has added. Each contains all image
-    // files the picker returned, with their relative paths.
-    roots: [], // [{ rootName, entries: [{ relativePath, file, url }] }]
-    // Computed list of folders at any depth across all roots.
-    boards: [], // [{ id, displayName, depth, folderPath, fileCount }]
-    // Folder ids the user has checked.
+    roots: [],
+    boards: [],
     selectedIds: new Set(),
-    // Folder paths whose children are currently expanded in the tree UI.
     expanded: new Set()
   };
 
@@ -90,9 +85,6 @@
   }
 
   function recomputeBoards() {
-    // Count files per folder path (each folder counts ALL files in
-    // itself plus every descendant — same behaviour the user would
-    // expect when ticking a parent folder).
     const counts = new Map();
     localState.roots.forEach(function (root) {
       root.entries.forEach(function (entry) {
@@ -116,13 +108,11 @@
       };
     });
 
-    // Drop any selections whose board no longer exists.
     const validIds = new Set(localState.boards.map(function (b) { return b.id; }));
     Array.from(localState.selectedIds).forEach(function (id) {
       if (!validIds.has(id)) localState.selectedIds.delete(id);
     });
 
-    // Drop any expansion state for folders that no longer exist.
     const validPaths = new Set(localState.boards.map(function (b) { return b.folderPath; }));
     Array.from(localState.expanded).forEach(function (p) {
       if (!validPaths.has(p)) localState.expanded.delete(p);
@@ -137,7 +127,6 @@
   }
 
   function isVisible(board) {
-    // A board row is visible only when every ancestor is expanded.
     const parts = board.folderPath.split('/');
     for (let i = 1; i < parts.length; i++) {
       const ancestor = parts.slice(0, i).join('/');
@@ -159,7 +148,6 @@
     if (!files.length) return;
 
     const rootName = (files[0].webkitRelativePath || files[0].name).split('/')[0];
-    // If this root was already added, revoke and replace (treat as a refresh).
     if (localState.roots.some(function (r) { return r.rootName === rootName; })) {
       revokeRoot(rootName);
       localState.roots = localState.roots.filter(function (r) {
@@ -177,9 +165,6 @@
 
     localState.roots.push({ rootName: rootName, entries: entries });
     recomputeBoards();
-
-    // Expand the new top-level folder by default so the user can
-    // immediately see its children if it has any.
     localState.expanded.add(rootName);
   }
 
@@ -218,22 +203,17 @@
     return out;
   }
 
-  // ---- UI injection ----
-
   function injectLocalFilesUI() {
     const toggle = document.getElementById('sourceModeToggle');
     if (!toggle) return;
     if (toggle.querySelector('input[name="sourceMode"][value="local"]')) return;
 
-    // 1) Add the "Local files" radio.
     const radioLabel = document.createElement('label');
     radioLabel.style.marginLeft = '0.25rem';
     radioLabel.innerHTML =
       '<input type="radio" name="sourceMode" value="local"> Local files';
     toggle.appendChild(radioLabel);
 
-    // 2) Build the section. data-source-section makes it auto-toggle
-    //    via the existing applySourceMode() in index.html.
     const section = document.createElement('div');
     section.id = 'localFilesSource';
     section.dataset.sourceSection = 'local';
@@ -256,7 +236,6 @@
     if (card) card.appendChild(section);
     else document.body.appendChild(section);
 
-    // Hidden file input set up to pick a directory.
     const folderInput = document.createElement('input');
     folderInput.type = 'file';
     folderInput.setAttribute('webkitdirectory', '');
@@ -293,8 +272,6 @@
       list.style.display = 'block';
       clearBtn.style.display = 'inline-block';
 
-      // Show expand/collapse buttons only when there are folders
-      // with children (otherwise they have nothing to do).
       const anyParents = localState.boards.some(function (b) {
         return hasChildren(b.folderPath);
       });
@@ -317,7 +294,6 @@
         selectedCount + ' board' + (selectedCount === 1 ? '' : 's') + ' selected (' +
         selectedFiles + ' image' + (selectedFiles === 1 ? '' : 's') + ' will play)';
 
-      // Render only rows whose every ancestor is expanded.
       const visible = localState.boards.filter(isVisible);
 
       visible.forEach(function (board) {
@@ -326,8 +302,6 @@
           'display:flex; gap:.4rem; align-items:center; padding:.18rem .25rem;' +
           ' padding-left:' + (0.25 + board.depth * 1.25) + 'rem;';
 
-        // Chevron (or invisible spacer for leaf folders) — keeps the
-        // checkboxes vertically aligned across rows.
         const chevron = document.createElement('button');
         chevron.type = 'button';
         chevron.style.cssText =
@@ -353,8 +327,6 @@
         }
         row.appendChild(chevron);
 
-        // The checkbox + name share a label so clicking the name toggles
-        // the checkbox (standard browser behaviour).
         const lbl = document.createElement('label');
         lbl.style.cssText =
           'display:flex; gap:.5rem; align-items:center; cursor:pointer; flex:1; min-width:0;';
@@ -410,8 +382,6 @@
       notifySequenceChanged();
     });
 
-    // The original index.html attached change listeners to all radios
-    // at startup. Our radio didn't exist then, so we wire it up here.
     const localRadio = radioLabel.querySelector('input');
     localRadio.addEventListener('change', function (e) {
       if (typeof applySourceMode === 'function') {
@@ -426,8 +396,6 @@
 
     renderList();
   }
-
-  // ---- Monkeypatch the session engine ----
 
   const _origGetActiveBoards = window.getActiveBoards;
   window.getActiveBoards = function () {
@@ -478,10 +446,16 @@
     };
   }
 
-  // Inject the UI.
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', injectLocalFilesUI);
   } else {
     injectLocalFilesUI();
   }
+
+  // Dynamically load the Lesson Plan editor (beta). Kept in a separate
+  // file so app.js stays focused on bug fixes + the local files source.
+  const planScript = document.createElement('script');
+  planScript.src = 'js/lesson-plan.js';
+  planScript.async = false;
+  document.head.appendChild(planScript);
 })();
