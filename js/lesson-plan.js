@@ -1,13 +1,16 @@
 // js/lesson-plan.js
 // Lesson Plan editor (beta). Designs a session as an ordered list of
-// steps (image phases + breaks). When enabled, replaces the existing
-// Session Type / Class / Sequence sections in the setup screen and
-// hijacks the Start button: on click, the plan is translated into
-// the existing Class phases + Sequence slots and the original
-// startSession runs unchanged.
+// steps (image phases + breaks). Each images-step picks one or more
+// boards as its source: empty list = mix from all currently-selected
+// boards, one board = pull from that board, multiple boards = an
+// ad-hoc linked group for that step (same as the "Link boards"
+// feature in the existing Sequence Boards menu).
 //
-// Kept in its own file so app.js stays small and this UI can grow
-// without bloating the main bundle.
+// When enabled, the editor replaces the existing Session Type /
+// Class / Sequence sections in the setup screen and hijacks the
+// Start button: on click, the plan is translated into the existing
+// Class phases + Sequence slots and the original startSession runs
+// unchanged.
 
 (function () {
   'use strict';
@@ -15,18 +18,33 @@
   const PLAN_BETA_KEY    = 'pd:lessonPlan:beta';
   const PLAN_CURRENT_KEY = 'pd:lessonPlan:current';
   const PLAN_SAVED_KEY   = 'pd:lessonPlan:saved';
-  const MIX_SOURCE       = '__mix__';
+  // Legacy single-source sentinel used in v1 of the editor.
+  const LEGACY_MIX = '__mix__';
 
   let stepCounter = 1;
   function makeStepId() {
     return 's' + Date.now().toString(36) + '_' + (stepCounter++);
   }
 
+  // Migrate v1 step shape ({ source: 'name' | '__mix__' }) to the v2
+  // shape with a `boards` array. Empty array = mix from all selected.
+  function migrateStep(s) {
+    if (!s || typeof s !== 'object') return s;
+    if (Array.isArray(s.boards)) return s;
+    const out = Object.assign({}, s);
+    if (s.type === 'images') {
+      if (s.source === LEGACY_MIX || !s.source) out.boards = [];
+      else out.boards = [s.source];
+      delete out.source;
+    }
+    return out;
+  }
+
   function defaultSteps() {
     return [{
       id: makeStepId(),
       type: 'images',
-      source: MIX_SOURCE,
+      boards: [], // empty = mix from all currently selected boards
       count: 5,
       durationSec: 30
     }];
@@ -39,7 +57,8 @@
       const parsed = JSON.parse(raw);
       if (!Array.isArray(parsed)) return null;
       return parsed.map(function (s) {
-        return Object.assign({}, s, { id: makeStepId() });
+        const m = migrateStep(s);
+        return Object.assign({}, m, { id: makeStepId() });
       });
     } catch (_) { return null; }
   }
@@ -48,7 +67,12 @@
     try {
       const raw = localStorage.getItem(PLAN_SAVED_KEY);
       const parsed = raw ? JSON.parse(raw) : [];
-      return Array.isArray(parsed) ? parsed : [];
+      if (!Array.isArray(parsed)) return [];
+      return parsed.map(function (p) {
+        return Object.assign({}, p, {
+          steps: (p.steps || []).map(migrateStep)
+        });
+      });
     } catch (_) { return []; }
   }
 
@@ -130,7 +154,7 @@
         '</label>' +
       '</div>' +
       '<div id="lessonPlanContent" style="margin-top:.5rem;">' +
-        '<p class="hint" style="margin:.25rem 0 .5rem 0;">Plan a session as an ordered list of steps. Each step pulls images from a board (or all selected boards) for a chosen count and duration. Replaces the Session Type / Class / Sequence sections while enabled. Pick your image source below first, then build a plan here.</p>' +
+        '<p class="hint" style="margin:.25rem 0 .5rem 0;">Plan a session as an ordered list of steps. Each step pulls images from one or more boards (empty = mix from all selected) for a chosen count and duration. Replaces the Session Type / Class / Sequence sections while enabled. Pick your image source below first, then build a plan here.</p>' +
         '<div style="display:flex; gap:.5rem; flex-wrap:wrap; align-items:center;">' +
           '<select id="lessonPlanPresetSelect" style="max-width:14rem;"></select>' +
           '<button class="btn" id="lessonPlanLoadBtn" type="button">Load</button>' +
@@ -176,7 +200,7 @@
       planState.enabled = toggleCheckbox.checked;
       persistEnabled();
       applyVisibility();
-      renderSteps(); // refresh dropdowns when re-entering beta
+      renderSteps(); // refresh dropdowns / chips when re-entering beta
     });
 
     editorContainer.querySelector('#lessonPlanLoadBtn')  .addEventListener('click', loadSelectedPreset);
@@ -217,7 +241,7 @@
     planState.steps.push({
       id: makeStepId(),
       type: 'images',
-      source: MIX_SOURCE,
+      boards: [],
       count: 5,
       durationSec: 30
     });
@@ -291,31 +315,130 @@
     });
   }
 
-  function buildSourceOptions(selectEl, currentValue) {
-    selectEl.innerHTML = '';
+  function renderSourcePicker(step) {
+    const wrap = document.createElement('div');
+    wrap.style.cssText =
+      'display:flex; flex-wrap:wrap; gap:.25rem; align-items:center;' +
+      ' flex:1; min-width:11rem; max-width:24rem;';
 
-    const mixOpt = document.createElement('option');
-    mixOpt.value = MIX_SOURCE;
-    mixOpt.textContent = 'Mix from selected boards';
-    selectEl.appendChild(mixOpt);
+    const allNames = activeBoardNames();
+    const boards = step.boards || [];
 
-    const boardNames = activeBoardNames();
-    boardNames.forEach(function (name) {
-      const opt = document.createElement('option');
-      opt.value = name;
-      opt.textContent = name;
-      selectEl.appendChild(opt);
+    boards.forEach(function (name) {
+      wrap.appendChild(renderBoardChip(step, name, allNames.indexOf(name) === -1));
     });
 
-    // Stale source — kept so the user can still see what they had picked.
-    if (currentValue !== MIX_SOURCE && boardNames.indexOf(currentValue) === -1 && currentValue) {
-      const stale = document.createElement('option');
-      stale.value = currentValue;
-      stale.textContent = currentValue + ' (not in current selection)';
-      selectEl.appendChild(stale);
+    if (boards.length === 0) {
+      const hint = document.createElement('span');
+      hint.textContent = 'Mix from all selected';
+      hint.style.cssText = 'color:var(--muted); font-style:italic; font-size:.85rem;';
+      wrap.appendChild(hint);
     }
 
-    selectEl.value = currentValue;
+    const remaining = allNames.filter(function (n) { return boards.indexOf(n) === -1; });
+    if (remaining.length > 0) {
+      const addBtn = document.createElement('button');
+      addBtn.type = 'button';
+      addBtn.className = 'btn mini';
+      addBtn.textContent = boards.length === 0 ? '+ Pick board(s)' : '+';
+      addBtn.title = 'Add a board to this step';
+      addBtn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        showBoardPicker(step, addBtn);
+      });
+      wrap.appendChild(addBtn);
+    }
+
+    return wrap;
+  }
+
+  function renderBoardChip(step, name, isStale) {
+    const chip = document.createElement('span');
+    chip.style.cssText =
+      'display:inline-flex; align-items:center; gap:.15rem; padding:.15rem .15rem .15rem .45rem;' +
+      ' background:#1a1c24; border:1px solid ' + (isStale ? '#a44' : '#2a2d3a') + ';' +
+      ' border-radius:6px; font-size:.85rem;' + (isStale ? ' color:#f99;' : '');
+    chip.title = isStale ? 'Not in current selection' : name;
+
+    const text = document.createElement('span');
+    text.textContent = name;
+    text.style.cssText = 'max-width:12rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;';
+    chip.appendChild(text);
+
+    const x = document.createElement('button');
+    x.type = 'button';
+    x.textContent = '×';
+    x.style.cssText =
+      'background:transparent; border:0; color:var(--muted); cursor:pointer;' +
+      ' padding:0 .25rem; line-height:1; font-size:1.05rem;';
+    x.title = 'Remove from this step';
+    x.setAttribute('aria-label', 'Remove ' + name);
+    x.addEventListener('click', function (e) {
+      e.stopPropagation();
+      const newBoards = (step.boards || []).filter(function (b) { return b !== name; });
+      updateStep(step.id, { boards: newBoards });
+      renderSteps();
+    });
+    chip.appendChild(x);
+    return chip;
+  }
+
+  function showBoardPicker(step, anchor) {
+    document.querySelectorAll('.lesson-board-picker').forEach(function (el) { el.remove(); });
+
+    const allNames = activeBoardNames();
+    const taken = new Set(step.boards || []);
+    const available = allNames.filter(function (n) { return !taken.has(n); });
+
+    const picker = document.createElement('div');
+    picker.className = 'lesson-board-picker';
+    picker.style.cssText =
+      'position:absolute; background:#181a20; border:1px solid #333; border-radius:8px;' +
+      ' padding:.35rem; max-height:260px; overflow:auto; z-index:9999; min-width:14rem;' +
+      ' box-shadow:0 8px 22px rgba(0,0,0,.55);';
+
+    if (available.length === 0) {
+      picker.style.padding = '.5rem .65rem';
+      picker.textContent = 'No more boards to add.';
+    } else {
+      available.forEach(function (name) {
+        const item = document.createElement('button');
+        item.type = 'button';
+        item.textContent = name;
+        item.style.cssText =
+          'display:block; width:100%; text-align:left; padding:.35rem .55rem;' +
+          ' background:transparent; border:0; color:var(--text); cursor:pointer;' +
+          ' border-radius:4px; font-size:.9rem;';
+        item.addEventListener('mouseenter', function () { item.style.background = '#2a2d3a'; });
+        item.addEventListener('mouseleave', function () { item.style.background = 'transparent'; });
+        item.addEventListener('click', function (e) {
+          e.stopPropagation();
+          const newBoards = (step.boards || []).slice();
+          newBoards.push(name);
+          updateStep(step.id, { boards: newBoards });
+          picker.remove();
+          renderSteps();
+        });
+        picker.appendChild(item);
+      });
+    }
+
+    document.body.appendChild(picker);
+    const rect = anchor.getBoundingClientRect();
+    picker.style.top  = (rect.bottom + window.scrollY + 4) + 'px';
+    picker.style.left = (rect.left + window.scrollX) + 'px';
+
+    // Close on outside click. Defer attaching the listener so the
+    // current click that opened the picker doesn't immediately close it.
+    setTimeout(function () {
+      function dismiss(e) {
+        if (!picker.contains(e.target)) {
+          picker.remove();
+          document.removeEventListener('click', dismiss);
+        }
+      }
+      document.addEventListener('click', dismiss);
+    }, 0);
   }
 
   function renderStepRow(step, idx) {
@@ -332,23 +455,7 @@
     row.appendChild(numBadge);
 
     if (step.type === 'images') {
-      const sourceSelect = document.createElement('select');
-      sourceSelect.className = 'lesson-source-select';
-      sourceSelect.style.cssText = 'min-width:9rem; flex:1; max-width:16rem;';
-      buildSourceOptions(sourceSelect, step.source);
-
-      // Rebuild options every time the user opens the dropdown so it
-      // always reflects the current board selection — covers any
-      // change paths we don't have an explicit listener for.
-      const refresh = function () { buildSourceOptions(sourceSelect, sourceSelect.value || step.source); };
-      sourceSelect.addEventListener('mousedown', refresh);
-      sourceSelect.addEventListener('focus', refresh);
-      sourceSelect.addEventListener('keydown', refresh);
-
-      sourceSelect.addEventListener('change', function () {
-        updateStep(step.id, { source: sourceSelect.value });
-      });
-      row.appendChild(sourceSelect);
+      row.appendChild(renderSourcePicker(step));
 
       const countWrap = document.createElement('span');
       countWrap.style.cssText = 'display:inline-flex; align-items:center; gap:.25rem;';
@@ -496,7 +603,8 @@
     const preset = planState.saved.find(function (p) { return p.id === id; });
     if (!preset) return;
     planState.steps = preset.steps.map(function (s) {
-      return Object.assign({}, s, { id: makeStepId() });
+      const m = migrateStep(s);
+      return Object.assign({}, m, { id: makeStepId() });
     });
     planState.activePresetId = id;
     persistCurrentSteps();
@@ -590,11 +698,17 @@
       return false;
     }
     const boardNames = boards.map(function (b) { return b.name; });
-    const stale = imageSteps.find(function (s) {
-      return s.source !== MIX_SOURCE && boardNames.indexOf(s.source) === -1;
-    });
-    if (stale) {
-      setValidation('Step references a board not in your current selection: "' + stale.source + '"');
+
+    // Detect any chip referring to a board no longer in the source picker.
+    let staleStep = null;
+    let staleBoard = null;
+    for (const s of imageSteps) {
+      const stepBoards = s.boards || [];
+      const bad = stepBoards.find(function (n) { return boardNames.indexOf(n) === -1; });
+      if (bad) { staleStep = s; staleBoard = bad; break; }
+    }
+    if (staleStep) {
+      setValidation('Step references a board not in your current selection: "' + staleBoard + '"');
       return false;
     }
 
@@ -629,7 +743,9 @@
       window.recalcClassTotal();
     }
 
-    // 3) Sequence: enable + build slots from images-steps only
+    // 3) Sequence: enable + build slots from images-steps only.
+    //    Empty boards on a step → mix from all currently-selected boards.
+    //    One board → single-source slot. Multiple → linked group slot.
     const seqToggle = document.getElementById('sequenceToggle');
     if (seqToggle) {
       seqToggle.checked = true;
@@ -637,12 +753,18 @@
     }
 
     const slots = imageSteps.map(function (step) {
-      if (step.source === MIX_SOURCE) {
-        return { names: boardNames.slice(), count: step.count || 1 };
+      const stepBoards = (step.boards && step.boards.length > 0)
+        ? step.boards.slice()
+        : boardNames.slice();
+      if (stepBoards.length === 1) {
+        return { name: stepBoards[0], count: step.count || 1 };
       }
-      return { name: step.source, count: step.count || 1 };
+      return { names: stepBoards, count: step.count || 1 };
     });
 
+    // sequenceSlots / sequenceEnabled are top-level let bindings in the
+    // index.html script scope. From this script we can re-assign them
+    // by name; the existing engine reads them when starting.
     try {
       // eslint-disable-next-line no-undef
       sequenceSlots = slots;
@@ -671,13 +793,14 @@
         e.preventDefault();
         e.stopImmediatePropagation();
       }
-    }, true);
+    }, true); // capture phase: runs before existing listeners
   }
 
-  // Refresh source dropdowns when board selection changes. We listen
-  // broadly to any change inside the setup card — sample checkboxes,
-  // user-board <select>, source-mode radios, local-folder checkboxes —
-  // since the engine uses different code paths for each.
+  // Refresh the editor when the user changes board selection in the
+  // Image Source section. Listens broadly because each source mode has
+  // its own change-handling code path: the userBoards <select>, the
+  // sample-board checkboxes, the local-folder checkboxes, and the
+  // source-mode radios all pass through a 'change' event here.
   function watchBoardChanges() {
     const setup = document.getElementById('setup');
     if (setup) {
@@ -685,7 +808,8 @@
         if (!planState.enabled) return;
         const t = e.target;
         if (!t) return;
-        // Ignore changes to our own editor inputs (number boxes, source select).
+        // Don't re-render mid-edit when the user changes a value
+        // inside our editor (count, duration, source select etc.).
         if (editorContainer && editorContainer.contains(t)) return;
         renderSteps();
       });
