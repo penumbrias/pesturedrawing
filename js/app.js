@@ -75,7 +75,9 @@
     // Computed list of folders at any depth across all roots.
     boards: [], // [{ id, displayName, depth, folderPath, fileCount }]
     // Folder ids the user has checked.
-    selectedIds: new Set()
+    selectedIds: new Set(),
+    // Folder paths whose children are currently expanded in the tree UI.
+    expanded: new Set()
   };
 
   function makeBoardId(folderPath) {
@@ -119,6 +121,29 @@
     Array.from(localState.selectedIds).forEach(function (id) {
       if (!validIds.has(id)) localState.selectedIds.delete(id);
     });
+
+    // Drop any expansion state for folders that no longer exist.
+    const validPaths = new Set(localState.boards.map(function (b) { return b.folderPath; }));
+    Array.from(localState.expanded).forEach(function (p) {
+      if (!validPaths.has(p)) localState.expanded.delete(p);
+    });
+  }
+
+  function hasChildren(folderPath) {
+    const prefix = folderPath + '/';
+    return localState.boards.some(function (b) {
+      return b.folderPath !== folderPath && b.folderPath.startsWith(prefix);
+    });
+  }
+
+  function isVisible(board) {
+    // A board row is visible only when every ancestor is expanded.
+    const parts = board.folderPath.split('/');
+    for (let i = 1; i < parts.length; i++) {
+      const ancestor = parts.slice(0, i).join('/');
+      if (!localState.expanded.has(ancestor)) return false;
+    }
+    return true;
   }
 
   function revokeRoot(rootName) {
@@ -152,6 +177,10 @@
 
     localState.roots.push({ rootName: rootName, entries: entries });
     recomputeBoards();
+
+    // Expand the new top-level folder by default so the user can
+    // immediately see its children if it has any.
+    localState.expanded.add(rootName);
   }
 
   function clearAllRoots() {
@@ -162,7 +191,18 @@
     });
     localState.roots = [];
     localState.selectedIds.clear();
+    localState.expanded.clear();
     recomputeBoards();
+  }
+
+  function expandAll() {
+    localState.boards.forEach(function (b) {
+      if (hasChildren(b.folderPath)) localState.expanded.add(b.folderPath);
+    });
+  }
+
+  function collapseAll() {
+    localState.expanded.clear();
   }
 
   function urlsInFolder(folderPath) {
@@ -203,10 +243,12 @@
       '<h3>Local Folders</h3>' +
       '<div style="display:flex; gap:.5rem; flex-wrap:wrap; align-items:center;">' +
         '<button class="btn" id="localAddFolderBtn" type="button">+ Add folder</button>' +
+        '<button class="btn" id="localExpandAllBtn" type="button" style="display:none;">Expand all</button>' +
+        '<button class="btn" id="localCollapseAllBtn" type="button" style="display:none;">Collapse all</button>' +
         '<button class="btn" id="localClearBtn" type="button" style="display:none;">Clear all</button>' +
       '</div>' +
       '<div id="localStatus" class="hint" style="margin-top:.35rem;">No folders added yet</div>' +
-      '<div id="localBoardList" style="max-height:240px; overflow:auto; border:1px solid #222430; border-radius:10px; padding:.35rem; background:#101217; margin-top:.35rem; display:none;"></div>' +
+      '<div id="localBoardList" style="max-height:280px; overflow:auto; border:1px solid #222430; border-radius:10px; padding:.35rem; background:#101217; margin-top:.35rem; display:none;"></div>' +
       '<div class="hint" style="margin-top:.35rem;">Pick a folder. Subfolders become selectable boards — you can pick a parent (gets every image inside it and its subfolders) or specific children. Files stay on your computer; nothing is uploaded.</div>';
 
     const pinterestSource = document.getElementById('pinterestSource');
@@ -223,10 +265,18 @@
     folderInput.style.display = 'none';
     section.appendChild(folderInput);
 
-    const addBtn   = section.querySelector('#localAddFolderBtn');
-    const clearBtn = section.querySelector('#localClearBtn');
-    const status   = section.querySelector('#localStatus');
-    const list     = section.querySelector('#localBoardList');
+    const addBtn         = section.querySelector('#localAddFolderBtn');
+    const expandAllBtn   = section.querySelector('#localExpandAllBtn');
+    const collapseAllBtn = section.querySelector('#localCollapseAllBtn');
+    const clearBtn       = section.querySelector('#localClearBtn');
+    const status         = section.querySelector('#localStatus');
+    const list           = section.querySelector('#localBoardList');
+
+    function notifySequenceChanged() {
+      if (typeof handleSequenceVisibility === 'function') {
+        handleSequenceVisibility();
+      }
+    }
 
     function renderList() {
       list.innerHTML = '';
@@ -234,12 +284,22 @@
       if (!localState.boards.length) {
         list.style.display = 'none';
         clearBtn.style.display = 'none';
+        expandAllBtn.style.display = 'none';
+        collapseAllBtn.style.display = 'none';
         status.textContent = 'No folders added yet';
         return;
       }
 
       list.style.display = 'block';
       clearBtn.style.display = 'inline-block';
+
+      // Show expand/collapse buttons only when there are folders
+      // with children (otherwise they have nothing to do).
+      const anyParents = localState.boards.some(function (b) {
+        return hasChildren(b.folderPath);
+      });
+      expandAllBtn.style.display   = anyParents ? 'inline-block' : 'none';
+      collapseAllBtn.style.display = anyParents ? 'inline-block' : 'none';
 
       const totalFiles = localState.roots.reduce(function (sum, r) {
         return sum + r.entries.length;
@@ -257,11 +317,48 @@
         selectedCount + ' board' + (selectedCount === 1 ? '' : 's') + ' selected (' +
         selectedFiles + ' image' + (selectedFiles === 1 ? '' : 's') + ' will play)';
 
-      localState.boards.forEach(function (board) {
-        const row = document.createElement('label');
+      // Render only rows whose every ancestor is expanded.
+      const visible = localState.boards.filter(isVisible);
+
+      visible.forEach(function (board) {
+        const row = document.createElement('div');
         row.style.cssText =
-          'display:flex; gap:.5rem; align-items:center; padding:.18rem .25rem;' +
-          ' padding-left:' + (0.25 + board.depth * 1.25) + 'rem; cursor:pointer;';
+          'display:flex; gap:.4rem; align-items:center; padding:.18rem .25rem;' +
+          ' padding-left:' + (0.25 + board.depth * 1.25) + 'rem;';
+
+        // Chevron (or invisible spacer for leaf folders) — keeps the
+        // checkboxes vertically aligned across rows.
+        const chevron = document.createElement('button');
+        chevron.type = 'button';
+        chevron.style.cssText =
+          'width:1.2rem; height:1.2rem; padding:0; border:0; background:transparent;' +
+          ' color:var(--muted); cursor:pointer; line-height:1; font-size:.9rem;';
+        if (hasChildren(board.folderPath)) {
+          const isOpen = localState.expanded.has(board.folderPath);
+          chevron.textContent = isOpen ? '▼' : '▶';
+          chevron.setAttribute('aria-label', isOpen ? 'Collapse' : 'Expand');
+          chevron.addEventListener('click', function () {
+            if (localState.expanded.has(board.folderPath)) {
+              localState.expanded.delete(board.folderPath);
+            } else {
+              localState.expanded.add(board.folderPath);
+            }
+            renderList();
+          });
+        } else {
+          chevron.textContent = '';
+          chevron.disabled = true;
+          chevron.style.cursor = 'default';
+          chevron.setAttribute('aria-hidden', 'true');
+        }
+        row.appendChild(chevron);
+
+        // The checkbox + name share a label so clicking the name toggles
+        // the checkbox (standard browser behaviour).
+        const lbl = document.createElement('label');
+        lbl.style.cssText =
+          'display:flex; gap:.5rem; align-items:center; cursor:pointer; flex:1; min-width:0;';
+
         const cb = document.createElement('input');
         cb.type = 'checkbox';
         cb.value = board.id;
@@ -270,17 +367,18 @@
           if (cb.checked) localState.selectedIds.add(board.id);
           else localState.selectedIds.delete(board.id);
           renderList();
-          if (typeof handleSequenceVisibility === 'function') {
-            handleSequenceVisibility();
-          }
+          notifySequenceChanged();
         });
-        row.appendChild(cb);
+        lbl.appendChild(cb);
 
         const text = document.createElement('span');
-        const indent = board.depth > 0 ? '↳ ' : '';
-        text.textContent = indent + board.displayName + '  (' + board.fileCount + ')';
+        text.textContent = board.displayName + '  (' + board.fileCount + ')';
+        text.style.cssText =
+          'overflow:hidden; text-overflow:ellipsis; white-space:nowrap;';
         if (board.depth === 0) text.style.fontWeight = '600';
-        row.appendChild(text);
+        lbl.appendChild(text);
+
+        row.appendChild(lbl);
         list.appendChild(row);
       });
     }
@@ -292,18 +390,24 @@
         addRoot(folderInput.files);
         folderInput.value = '';
         renderList();
-        if (typeof handleSequenceVisibility === 'function') {
-          handleSequenceVisibility();
-        }
+        notifySequenceChanged();
       }
+    });
+
+    expandAllBtn.addEventListener('click', function () {
+      expandAll();
+      renderList();
+    });
+
+    collapseAllBtn.addEventListener('click', function () {
+      collapseAll();
+      renderList();
     });
 
     clearBtn.addEventListener('click', function () {
       clearAllRoots();
       renderList();
-      if (typeof handleSequenceVisibility === 'function') {
-        handleSequenceVisibility();
-      }
+      notifySequenceChanged();
     });
 
     // The original index.html attached change listeners to all radios
