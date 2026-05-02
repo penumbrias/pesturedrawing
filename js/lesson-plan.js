@@ -115,25 +115,6 @@
   }
 
   // ---- Source picker vs lesson-plan view of "active boards" ----
-  //
-  // When the plan is OFF, the engine reads getActiveBoards() to decide
-  // the pool of boards for the session — that's whatever the user has
-  // checked in the Image Source picker (Pinterest / Sample / Local).
-  //
-  // When the plan is ON, the *plan* dictates which boards the session
-  // actually uses. The source picker still defines the available pool
-  // (so Mix steps can expand to it), but only the boards referenced by
-  // the plan should be considered "active for this session" — that's
-  // what we feed the engine, which lets its
-  //     sequenceEnabled = checked && selectedBoards.length > 1
-  // gate engage whenever the plan touches ≥2 distinct boards, even if
-  // the user only checked a single board in the picker.
-  //
-  // We split the responsibilities:
-  //   - sourcePickerBoards()   — the universe (used by editor + Mix).
-  //   - window.getActiveBoards — what the engine sees at start time
-  //                              (plan-derived when beta is on).
-
   const _origGetActiveBoards = window.getActiveBoards;
 
   function sourcePickerBoards() {
@@ -151,7 +132,6 @@
       if (step.type !== 'images') return;
       const boards = step.boards || [];
       if (boards.length === 0) {
-        // Mix: every picker board contributes to this step.
         pool.forEach(function (b) { used.add(b.name); });
       } else {
         boards.forEach(function (n) { used.add(n); });
@@ -175,7 +155,7 @@
     return sourcePickerBoards().map(function (b) { return b.name; });
   }
 
-  // ---- UI injection (unchanged from previous version) ----
+  // ---- UI injection ----
   let editorContainer = null;
   let editorContent   = null;
   let toggleCheckbox  = null;
@@ -730,8 +710,6 @@
       return false;
     }
 
-    // Validate against the source picker (the universe of available
-    // boards), not getActiveBoards (which is plan-derived now).
     const pickerBoards = sourcePickerBoards();
     if (!pickerBoards.length) {
       setValidation('Select at least one board in the Image Source section above.');
@@ -749,14 +727,12 @@
       return false;
     }
 
-    // 1) Class mode
     const classRadio = document.querySelector('input[name="mode"][value="class"]');
     if (classRadio) {
       classRadio.checked = true;
       classRadio.dispatchEvent(new Event('change', { bubbles: true }));
     }
 
-    // 2) Rebuild #classPhases to match the plan
     const phasesEl = document.getElementById('classPhases');
     if (!phasesEl) {
       setValidation('Internal error: class phases container missing.');
@@ -780,11 +756,6 @@
       window.recalcClassTotal();
     }
 
-    // 3) Sequence: enable + build slots from images-steps only.
-    //    Mix steps expand to the source picker pool. Single board
-    //    steps map to a single-name slot. Multi-board steps map to a
-    //    group slot (matches the engine's existing { names: [...] }
-    //    shape for linked rows).
     const seqToggle = document.getElementById('sequenceToggle');
     if (seqToggle) {
       seqToggle.checked = true;
@@ -801,10 +772,6 @@
       return { names: stepBoards, count: step.count || 1 };
     });
 
-    // sequenceSlots / sequenceEnabled are top-level let bindings in
-    // the index.html script scope; this assignment reaches them by
-    // name from this script. They're re-read by the engine's
-    // startSession after this hook returns.
     try {
       // eslint-disable-next-line no-undef
       sequenceSlots = slots;
@@ -823,17 +790,24 @@
     return true;
   }
 
+  // Wrap window.startSession so applyToForm always runs immediately
+  // before the engine starts. Click-listener interception is unreliable
+  // because index.html's startBtn capture-phase rebind calls
+  // stopImmediatePropagation() and runs first, cancelling our listener.
+  // Wrapping the function the rebind eventually calls is the only
+  // reliable interception point.
   function setupStartHijack() {
-    const startBtn = document.getElementById('startBtn');
-    if (!startBtn) return;
-    startBtn.addEventListener('click', function (e) {
-      if (!planState.enabled) return;
-      const ok = applyToForm();
-      if (!ok) {
-        e.preventDefault();
-        e.stopImmediatePropagation();
+    if (typeof window.startSession !== 'function') return;
+    if (window.__lessonPlanWrappedStartSession) return;
+    const orig = window.startSession;
+    window.startSession = async function () {
+      if (planState.enabled) {
+        const ok = applyToForm();
+        if (!ok) return;
       }
-    }, true);
+      return orig.apply(this, arguments);
+    };
+    window.__lessonPlanWrappedStartSession = true;
   }
 
   function watchBoardChanges() {
