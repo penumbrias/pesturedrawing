@@ -301,6 +301,100 @@
     renderSteps();
   }
 
+  function duplicateStep(id) {
+    const i = planState.steps.findIndex(function (s) { return s.id === id; });
+    if (i < 0) return;
+    const src = planState.steps[i];
+    const clone = Object.assign({}, src, { id: makeStepId() });
+    if (Array.isArray(src.boards)) clone.boards = src.boards.slice();
+    planState.steps.splice(i + 1, 0, clone);
+    persistCurrentSteps();
+    renderSteps();
+    updateTotal();
+  }
+
+  // Rebuild planState.steps to match the current DOM order of step rows.
+  // Used after a pointer drag reorders rows in place.
+  function commitDomOrder() {
+    if (!stepsList) return;
+    const ids = Array.from(stepsList.children)
+      .filter(function (el) { return el.classList && el.classList.contains('lesson-step'); })
+      .map(function (el) { return el.dataset.id; });
+    const byId = {};
+    planState.steps.forEach(function (s) { byId[s.id] = s; });
+    const reordered = ids.map(function (id) { return byId[id]; })
+      .filter(function (s) { return !!s; });
+    if (reordered.length === planState.steps.length) {
+      planState.steps = reordered;
+      persistCurrentSteps();
+    }
+    renderSteps();
+    updateTotal();
+  }
+
+  // Pointer-based drag-to-reorder. Uses Pointer Events (with capture and
+  // touch-action:none on the handle) so a single code path works for mouse,
+  // touch, and pen — unlike the HTML5 drag-and-drop API, which is unreliable
+  // on mobile browsers. While dragging, the row is moved among its siblings
+  // in the DOM; the data model is rebuilt from that order on release.
+  function setupRowDrag(handle, row) {
+    let dragging = false;
+    let pointerId = null;
+
+    handle.addEventListener('pointerdown', function (e) {
+      if (e.button != null && e.button > 0) return; // primary button / touch only
+      e.preventDefault();
+      pointerId = e.pointerId;
+      try { handle.setPointerCapture(pointerId); } catch (_) {}
+      dragging = true;
+      row.classList.add('lesson-step-dragging');
+      row.style.opacity = '0.85';
+      row.style.boxShadow = '0 6px 18px rgba(0,0,0,.5)';
+      handle.style.cursor = 'grabbing';
+      document.body.style.userSelect = 'none';
+    });
+
+    handle.addEventListener('pointermove', function (e) {
+      if (!dragging) return;
+      e.preventDefault();
+      const y = e.clientY;
+      const rows = Array.from(stepsList.children).filter(function (el) {
+        return el.classList && el.classList.contains('lesson-step');
+      });
+      if (!rows.length) return;
+
+      const first = rows[0].getBoundingClientRect();
+      const last = rows[rows.length - 1].getBoundingClientRect();
+      if (y < first.top) { stepsList.insertBefore(row, rows[0]); return; }
+      if (y > last.bottom) { stepsList.appendChild(row); return; }
+
+      for (const sibling of rows) {
+        if (sibling === row) continue;
+        const rect = sibling.getBoundingClientRect();
+        if (y >= rect.top && y <= rect.bottom) {
+          const mid = rect.top + rect.height / 2;
+          if (y < mid) stepsList.insertBefore(row, sibling);
+          else stepsList.insertBefore(row, sibling.nextSibling);
+          break;
+        }
+      }
+    });
+
+    function endDrag() {
+      if (!dragging) return;
+      dragging = false;
+      try { handle.releasePointerCapture(pointerId); } catch (_) {}
+      row.classList.remove('lesson-step-dragging');
+      row.style.opacity = '';
+      row.style.boxShadow = '';
+      handle.style.cursor = 'grab';
+      document.body.style.userSelect = '';
+      commitDomOrder();
+    }
+    handle.addEventListener('pointerup', endDrag);
+    handle.addEventListener('pointercancel', endDrag);
+  }
+
   function updateStep(id, patch) {
     const step = planState.steps.find(function (s) { return s.id === id; });
     if (!step) return;
@@ -467,6 +561,29 @@
       'display:flex; gap:.4rem; align-items:center; padding:.4rem .5rem; margin-bottom:.35rem;' +
       ' background:#101217; border:1px solid #222430; border-radius:8px; flex-wrap:wrap;';
 
+    const dragHandle = document.createElement('span');
+    dragHandle.className = 'lesson-drag-handle';
+    dragHandle.textContent = '⠿'; // braille grip dots
+    dragHandle.title = 'Drag to reorder (or focus and use ↑/↓)';
+    dragHandle.setAttribute('aria-label', 'Drag to reorder');
+    dragHandle.setAttribute('role', 'button');
+    dragHandle.tabIndex = 0;
+    dragHandle.style.cssText =
+      'cursor:grab; color:var(--muted); font-size:1.2rem; line-height:1;' +
+      ' padding:.15rem .3rem; touch-action:none; user-select:none;' +
+      ' align-self:stretch; display:inline-flex; align-items:center;';
+    dragHandle.addEventListener('keydown', function (e) {
+      if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+        e.preventDefault();
+        moveStep(step.id, e.key === 'ArrowUp' ? -1 : 1);
+        const moved = stepsList.querySelector(
+          '.lesson-step[data-id="' + step.id + '"] .lesson-drag-handle');
+        if (moved) moved.focus();
+      }
+    });
+    setupRowDrag(dragHandle, row);
+    row.appendChild(dragHandle);
+
     const numBadge = document.createElement('span');
     numBadge.textContent = (idx + 1) + '.';
     numBadge.style.cssText = 'min-width:1.5rem; color:var(--muted);';
@@ -518,13 +635,9 @@
 
     const ctrls = document.createElement('div');
     ctrls.style.cssText = 'display:flex; gap:.25rem; margin-left:auto;';
-    const upBtn   = makeIconBtn('↑', 'Move up',   function () { moveStep(step.id, -1); });
-    const downBtn = makeIconBtn('↓', 'Move down', function () { moveStep(step.id,  1); });
-    const rmBtn   = makeIconBtn('✕', 'Remove',    function () { removeStep(step.id); });
-    if (idx === 0) upBtn.disabled = true;
-    if (idx === planState.steps.length - 1) downBtn.disabled = true;
-    ctrls.appendChild(upBtn);
-    ctrls.appendChild(downBtn);
+    const dupBtn = makeIconBtn('⧉', 'Duplicate', function () { duplicateStep(step.id); });
+    const rmBtn  = makeIconBtn('✕', 'Remove',    function () { removeStep(step.id); });
+    ctrls.appendChild(dupBtn);
     ctrls.appendChild(rmBtn);
     row.appendChild(ctrls);
 
