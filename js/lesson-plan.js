@@ -332,67 +332,77 @@
     updateTotal();
   }
 
-  // Pointer-based drag-to-reorder. Uses Pointer Events (with capture and
-  // touch-action:none on the handle) so a single code path works for mouse,
-  // touch, and pen — unlike the HTML5 drag-and-drop API, which is unreliable
-  // on mobile browsers. While dragging, the row is moved among its siblings
-  // in the DOM; the data model is rebuilt from that order on release.
-  function setupRowDrag(handle, row) {
-    let dragging = false;
-    let pointerId = null;
+  // Pointer-based drag-to-reorder. Uses Pointer Events so a single code path
+  // works for mouse, touch, and pen — unlike the HTML5 drag-and-drop API,
+  // which is unreliable on mobile browsers.
+  //
+  // The move/up listeners are bound to `document` for the duration of a drag
+  // (not to the handle, and we deliberately do NOT use setPointerCapture):
+  // while dragging we reparent the row via insertBefore, and moving a node
+  // that holds a captured pointer makes the browser fire lostpointercapture,
+  // which would silently kill the drag after the first move. Document-level
+  // listeners are immune to that. `touch-action:none` on the handle keeps the
+  // page from scrolling when a drag starts on touch.
+  function reorderRowToPointer(row, y) {
+    const rows = Array.from(stepsList.children).filter(function (el) {
+      return el.classList && el.classList.contains('lesson-step');
+    });
+    if (!rows.length) return;
 
+    const first = rows[0].getBoundingClientRect();
+    const last = rows[rows.length - 1].getBoundingClientRect();
+    if (y < first.top) { stepsList.insertBefore(row, rows[0]); return; }
+    if (y > last.bottom) { stepsList.appendChild(row); return; }
+
+    for (const sibling of rows) {
+      if (sibling === row) continue;
+      const rect = sibling.getBoundingClientRect();
+      if (y >= rect.top && y <= rect.bottom) {
+        const mid = rect.top + rect.height / 2;
+        if (y < mid) stepsList.insertBefore(row, sibling);
+        else stepsList.insertBefore(row, sibling.nextSibling);
+        break;
+      }
+    }
+  }
+
+  function setupRowDrag(handle, row) {
     handle.addEventListener('pointerdown', function (e) {
       if (e.button != null && e.button > 0) return; // primary button / touch only
       e.preventDefault();
-      pointerId = e.pointerId;
-      try { handle.setPointerCapture(pointerId); } catch (_) {}
-      dragging = true;
+      const pointerId = e.pointerId;
+      let moved = false;
+
       row.classList.add('lesson-step-dragging');
       row.style.opacity = '0.85';
       row.style.boxShadow = '0 6px 18px rgba(0,0,0,.5)';
       handle.style.cursor = 'grabbing';
       document.body.style.userSelect = 'none';
-    });
 
-    handle.addEventListener('pointermove', function (e) {
-      if (!dragging) return;
-      e.preventDefault();
-      const y = e.clientY;
-      const rows = Array.from(stepsList.children).filter(function (el) {
-        return el.classList && el.classList.contains('lesson-step');
-      });
-      if (!rows.length) return;
-
-      const first = rows[0].getBoundingClientRect();
-      const last = rows[rows.length - 1].getBoundingClientRect();
-      if (y < first.top) { stepsList.insertBefore(row, rows[0]); return; }
-      if (y > last.bottom) { stepsList.appendChild(row); return; }
-
-      for (const sibling of rows) {
-        if (sibling === row) continue;
-        const rect = sibling.getBoundingClientRect();
-        if (y >= rect.top && y <= rect.bottom) {
-          const mid = rect.top + rect.height / 2;
-          if (y < mid) stepsList.insertBefore(row, sibling);
-          else stepsList.insertBefore(row, sibling.nextSibling);
-          break;
-        }
+      function onMove(ev) {
+        if (ev.pointerId !== pointerId) return;
+        if (ev.cancelable) ev.preventDefault();
+        moved = true;
+        reorderRowToPointer(row, ev.clientY);
       }
-    });
 
-    function endDrag() {
-      if (!dragging) return;
-      dragging = false;
-      try { handle.releasePointerCapture(pointerId); } catch (_) {}
-      row.classList.remove('lesson-step-dragging');
-      row.style.opacity = '';
-      row.style.boxShadow = '';
-      handle.style.cursor = 'grab';
-      document.body.style.userSelect = '';
-      commitDomOrder();
-    }
-    handle.addEventListener('pointerup', endDrag);
-    handle.addEventListener('pointercancel', endDrag);
+      function onUp(ev) {
+        if (ev.pointerId !== pointerId) return;
+        document.removeEventListener('pointermove', onMove, true);
+        document.removeEventListener('pointerup', onUp, true);
+        document.removeEventListener('pointercancel', onUp, true);
+        row.classList.remove('lesson-step-dragging');
+        row.style.opacity = '';
+        row.style.boxShadow = '';
+        handle.style.cursor = 'grab';
+        document.body.style.userSelect = '';
+        if (moved) commitDomOrder();
+      }
+
+      document.addEventListener('pointermove', onMove, true);
+      document.addEventListener('pointerup', onUp, true);
+      document.addEventListener('pointercancel', onUp, true);
+    });
   }
 
   function updateStep(id, patch) {
